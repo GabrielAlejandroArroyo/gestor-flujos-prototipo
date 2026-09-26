@@ -7,13 +7,20 @@ El sitio se genera desde la carpeta `prototipo/` del repo (no hace falta build e
 1. Push a la rama `main`.
 2. GitHub → **Settings → Pages**.
 3. **Build and deployment → Source:** GitHub Actions.
+
+### Repo privado + plan Free
+
+GitHub puede responder *«Your current plan does not support GitHub Pages for this repository»* en repos **privados** sin GitHub Pro. Opciones:
+
+- **A)** Hacer el repo **público** (el código del mock es estático; sin secretos en el repo).
+- **B)** **GitHub Pro** para Pages en repo privado.
+- **C)** Servir localmente o con otro host estático (Netlify, Cloudflare Pages, etc.) apuntando a `prototipo/`.
+
 4. Abrí **Actions** y confirmá que **Deploy GitHub Pages** terminó OK.
 
 ## URL
 
-https://gabriel.github.io/gestor-flujos-prototipo/
-
-(Reemplazá `gabriel` si tu usuario de GitHub es otro.)
+https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/
 
 ## Smoke test
 

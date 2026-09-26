@@ -12,12 +12,14 @@ Repositorio **personal privado**. La app usable está en [`prototipo/`](prototip
 
 ## GitHub Pages
 
-Tras el primer push a `main`:
+Repo: **https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo** (privado).
 
-1. En GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. Esperá que el workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) termine en verde.
-3. URL del mock (sitio público, repo privado):  
-   **https://gabriel.github.io/gestor-flujos-prototipo/**
+### GitHub Pages
+
+1. **Settings → Pages → Source: GitHub Actions** (ver [prototipo/DEPLOY-PAGES.md](prototipo/DEPLOY-PAGES.md)).
+2. En plan **Free**, Pages en repo **privado** suele requerir **GitHub Pro** o hacer el repo **público**.
+3. URL cuando Pages esté activo:  
+   **https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/**
 
 Los datos viven en `localStorage` del navegador (no se sincronizan con Git).
 

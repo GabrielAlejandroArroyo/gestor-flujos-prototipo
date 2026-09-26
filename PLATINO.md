@@ -14,5 +14,5 @@ Solo si el titular del repo confirma **6 veces**, de forma explícita y separada
 
 ## Este repo
 
-- Remote esperado: `github.com/gabriel/gestor-flujos-prototipo` (privado).
+- Remote: `github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo` (privado).
 - `.cursor/` no se versiona (reglas locales opcionales en tu máquina).
