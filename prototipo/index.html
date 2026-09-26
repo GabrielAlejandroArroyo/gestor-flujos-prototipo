@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1a2332" />
   <title>Gestor de flujos de trabajo — Prototipo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
   <script src="js/theme-init.js"></script>
 </head>
@@ -18,7 +22,7 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <div>
             <h1>Gestor de flujos</h1>
-            <p class="subtitle">Prototipo HTML · mock local / Pages</p>
+            <p class="subtitle">Prototipo · diseño y ejecución de flujos</p>
           </div>
         </div>
       </div>
@@ -31,9 +35,18 @@
       <div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
       <aside class="nav-drawer is-open" id="nav-drawer" aria-label="Menú principal" aria-hidden="false">
         <p class="nav-drawer-title">Trabajo</p>
-        <button type="button" class="nav-btn is-active" data-view="designer">Diseñador de flujo</button>
-        <button type="button" class="nav-btn" data-view="gestion">Gestión de actividades</button>
-        <button type="button" class="nav-btn" data-view="reporte">Reporte</button>
+        <button type="button" class="nav-btn is-active" data-view="designer">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+          Diseñador de flujo
+        </button>
+        <button type="button" class="nav-btn" data-view="gestion">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l2 2 4-4M7 4h10a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+          Gestión de actividades
+        </button>
+        <button type="button" class="nav-btn" data-view="reporte">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15v-4M12 15V9M16 15v-2" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+          Reporte
+        </button>
         <div class="nav-drawer-footer">
           <a href="documentacion.html">Documentación</a>
           <a href="bitacora.html">Bitácora</a>

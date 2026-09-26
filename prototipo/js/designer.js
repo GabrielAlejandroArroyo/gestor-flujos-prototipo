@@ -22,7 +22,7 @@ import {
   designerCatalogCalloutHtml,
   renderDesignerViewportBannerHtml,
 } from "./designer-viewport.js";
-import { escapeHtml, openModal, toast } from "./ui.js";
+import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 import { normalizeFlowContracts } from "./contracts.js";
 import {
   renderStudioToolbar,
@@ -196,32 +196,46 @@ function renderCatalog(state) {
     )
     .join("");
 
+  const emptyBody =
+    rows === ""
+      ? `<div class="empty-state empty-state--rich">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <strong>Sin flujos todavía</strong>
+          <p>Creá tu primer flujo BPMN y marcálo como listo para instanciarlo en Gestión.</p>
+          <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${editorBlocked ? "disabled" : ""}>Nuevo flujo</button>
+        </div>`
+      : "";
+
   return `
-    <section class="panel">
-      <h2 class="panel-title">Diseñador de flujo — Catálogo</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-top:0">Cree y edite flujos. Marque como listo cuando pasen la validación para instanciarlos en Gestión de actividades.</p>
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+        "Catálogo de flujos",
+        "Creá y editá flujos. Cuando pasen la validación, marcalos como listos para Gestión de actividades.",
+        `<button type="button" class="btn btn-primary" id="btn-new-flow" ${editorBlocked ? "disabled aria-disabled=\"true\"" : ""}>Nuevo flujo</button>`,
+      )}
       ${catalogCallout}
-      <div class="toolbar">
-        <button type="button" class="btn btn-primary" id="btn-new-flow" ${editorBlocked ? "disabled aria-disabled=\"true\"" : ""}>Nuevo flujo</button>
-      </div>
-      <div class="table-wrap">
-        <table>
+      ${emptyBody}
+      ${
+        rows
+          ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
           <thead>
             <tr><th>Nombre</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
-          <tbody>${rows || `<tr><td colspan="5" class="empty-state">Sin flujos. Cree uno nuevo.</td></tr>`}</tbody>
+          <tbody>${rows}</tbody>
         </table>
-      </div>
+      </div>`
+          : ""
+      }
     </section>`;
 }
 
-function bindCatalog(mainEl, state, persist) {
-  mainEl.querySelector("#btn-new-flow")?.addEventListener("click", () => {
-    if (isDesignerEditorBlocked()) {
-      toast(designerBlockedMessage().body);
-      return;
-    }
-    const { close, root } = openModal(`
+function openNewFlowModal(mainEl, state, persist) {
+  if (isDesignerEditorBlocked()) {
+    toast(designerBlockedMessage().body);
+    return;
+  }
+  const { close, root } = openModal(`
       <div class="modal-header">
         <h2>Nuevo flujo</h2>
         <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
@@ -234,72 +248,77 @@ function bindCatalog(mainEl, state, persist) {
       </form>
     `);
 
-    root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (isDesignerEditorBlocked()) {
-        toast(designerBlockedMessage().body);
-        return;
-      }
-      const fd = new FormData(e.target);
-      const startId = createId("node");
-      const endId = createId("node");
-      const flow = {
-        id: createId("flow"),
-        type: String(fd.get("type")).trim(),
-        name: String(fd.get("name")).trim(),
-        description: String(fd.get("description")).trim(),
-        status: "borrador",
-        version: 1,
-        inputParams: [],
-        nodes: [
-          {
-            id: startId,
-            kind: NODE_KINDS.INICIO,
-            name: "Start",
-            description: "",
-            x: 80,
-            y: 220,
-            usedParamIds: [],
-          },
-          {
-            id: endId,
-            kind: NODE_KINDS.FIN,
-            name: "End",
-            description: "",
-            x: 520,
-            y: 220,
-            usedParamIds: [],
-          },
-        ],
-        transitions: [],
-        screens: {},
-        lanes: [{ id: createId("lane"), name: "General", height: 220 }],
-      };
-      ensureFlowDiagram(flow);
-      const laneId = flow.lanes[0].id;
-      const layout = getLaneLayout(flow);
-      const startNode = flow.nodes.find((n) => n.id === startId);
-      const endNode = flow.nodes.find((n) => n.id === endId);
-      if (startNode) {
-        startNode.laneId = laneId;
-        startNode.x = layout.lanes[0].left + 48;
-        startNode.y = centerYInLane(flow, laneId, startNode.kind);
-      }
-      if (endNode) {
-        endNode.laneId = laneId;
-        endNode.x = layout.lanes[0].left + 320;
-        endNode.y = centerYInLane(flow, laneId, endNode.kind);
-      }
-      state.flows.push(flow);
-      persist();
-      designerContext.selectedFlowId = flow.id;
-      designerContext.selectedNodeId = startId;
-      designerContext._viewFitForFlowId = null;
-      close();
-      renderDesigner(mainEl, state, persist);
-      toast("Flujo creado con Start y End. Elegí un tipo de línea y conectá desde el puerto del nodo.");
-    });
+  root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (isDesignerEditorBlocked()) {
+      toast(designerBlockedMessage().body);
+      return;
+    }
+    const fd = new FormData(e.target);
+    const startId = createId("node");
+    const endId = createId("node");
+    const flow = {
+      id: createId("flow"),
+      type: String(fd.get("type")).trim(),
+      name: String(fd.get("name")).trim(),
+      description: String(fd.get("description")).trim(),
+      status: "borrador",
+      version: 1,
+      inputParams: [],
+      nodes: [
+        {
+          id: startId,
+          kind: NODE_KINDS.INICIO,
+          name: "Start",
+          description: "",
+          x: 80,
+          y: 220,
+          usedParamIds: [],
+        },
+        {
+          id: endId,
+          kind: NODE_KINDS.FIN,
+          name: "End",
+          description: "",
+          x: 520,
+          y: 220,
+          usedParamIds: [],
+        },
+      ],
+      transitions: [],
+      screens: {},
+      lanes: [{ id: createId("lane"), name: "General", height: 220 }],
+    };
+    ensureFlowDiagram(flow);
+    const laneId = flow.lanes[0].id;
+    const layout = getLaneLayout(flow);
+    const startNode = flow.nodes.find((n) => n.id === startId);
+    const endNode = flow.nodes.find((n) => n.id === endId);
+    if (startNode) {
+      startNode.laneId = laneId;
+      startNode.x = layout.lanes[0].left + 48;
+      startNode.y = centerYInLane(flow, laneId, startNode.kind);
+    }
+    if (endNode) {
+      endNode.laneId = laneId;
+      endNode.x = layout.lanes[0].left + 320;
+      endNode.y = centerYInLane(flow, laneId, endNode.kind);
+    }
+    state.flows.push(flow);
+    persist();
+    designerContext.selectedFlowId = flow.id;
+    designerContext.selectedNodeId = startId;
+    designerContext._viewFitForFlowId = null;
+    close();
+    renderDesigner(mainEl, state, persist);
+    toast("Flujo creado con Start y End. Elegí un tipo de línea y conectá desde el puerto del nodo.", 3200, "success");
   });
+}
+
+function bindCatalog(mainEl, state, persist) {
+  const onNew = () => openNewFlowModal(mainEl, state, persist);
+  mainEl.querySelector("#btn-new-flow")?.addEventListener("click", onNew);
+  mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
 
   mainEl.querySelectorAll("[data-open-flow]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -459,13 +478,19 @@ function renderFlowEditor(flow) {
   return `
     ${renderDesignerViewportBannerHtml()}
     ${selected ? renderStudioToolbar(flow.name, selected, "path") : ""}
-    <div class="toolbar">
-      <button type="button" class="btn" id="btn-back-catalog">← Catálogo</button>
-      <span style="flex:1;font-weight:600">${escapeHtml(flow.name)} <span class="badge badge-${flow.status === "listo" ? "listo" : "borrador"}">${flow.status === "listo" ? "Listo" : "Borrador"}</span></span>
-      <button type="button" class="btn" id="btn-flow-meta">Metadatos</button>
-      <button type="button" class="btn btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
-      <button type="button" class="btn" id="btn-mark-draft">Volver a borrador</button>
-      ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-danger" id="btn-delete-flow">Eliminar flujo</button>`}
+    <div class="toolbar toolbar--designer">
+      <div class="toolbar-group">
+        <button type="button" class="btn btn-ghost" id="btn-back-catalog">← Catálogo</button>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <span class="toolbar-flow-title">${escapeHtml(flow.name)} <span class="badge badge-${flow.status === "listo" ? "listo" : "borrador"}">${flow.status === "listo" ? "Listo" : "Borrador"}</span></span>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="toolbar-group">
+        <button type="button" class="btn btn-sm" id="btn-flow-meta">Metadatos</button>
+        <button type="button" class="btn btn-sm btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
+        <button type="button" class="btn btn-sm" id="btn-mark-draft">Borrador</button>
+        ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`}
+      </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
     <div class="${designerSplitClassNames()}" id="designer-split">

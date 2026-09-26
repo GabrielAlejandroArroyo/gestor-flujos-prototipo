@@ -1,5 +1,5 @@
 import { getCurrentNode, countProgress, statusLabel } from "./motor.js";
-import { escapeHtml, formatDateTime } from "./ui.js";
+import { escapeHtml, formatDateTime, renderPageHeader } from "./ui.js";
 
 let selectedReportInstanceId = null;
 
@@ -16,7 +16,10 @@ export function renderReporte(mainEl, state) {
 
   mainEl.innerHTML = `
     <section class="panel">
-      <h2 class="panel-title">Reporte de avance</h2>
+      ${renderPageHeader(
+        "Reporte de avance",
+        "Filtrá instancias y revisá contexto, entradas y traza de ejecución.",
+      )}
       <div class="filters">
         <div class="form-row">
           <label>Flujo</label>
@@ -35,26 +38,28 @@ export function renderReporte(mainEl, state) {
           </select>
         </div>
       </div>
-      <div class="split" style="grid-template-columns:1fr 1fr">
-        <div class="table-wrap">
-          <table>
+      <div class="report-split">
+        <div class="table-wrap table-wrap--modern">
+          <table class="table-modern">
             <thead><tr><th>Flujo</th><th>Estado</th><th>Avance</th><th>Inicio</th></tr></thead>
             <tbody>
-              ${instances.map((i) => {
-                const prog = countProgress(i);
-                const node = getCurrentNode(i);
-                return `<tr data-report-inst="${i.id}" style="cursor:pointer" class="${i.id === selectedReportInstanceId ? "is-selected" : ""}">
+              ${instances
+                .map((i) => {
+                  const prog = countProgress(i);
+                  const node = getCurrentNode(i);
+                  return `<tr data-report-inst="${i.id}" class="table-row-selectable ${i.id === selectedReportInstanceId ? "is-selected" : ""}">
                   <td>${escapeHtml(i.flowName)}</td>
                   <td><span class="badge badge-${badgeForStatus(i.status)}">${statusLabel(i.status)}</span></td>
                   <td>${prog.pct}% · ${escapeHtml(node?.name ?? "Finalizado")}</td>
                   <td>${formatDateTime(i.startedAt)}</td>
                 </tr>`;
-              }).join("") || `<tr><td colspan="4" class="empty-state">Sin instancias.</td></tr>`}
+                })
+                .join("") || `<tr><td colspan="4"><div class="empty-state empty-state--rich"><strong>Sin instancias</strong><p>Iniciá un flujo en Gestión para ver reportes aquí.</p></div></td></tr>`}
             </tbody>
           </table>
         </div>
         <div class="panel">
-          ${selected ? renderDetail(selected) : `<p class="empty-state">Seleccione una instancia.</p>`}
+          ${selected ? renderDetail(selected) : `<p class="gestion-empty">Seleccioná una instancia.</p>`}
         </div>
       </div>
     </section>`;
@@ -88,30 +93,32 @@ function renderDetail(instance) {
   const inputs = Object.entries(instance.inputValues)
     .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`)
     .join("");
-  const context = Object.entries(instance.context ?? {})
-    .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`)
-    .join("");
+  const ctxEntries = Object.entries(instance.context ?? {});
+  const context =
+    ctxEntries.length === 0
+      ? "<li>—</li>"
+      : `<pre class="report-context-json">${escapeHtml(JSON.stringify(Object.fromEntries(ctxEntries), null, 2))}</pre>`;
 
   const trace = instance.trace
     .map(
       (t) => `
     <li class="trace-item">
       <time>${formatDateTime(t.at)}</time> — ${escapeHtml(t.message)}
-      ${t.comment ? `<div style="color:var(--muted)">Comentario: ${escapeHtml(t.comment)}</div>` : ""}
-      ${t.decision ? `<div>Decisión: ${escapeHtml(t.decision)}</div>` : ""}
+      ${t.comment ? `<div class="form-hint">Comentario: ${escapeHtml(t.comment)}</div>` : ""}
+      ${t.decision ? `<div class="form-hint">Decisión: ${escapeHtml(t.decision)}</div>` : ""}
     </li>`,
     )
     .join("");
 
   return `
-    <h3 style="margin-top:0">${escapeHtml(instance.flowName)}</h3>
+    <h3 class="report-detail-title">${escapeHtml(instance.flowName)}</h3>
     <p><span class="badge badge-${badgeForStatus(instance.status)}">${statusLabel(instance.status)}</span></p>
     <div class="progress-bar"><span style="width:${prog.pct}%"></span></div>
-    <p style="font-size:0.8rem;color:var(--muted)">${prog.done} actividades registradas · Paso actual: ${escapeHtml(node?.name ?? "—")}</p>
+    <p class="form-hint">${prog.done} actividades registradas · Paso actual: ${escapeHtml(node?.name ?? "—")}</p>
     <h4>Datos de entrada</h4>
-    <ul style="font-size:0.85rem">${inputs || "<li>—</li>"}</ul>
+    <ul class="trace-list">${inputs || "<li>—</li>"}</ul>
     <h4>Contexto de instancia</h4>
-    <ul style="font-size:0.85rem">${context || "<li>—</li>"}</ul>
+    ${context.startsWith("<pre") ? context : `<ul class="trace-list">${context}</ul>`}
     <h4>Traza</h4>
-    <ul class="trace-list">${trace}</ul>`;
+    <ul class="trace-list">${trace || "<li>—</li>"}</ul>`;
 }

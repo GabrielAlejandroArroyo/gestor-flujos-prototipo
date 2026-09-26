@@ -7,7 +7,7 @@ import {
   statusLabel,
 } from "./motor.js";
 import { validateScreenSubmission } from "./contracts.js";
-import { escapeHtml, formatDateTime, toast } from "./ui.js";
+import { escapeHtml, formatDateTime, renderPageHeader, toast } from "./ui.js";
 
 let selectedInstanceId = null;
 
@@ -17,10 +17,18 @@ export function renderGestion(mainEl, state, persist) {
   const selected = state.instances.find((i) => i.id === selectedInstanceId);
 
   mainEl.innerHTML = `
+    ${renderPageHeader(
+      "Gestión de actividades",
+      "Instanciá flujos listos y completá User Tasks. Los datos quedan en el contexto de cada instancia.",
+    )}
+    <div class="kpi-row">
+      <span class="stat-chip">Flujos listos <strong>${readyFlows.length}</strong></span>
+      <span class="stat-chip">En curso <strong>${activeInstances.length}</strong></span>
+    </div>
     <div class="gestion-layout">
       <section class="panel">
         <h2 class="panel-title">Instanciar flujo</h2>
-        ${readyFlows.length === 0 ? `<p style="color:var(--muted);font-size:0.85rem">No hay flujos listos. Márquelos en el diseñador.</p>` : `
+        ${readyFlows.length === 0 ? `<p class="gestion-empty">No hay flujos listos. Marcá uno en el diseñador.</p>` : `
         <form id="form-new-instance" class="form-grid">
           <div class="form-row">
             <label>Flujo</label>
@@ -33,12 +41,12 @@ export function renderGestion(mainEl, state, persist) {
         </form>`}
         <h3 class="panel-title" style="margin-top:1.25rem">En curso (${activeInstances.length})</h3>
         <div class="card-grid">
-          ${activeInstances.map((i) => renderInstanceCard(i, i.id === selectedInstanceId)).join("") || `<p class="empty-state" style="padding:1rem">Sin instancias activas.</p>`}
+          ${activeInstances.map((i) => renderInstanceCard(i, i.id === selectedInstanceId)).join("") || `<p class="gestion-empty">Sin instancias activas.</p>`}
         </div>
       </section>
-      <section class="panel">
+      <section class="panel resolver-panel">
         <h2 class="panel-title">Resolver actividad</h2>
-        ${selected ? renderResolver(selected, state) : `<p style="color:var(--muted)">Seleccione una instancia en curso.</p>`}
+        ${selected ? renderResolver(selected, state) : `<p class="gestion-empty">Seleccioná una instancia en curso.</p>`}
       </section>
     </div>`;
 
@@ -47,11 +55,17 @@ export function renderGestion(mainEl, state, persist) {
 
 function renderInstanceCard(instance, isSelected) {
   const node = getCurrentNode(instance);
+  const kindBadge =
+    node?.kind === NODE_KINDS.AUTOMATICA
+      ? `<span class="badge badge-listo">Auto</span>`
+      : node?.kind === NODE_KINDS.MANUAL
+        ? `<span class="badge badge-curso">Manual</span>`
+        : "";
   return `
     <article class="panel instance-card ${isSelected ? "is-selected" : ""}" data-inst="${instance.id}">
       <strong>${escapeHtml(instance.flowName)}</strong>
-      <div style="font-size:0.8rem;color:var(--muted);margin-top:0.35rem">${formatDateTime(instance.startedAt)}</div>
-      <div style="font-size:0.85rem;margin-top:0.5rem">Pendiente: ${escapeHtml(node?.name ?? "—")}</div>
+      <div class="instance-card__meta">${formatDateTime(instance.startedAt)}</div>
+      <div class="instance-card__step">Pendiente: ${escapeHtml(node?.name ?? "—")} ${kindBadge}</div>
     </article>`;
 }
 
@@ -184,7 +198,7 @@ function renderScreenForInstance(instance, screen) {
       html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}" ${b.required ? "required" : ""}><option value="">—</option><option value="si">Sí</option><option value="no">No</option></select></div>`;
     }
   }
-  html += `<div class="preview-actions"><button type="button" class="btn btn-success" data-decision="aceptar">Aceptar</button><button type="button" class="btn btn-danger" data-decision="rechazar">Rechazar</button></div>`;
+  html += `<div class="preview-actions preview-actions--sticky"><button type="button" class="btn btn-success" data-decision="aceptar">Aceptar</button><button type="button" class="btn btn-danger" data-decision="rechazar">Rechazar</button></div>`;
   return html;
 }
 

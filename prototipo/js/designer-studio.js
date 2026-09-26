@@ -36,13 +36,29 @@ export function renderStudioToolbar(flowName, node, studioMode) {
   const isManual = node?.kind === NODE_KINDS.MANUAL;
   const isAuto = node?.kind === NODE_KINDS.AUTOMATICA;
   const tab = (mode, label, enabled) =>
-    `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" ${enabled ? "" : "disabled"}>${label}</button>`;
-  return `<div class="designer-studio-bar" role="tablist">
+    `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" role="tab" ${enabled ? "" : "disabled"}>${label}</button>`;
+  const kindBadge = isManual
+    ? `<span class="node-kind-badge">User Task</span>`
+    : isAuto
+      ? `<span class="node-kind-badge node-kind-badge--auto">Service Task</span>`
+      : "";
+  return `<div class="designer-studio-bar" role="tablist" aria-label="Modo de diseño">
+    <div class="segmented-control">
     ${tab("path", "Camino", true)}
     ${tab("screen", "Pantalla", isManual)}
     ${tab("automation", "Automatización", isAuto)}
-    <span class="designer-studio-meta">${escapeHtml(flowName)} · ${escapeHtml(node?.name ?? "—")}</span>
+    </div>
+    <span class="designer-studio-meta">${escapeHtml(flowName)} · ${escapeHtml(node?.name ?? "—")}${kindBadge}</span>
   </div>`;
+}
+
+function collectScreenOutputKeys(screen) {
+  const keys = [];
+  for (const b of screen?.blocks ?? []) {
+    const k = b.outputKey ?? b.fieldKey ?? (b.type === "comentario" ? "comment" : null);
+    if (k && !keys.includes(k)) keys.push(k);
+  }
+  return keys;
 }
 
 function blockLabel(flow, b) {
@@ -108,20 +124,26 @@ export function renderScreenStudio(flow, node) {
   const blocksHtml =
     screen.blocks
       .map(
-        (b, i) => `<div class="studio-block-row"><span>${escapeHtml(blockLabel(flow, b))}</span>
-    <button type="button" class="btn btn-sm" data-block-up="${i}">↑</button>
-    <button type="button" class="btn btn-sm" data-block-down="${i}">↓</button>
-    <button type="button" class="btn btn-sm btn-danger" data-block-rm="${i}">×</button></div>`,
+        (b, i) => `<div class="studio-block-row"><span class="studio-block-handle" aria-hidden="true"></span><span>${escapeHtml(blockLabel(flow, b))}</span>
+    <span class="studio-block-actions"><button type="button" class="btn btn-sm" data-block-up="${i}" aria-label="Subir">↑</button>
+    <button type="button" class="btn btn-sm" data-block-down="${i}" aria-label="Bajar">↓</button>
+    <button type="button" class="btn btn-sm btn-danger" data-block-rm="${i}" aria-label="Eliminar">×</button></span></div>`,
       )
-      .join("") || "<p class='empty-state'>Agregá componentes.</p>";
+      .join("") || "<p class='empty-state gestion-empty'>Agregá componentes desde la izquierda.</p>";
   const components = SCREEN_COMPONENTS.map(
-    (c) => `<button type="button" class="btn btn-sm" data-add-block="${c.type}">+ ${escapeHtml(c.label)}</button>`,
+    (c) =>
+      `<button type="button" class="studio-component-tile" data-add-block="${c.type}">${escapeHtml(c.label)}</button>`,
   ).join("");
+  const outKeys = collectScreenOutputKeys(screen);
+  const outTable =
+    outKeys.length === 0
+      ? `<p class="form-hint">Sin claves de salida aún.</p>`
+      : `<table class="studio-map-table"><thead><tr><th>context</th></tr></thead><tbody>${outKeys.map((k) => `<tr><td><code>${escapeHtml(k)}</code></td></tr>`).join("")}</tbody></table>`;
   return `<div class="designer-studio workspace-screen">
-    <aside class="studio-panel"><h3 class="panel-title">Componentes</h3><div class="studio-component-list">${components}</div></aside>
-    <main class="studio-panel"><h3 class="panel-title">Canvas</h3><div id="studio-blocks-list">${blocksHtml}</div>
-    <h4>Vista previa</h4><div class="screen-preview" id="studio-screen-preview">${renderScreenPreviewHtml(flow, screen)}</div></main>
-    <aside class="studio-panel"><h3 class="panel-title">Salidas</h3><p class="props-intro">Los campos guardan en <code>context</code> de la instancia.</p></aside>
+    <aside class="studio-panel"><h3 class="panel-title">Componentes</h3><div class="studio-component-grid">${components}</div></aside>
+    <main class="studio-panel"><h3 class="panel-title">Estructura</h3><div id="studio-blocks-list">${blocksHtml}</div>
+    <div class="screen-preview-frame"><p class="preview-caption">Como en Gestión</p><div class="screen-preview" id="studio-screen-preview">${renderScreenPreviewHtml(flow, screen)}</div></div></main>
+    <aside class="studio-panel"><h3 class="panel-title">Salidas</h3><p class="form-hint">Valores en <code>context</code> de la instancia.</p>${outTable}</aside>
   </div>`;
 }
 
@@ -155,16 +177,25 @@ export function renderAutomationStudio(flow, node) {
         `<div class="form-row"><input data-resp-ctx="${idx}" value="${escapeHtml(m.contextKey ?? "")}" placeholder="context key" /><input data-resp-path="${idx}" value="${escapeHtml(m.jsonPath ?? "")}" placeholder="json path" /></div>`,
     )
     .join("");
+  const modeBadge =
+    i.executionMode === "live"
+      ? `<span class="badge-mock">LIVE</span>`
+      : `<span class="badge-mock">MOCK</span>`;
+  const simNote =
+    i.adapter !== ADAPTER_KINDS.REST_JSON || i.executionMode !== "live"
+      ? `<span class="badge-mock">SIM</span>`
+      : "";
   return `<div class="designer-studio workspace-automation">
     <aside class="studio-panel"><h3 class="panel-title">Adaptador</h3>
     <div class="form-row"><label>Tipo</label><select id="integration-adapter">${adapterOptions}</select></div>
     <div class="form-row"><label>Modo</label><select id="integration-exec-mode"><option value="mock">Mock</option><option value="live" ${i.executionMode === "live" ? "selected" : ""}>Live REST</option></select></div>
-    <div class="form-row"><label>credentialRef</label><input id="integration-cred-ref" value="${escapeHtml(i.credentialRef ?? "")}" /></div></aside>
-    <main class="studio-panel"><h3 class="panel-title">Request</h3><form id="form-integration" class="form-grid">${adapterFields}</form>
-    <h4>Respuesta → contexto</h4><div id="response-mappings">${resp}</div>
-    <button type="button" class="btn btn-sm" id="btn-add-resp-map">+ mapping</button>
-    <button type="button" class="btn btn-primary" id="btn-test-integration" style="margin-top:0.75rem">Probar contrato</button>
-    <pre class="integration-test-output" id="integration-test-output"></pre></main></div>`;
+    <div class="form-row"><label>credentialRef</label><input id="integration-cred-ref" value="${escapeHtml(i.credentialRef ?? "")}" placeholder="vault://…" /><p class="form-hint">Referencia only; sin secretos en el navegador.</p></div></aside>
+    <main class="studio-panel"><div class="studio-section" style="margin-top:0;padding-top:0;border-top:none"><h3 class="studio-section-title">Request</h3><form id="form-integration" class="form-grid">${adapterFields}</form></div>
+    <div class="studio-section"><h3 class="studio-section-title">Respuesta → contexto</h3><div id="response-mappings">${resp}</div>
+    <button type="button" class="btn btn-sm" id="btn-add-resp-map">+ mapping</button></div>
+    <div class="studio-section">
+    <button type="button" class="btn btn-primary" id="btn-test-integration">Probar contrato</button>${modeBadge}${simNote}
+    <pre class="integration-test-output" id="integration-test-output"></pre></div></main></div>`;
 }
 
 /**

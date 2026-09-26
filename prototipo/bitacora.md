@@ -114,6 +114,10 @@ Documentación (`documentacion.md` / `documentacion.html`) y bitácora (`bitacor
 - Paleta con iconos, Task (User/Service), herramientas Sequence / Message / Association.
 - Puertos de conexión en el nodo seleccionado; `lineType` en transiciones; motor y validación solo Sequence Flow.
 
+## 2026-09-26 — Pulido UX/UI (Pages)
+
+- Inter, tokens, navegación con iconos, page headers, catálogo/tabla moderna, estudio con tiles y preview enmarcado, gestión/reporte con KPIs.
+
 ## 2026-09-26 — Repo personal + GitHub Pages
 
 - Cuenta **GabrielAlejandroArroyo**; deploy Actions desde `prototipo/` (sin Accusys/Supabase org).

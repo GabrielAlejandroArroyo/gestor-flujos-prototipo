@@ -960,13 +960,22 @@
   }
 
   // js/ui.js
-  function toast(message, durationMs = 3200) {
+  function toast(message, durationMs = 3200, variant = "default") {
     const root = document.getElementById("toast-root");
     const el = document.createElement("div");
-    el.className = "toast";
+    el.className = `toast${variant === "success" ? " toast--success" : ""}${variant === "error" ? " toast--error" : ""}`;
     el.textContent = message;
     root.appendChild(el);
     setTimeout(() => el.remove(), durationMs);
+  }
+  function renderPageHeader(title, description = "", actionsHtml = "") {
+    return `<header class="page-header">
+    <div class="page-header__text">
+      <h2>${title}</h2>
+      ${description ? `<p>${description}</p>` : ""}
+    </div>
+    ${actionsHtml ? `<div class="page-header__actions">${actionsHtml}</div>` : ""}
+  </header>`;
   }
   function openModal(html, onClose) {
     const root = document.getElementById("modal-root");
@@ -1011,13 +1020,24 @@
   function renderStudioToolbar(flowName, node, studioMode) {
     const isManual = node?.kind === NODE_KINDS.MANUAL;
     const isAuto = node?.kind === NODE_KINDS.AUTOMATICA;
-    const tab = (mode, label, enabled) => `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" ${enabled ? "" : "disabled"}>${label}</button>`;
-    return `<div class="designer-studio-bar" role="tablist">
+    const tab = (mode, label, enabled) => `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" role="tab" ${enabled ? "" : "disabled"}>${label}</button>`;
+    const kindBadge = isManual ? `<span class="node-kind-badge">User Task</span>` : isAuto ? `<span class="node-kind-badge node-kind-badge--auto">Service Task</span>` : "";
+    return `<div class="designer-studio-bar" role="tablist" aria-label="Modo de dise\xF1o">
+    <div class="segmented-control">
     ${tab("path", "Camino", true)}
     ${tab("screen", "Pantalla", isManual)}
     ${tab("automation", "Automatizaci\xF3n", isAuto)}
-    <span class="designer-studio-meta">${escapeHtml(flowName)} \xB7 ${escapeHtml(node?.name ?? "\u2014")}</span>
+    </div>
+    <span class="designer-studio-meta">${escapeHtml(flowName)} \xB7 ${escapeHtml(node?.name ?? "\u2014")}${kindBadge}</span>
   </div>`;
+  }
+  function collectScreenOutputKeys(screen) {
+    const keys = [];
+    for (const b of screen?.blocks ?? []) {
+      const k = b.outputKey ?? b.fieldKey ?? (b.type === "comentario" ? "comment" : null);
+      if (k && !keys.includes(k)) keys.push(k);
+    }
+    return keys;
   }
   function blockLabel(flow, b) {
     if (b.type === "titulo" || b.type === "texto") return `${b.type}: ${b.text ?? ""}`;
@@ -1070,19 +1090,21 @@
     if (!flow.screens[node.id]) flow.screens[node.id] = { blocks: [] };
     const screen = flow.screens[node.id];
     const blocksHtml = screen.blocks.map(
-      (b, i) => `<div class="studio-block-row"><span>${escapeHtml(blockLabel(flow, b))}</span>
-    <button type="button" class="btn btn-sm" data-block-up="${i}">\u2191</button>
-    <button type="button" class="btn btn-sm" data-block-down="${i}">\u2193</button>
-    <button type="button" class="btn btn-sm btn-danger" data-block-rm="${i}">\xD7</button></div>`
-    ).join("") || "<p class='empty-state'>Agreg\xE1 componentes.</p>";
+      (b, i) => `<div class="studio-block-row"><span class="studio-block-handle" aria-hidden="true"></span><span>${escapeHtml(blockLabel(flow, b))}</span>
+    <span class="studio-block-actions"><button type="button" class="btn btn-sm" data-block-up="${i}" aria-label="Subir">\u2191</button>
+    <button type="button" class="btn btn-sm" data-block-down="${i}" aria-label="Bajar">\u2193</button>
+    <button type="button" class="btn btn-sm btn-danger" data-block-rm="${i}" aria-label="Eliminar">\xD7</button></span></div>`
+    ).join("") || "<p class='empty-state gestion-empty'>Agreg\xE1 componentes desde la izquierda.</p>";
     const components = SCREEN_COMPONENTS.map(
-      (c) => `<button type="button" class="btn btn-sm" data-add-block="${c.type}">+ ${escapeHtml(c.label)}</button>`
+      (c) => `<button type="button" class="studio-component-tile" data-add-block="${c.type}">${escapeHtml(c.label)}</button>`
     ).join("");
+    const outKeys = collectScreenOutputKeys(screen);
+    const outTable = outKeys.length === 0 ? `<p class="form-hint">Sin claves de salida a\xFAn.</p>` : `<table class="studio-map-table"><thead><tr><th>context</th></tr></thead><tbody>${outKeys.map((k) => `<tr><td><code>${escapeHtml(k)}</code></td></tr>`).join("")}</tbody></table>`;
     return `<div class="designer-studio workspace-screen">
-    <aside class="studio-panel"><h3 class="panel-title">Componentes</h3><div class="studio-component-list">${components}</div></aside>
-    <main class="studio-panel"><h3 class="panel-title">Canvas</h3><div id="studio-blocks-list">${blocksHtml}</div>
-    <h4>Vista previa</h4><div class="screen-preview" id="studio-screen-preview">${renderScreenPreviewHtml(flow, screen)}</div></main>
-    <aside class="studio-panel"><h3 class="panel-title">Salidas</h3><p class="props-intro">Los campos guardan en <code>context</code> de la instancia.</p></aside>
+    <aside class="studio-panel"><h3 class="panel-title">Componentes</h3><div class="studio-component-grid">${components}</div></aside>
+    <main class="studio-panel"><h3 class="panel-title">Estructura</h3><div id="studio-blocks-list">${blocksHtml}</div>
+    <div class="screen-preview-frame"><p class="preview-caption">Como en Gesti\xF3n</p><div class="screen-preview" id="studio-screen-preview">${renderScreenPreviewHtml(flow, screen)}</div></div></main>
+    <aside class="studio-panel"><h3 class="panel-title">Salidas</h3><p class="form-hint">Valores en <code>context</code> de la instancia.</p>${outTable}</aside>
   </div>`;
   }
   function renderAutomationStudio(flow, node) {
@@ -1108,16 +1130,19 @@
     const resp = (i.responseMappings ?? []).map(
       (m, idx) => `<div class="form-row"><input data-resp-ctx="${idx}" value="${escapeHtml(m.contextKey ?? "")}" placeholder="context key" /><input data-resp-path="${idx}" value="${escapeHtml(m.jsonPath ?? "")}" placeholder="json path" /></div>`
     ).join("");
+    const modeBadge = i.executionMode === "live" ? `<span class="badge-mock">LIVE</span>` : `<span class="badge-mock">MOCK</span>`;
+    const simNote = i.adapter !== ADAPTER_KINDS.REST_JSON || i.executionMode !== "live" ? `<span class="badge-mock">SIM</span>` : "";
     return `<div class="designer-studio workspace-automation">
     <aside class="studio-panel"><h3 class="panel-title">Adaptador</h3>
     <div class="form-row"><label>Tipo</label><select id="integration-adapter">${adapterOptions}</select></div>
     <div class="form-row"><label>Modo</label><select id="integration-exec-mode"><option value="mock">Mock</option><option value="live" ${i.executionMode === "live" ? "selected" : ""}>Live REST</option></select></div>
-    <div class="form-row"><label>credentialRef</label><input id="integration-cred-ref" value="${escapeHtml(i.credentialRef ?? "")}" /></div></aside>
-    <main class="studio-panel"><h3 class="panel-title">Request</h3><form id="form-integration" class="form-grid">${adapterFields}</form>
-    <h4>Respuesta \u2192 contexto</h4><div id="response-mappings">${resp}</div>
-    <button type="button" class="btn btn-sm" id="btn-add-resp-map">+ mapping</button>
-    <button type="button" class="btn btn-primary" id="btn-test-integration" style="margin-top:0.75rem">Probar contrato</button>
-    <pre class="integration-test-output" id="integration-test-output"></pre></main></div>`;
+    <div class="form-row"><label>credentialRef</label><input id="integration-cred-ref" value="${escapeHtml(i.credentialRef ?? "")}" placeholder="vault://\u2026" /><p class="form-hint">Referencia only; sin secretos en el navegador.</p></div></aside>
+    <main class="studio-panel"><div class="studio-section" style="margin-top:0;padding-top:0;border-top:none"><h3 class="studio-section-title">Request</h3><form id="form-integration" class="form-grid">${adapterFields}</form></div>
+    <div class="studio-section"><h3 class="studio-section-title">Respuesta \u2192 contexto</h3><div id="response-mappings">${resp}</div>
+    <button type="button" class="btn btn-sm" id="btn-add-resp-map">+ mapping</button></div>
+    <div class="studio-section">
+    <button type="button" class="btn btn-primary" id="btn-test-integration">Probar contrato</button>${modeBadge}${simNote}
+    <pre class="integration-test-output" id="integration-test-output"></pre></div></main></div>`;
   }
   function bindScreenStudio(mainEl, flow, node, persist, rerender) {
     const screen = flow.screens[node.id];
@@ -1367,31 +1392,37 @@
       </td>
     </tr>`
     ).join("");
+    const emptyBody = rows === "" ? `<div class="empty-state empty-state--rich">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <strong>Sin flujos todav\xEDa</strong>
+          <p>Cre\xE1 tu primer flujo BPMN y marc\xE1lo como listo para instanciarlo en Gesti\xF3n.</p>
+          <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${editorBlocked ? "disabled" : ""}>Nuevo flujo</button>
+        </div>` : "";
     return `
-    <section class="panel">
-      <h2 class="panel-title">Dise\xF1ador de flujo \u2014 Cat\xE1logo</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-top:0">Cree y edite flujos. Marque como listo cuando pasen la validaci\xF3n para instanciarlos en Gesti\xF3n de actividades.</p>
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+      "Cat\xE1logo de flujos",
+      "Cre\xE1 y edit\xE1 flujos. Cuando pasen la validaci\xF3n, marcalos como listos para Gesti\xF3n de actividades.",
+      `<button type="button" class="btn btn-primary" id="btn-new-flow" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>`
+    )}
       ${catalogCallout}
-      <div class="toolbar">
-        <button type="button" class="btn btn-primary" id="btn-new-flow" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>
-      </div>
-      <div class="table-wrap">
-        <table>
+      ${emptyBody}
+      ${rows ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
           <thead>
             <tr><th>Nombre</th><th>Tipo</th><th>Descripci\xF3n</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
-          <tbody>${rows || `<tr><td colspan="5" class="empty-state">Sin flujos. Cree uno nuevo.</td></tr>`}</tbody>
+          <tbody>${rows}</tbody>
         </table>
-      </div>
+      </div>` : ""}
     </section>`;
   }
-  function bindCatalog(mainEl, state, persist) {
-    mainEl.querySelector("#btn-new-flow")?.addEventListener("click", () => {
-      if (isDesignerEditorBlocked()) {
-        toast(designerBlockedMessage().body);
-        return;
-      }
-      const { close, root } = openModal(`
+  function openNewFlowModal(mainEl, state, persist) {
+    if (isDesignerEditorBlocked()) {
+      toast(designerBlockedMessage().body);
+      return;
+    }
+    const { close, root } = openModal(`
       <div class="modal-header">
         <h2>Nuevo flujo</h2>
         <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
@@ -1403,72 +1434,76 @@
         <button type="submit" class="btn btn-primary">Crear</button>
       </form>
     `);
-      root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
-        e.preventDefault();
-        if (isDesignerEditorBlocked()) {
-          toast(designerBlockedMessage().body);
-          return;
-        }
-        const fd = new FormData(e.target);
-        const startId = createId("node");
-        const endId = createId("node");
-        const flow = {
-          id: createId("flow"),
-          type: String(fd.get("type")).trim(),
-          name: String(fd.get("name")).trim(),
-          description: String(fd.get("description")).trim(),
-          status: "borrador",
-          version: 1,
-          inputParams: [],
-          nodes: [
-            {
-              id: startId,
-              kind: NODE_KINDS.INICIO,
-              name: "Start",
-              description: "",
-              x: 80,
-              y: 220,
-              usedParamIds: []
-            },
-            {
-              id: endId,
-              kind: NODE_KINDS.FIN,
-              name: "End",
-              description: "",
-              x: 520,
-              y: 220,
-              usedParamIds: []
-            }
-          ],
-          transitions: [],
-          screens: {},
-          lanes: [{ id: createId("lane"), name: "General", height: 220 }]
-        };
-        ensureFlowDiagram(flow);
-        const laneId = flow.lanes[0].id;
-        const layout = getLaneLayout(flow);
-        const startNode = flow.nodes.find((n) => n.id === startId);
-        const endNode = flow.nodes.find((n) => n.id === endId);
-        if (startNode) {
-          startNode.laneId = laneId;
-          startNode.x = layout.lanes[0].left + 48;
-          startNode.y = centerYInLane(flow, laneId, startNode.kind);
-        }
-        if (endNode) {
-          endNode.laneId = laneId;
-          endNode.x = layout.lanes[0].left + 320;
-          endNode.y = centerYInLane(flow, laneId, endNode.kind);
-        }
-        state.flows.push(flow);
-        persist();
-        designerContext.selectedFlowId = flow.id;
-        designerContext.selectedNodeId = startId;
-        designerContext._viewFitForFlowId = null;
-        close();
-        renderDesigner(mainEl, state, persist);
-        toast("Flujo creado con Start y End. Eleg\xED un tipo de l\xEDnea y conect\xE1 desde el puerto del nodo.");
-      });
+    root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (isDesignerEditorBlocked()) {
+        toast(designerBlockedMessage().body);
+        return;
+      }
+      const fd = new FormData(e.target);
+      const startId = createId("node");
+      const endId = createId("node");
+      const flow = {
+        id: createId("flow"),
+        type: String(fd.get("type")).trim(),
+        name: String(fd.get("name")).trim(),
+        description: String(fd.get("description")).trim(),
+        status: "borrador",
+        version: 1,
+        inputParams: [],
+        nodes: [
+          {
+            id: startId,
+            kind: NODE_KINDS.INICIO,
+            name: "Start",
+            description: "",
+            x: 80,
+            y: 220,
+            usedParamIds: []
+          },
+          {
+            id: endId,
+            kind: NODE_KINDS.FIN,
+            name: "End",
+            description: "",
+            x: 520,
+            y: 220,
+            usedParamIds: []
+          }
+        ],
+        transitions: [],
+        screens: {},
+        lanes: [{ id: createId("lane"), name: "General", height: 220 }]
+      };
+      ensureFlowDiagram(flow);
+      const laneId = flow.lanes[0].id;
+      const layout = getLaneLayout(flow);
+      const startNode = flow.nodes.find((n) => n.id === startId);
+      const endNode = flow.nodes.find((n) => n.id === endId);
+      if (startNode) {
+        startNode.laneId = laneId;
+        startNode.x = layout.lanes[0].left + 48;
+        startNode.y = centerYInLane(flow, laneId, startNode.kind);
+      }
+      if (endNode) {
+        endNode.laneId = laneId;
+        endNode.x = layout.lanes[0].left + 320;
+        endNode.y = centerYInLane(flow, laneId, endNode.kind);
+      }
+      state.flows.push(flow);
+      persist();
+      designerContext.selectedFlowId = flow.id;
+      designerContext.selectedNodeId = startId;
+      designerContext._viewFitForFlowId = null;
+      close();
+      renderDesigner(mainEl, state, persist);
+      toast("Flujo creado con Start y End. Eleg\xED un tipo de l\xEDnea y conect\xE1 desde el puerto del nodo.", 3200, "success");
     });
+  }
+  function bindCatalog(mainEl, state, persist) {
+    const onNew = () => openNewFlowModal(mainEl, state, persist);
+    mainEl.querySelector("#btn-new-flow")?.addEventListener("click", onNew);
+    mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
     mainEl.querySelectorAll("[data-open-flow]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.disabled || isDesignerEditorBlocked()) {
@@ -1604,13 +1639,19 @@
     return `
     ${renderDesignerViewportBannerHtml()}
     ${selected ? renderStudioToolbar(flow.name, selected, "path") : ""}
-    <div class="toolbar">
-      <button type="button" class="btn" id="btn-back-catalog">\u2190 Cat\xE1logo</button>
-      <span style="flex:1;font-weight:600">${escapeHtml(flow.name)} <span class="badge badge-${flow.status === "listo" ? "listo" : "borrador"}">${flow.status === "listo" ? "Listo" : "Borrador"}</span></span>
-      <button type="button" class="btn" id="btn-flow-meta">Metadatos</button>
-      <button type="button" class="btn btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
-      <button type="button" class="btn" id="btn-mark-draft">Volver a borrador</button>
-      ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-danger" id="btn-delete-flow">Eliminar flujo</button>`}
+    <div class="toolbar toolbar--designer">
+      <div class="toolbar-group">
+        <button type="button" class="btn btn-ghost" id="btn-back-catalog">\u2190 Cat\xE1logo</button>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <span class="toolbar-flow-title">${escapeHtml(flow.name)} <span class="badge badge-${flow.status === "listo" ? "listo" : "borrador"}">${flow.status === "listo" ? "Listo" : "Borrador"}</span></span>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="toolbar-group">
+        <button type="button" class="btn btn-sm" id="btn-flow-meta">Metadatos</button>
+        <button type="button" class="btn btn-sm btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
+        <button type="button" class="btn btn-sm" id="btn-mark-draft">Borrador</button>
+        ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`}
+      </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
     <div class="${designerSplitClassNames()}" id="designer-split">
@@ -3432,10 +3473,18 @@
     const activeInstances = state.instances.filter((i) => i.status === "en_curso");
     const selected = state.instances.find((i) => i.id === selectedInstanceId);
     mainEl.innerHTML = `
+    ${renderPageHeader(
+      "Gesti\xF3n de actividades",
+      "Instanci\xE1 flujos listos y complet\xE1 User Tasks. Los datos quedan en el contexto de cada instancia."
+    )}
+    <div class="kpi-row">
+      <span class="stat-chip">Flujos listos <strong>${readyFlows.length}</strong></span>
+      <span class="stat-chip">En curso <strong>${activeInstances.length}</strong></span>
+    </div>
     <div class="gestion-layout">
       <section class="panel">
         <h2 class="panel-title">Instanciar flujo</h2>
-        ${readyFlows.length === 0 ? `<p style="color:var(--muted);font-size:0.85rem">No hay flujos listos. M\xE1rquelos en el dise\xF1ador.</p>` : `
+        ${readyFlows.length === 0 ? `<p class="gestion-empty">No hay flujos listos. Marc\xE1 uno en el dise\xF1ador.</p>` : `
         <form id="form-new-instance" class="form-grid">
           <div class="form-row">
             <label>Flujo</label>
@@ -3448,23 +3497,24 @@
         </form>`}
         <h3 class="panel-title" style="margin-top:1.25rem">En curso (${activeInstances.length})</h3>
         <div class="card-grid">
-          ${activeInstances.map((i) => renderInstanceCard(i, i.id === selectedInstanceId)).join("") || `<p class="empty-state" style="padding:1rem">Sin instancias activas.</p>`}
+          ${activeInstances.map((i) => renderInstanceCard(i, i.id === selectedInstanceId)).join("") || `<p class="gestion-empty">Sin instancias activas.</p>`}
         </div>
       </section>
-      <section class="panel">
+      <section class="panel resolver-panel">
         <h2 class="panel-title">Resolver actividad</h2>
-        ${selected ? renderResolver(selected, state) : `<p style="color:var(--muted)">Seleccione una instancia en curso.</p>`}
+        ${selected ? renderResolver(selected, state) : `<p class="gestion-empty">Seleccion\xE1 una instancia en curso.</p>`}
       </section>
     </div>`;
     bindGestion(mainEl, state, persist, readyFlows);
   }
   function renderInstanceCard(instance, isSelected) {
     const node = getCurrentNode(instance);
+    const kindBadge = node?.kind === NODE_KINDS.AUTOMATICA ? `<span class="badge badge-listo">Auto</span>` : node?.kind === NODE_KINDS.MANUAL ? `<span class="badge badge-curso">Manual</span>` : "";
     return `
     <article class="panel instance-card ${isSelected ? "is-selected" : ""}" data-inst="${instance.id}">
       <strong>${escapeHtml(instance.flowName)}</strong>
-      <div style="font-size:0.8rem;color:var(--muted);margin-top:0.35rem">${formatDateTime(instance.startedAt)}</div>
-      <div style="font-size:0.85rem;margin-top:0.5rem">Pendiente: ${escapeHtml(node?.name ?? "\u2014")}</div>
+      <div class="instance-card__meta">${formatDateTime(instance.startedAt)}</div>
+      <div class="instance-card__step">Pendiente: ${escapeHtml(node?.name ?? "\u2014")} ${kindBadge}</div>
     </article>`;
   }
   function renderInputFields(flow) {
@@ -3580,7 +3630,7 @@
         html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}" ${b.required ? "required" : ""}><option value="">\u2014</option><option value="si">S\xED</option><option value="no">No</option></select></div>`;
       }
     }
-    html += `<div class="preview-actions"><button type="button" class="btn btn-success" data-decision="aceptar">Aceptar</button><button type="button" class="btn btn-danger" data-decision="rechazar">Rechazar</button></div>`;
+    html += `<div class="preview-actions preview-actions--sticky"><button type="button" class="btn btn-success" data-decision="aceptar">Aceptar</button><button type="button" class="btn btn-danger" data-decision="rechazar">Rechazar</button></div>`;
     return html;
   }
   function collectFormValues(form, screen) {
@@ -3638,7 +3688,10 @@
     if (selected) selectedReportInstanceId = selected.id;
     mainEl.innerHTML = `
     <section class="panel">
-      <h2 class="panel-title">Reporte de avance</h2>
+      ${renderPageHeader(
+      "Reporte de avance",
+      "Filtr\xE1 instancias y revis\xE1 contexto, entradas y traza de ejecuci\xF3n."
+    )}
       <div class="filters">
         <div class="form-row">
           <label>Flujo</label>
@@ -3657,26 +3710,26 @@
           </select>
         </div>
       </div>
-      <div class="split" style="grid-template-columns:1fr 1fr">
-        <div class="table-wrap">
-          <table>
+      <div class="report-split">
+        <div class="table-wrap table-wrap--modern">
+          <table class="table-modern">
             <thead><tr><th>Flujo</th><th>Estado</th><th>Avance</th><th>Inicio</th></tr></thead>
             <tbody>
               ${instances.map((i) => {
       const prog = countProgress(i);
       const node = getCurrentNode(i);
-      return `<tr data-report-inst="${i.id}" style="cursor:pointer" class="${i.id === selectedReportInstanceId ? "is-selected" : ""}">
+      return `<tr data-report-inst="${i.id}" class="table-row-selectable ${i.id === selectedReportInstanceId ? "is-selected" : ""}">
                   <td>${escapeHtml(i.flowName)}</td>
                   <td><span class="badge badge-${badgeForStatus(i.status)}">${statusLabel(i.status)}</span></td>
                   <td>${prog.pct}% \xB7 ${escapeHtml(node?.name ?? "Finalizado")}</td>
                   <td>${formatDateTime(i.startedAt)}</td>
                 </tr>`;
-    }).join("") || `<tr><td colspan="4" class="empty-state">Sin instancias.</td></tr>`}
+    }).join("") || `<tr><td colspan="4"><div class="empty-state empty-state--rich"><strong>Sin instancias</strong><p>Inici\xE1 un flujo en Gesti\xF3n para ver reportes aqu\xED.</p></div></td></tr>`}
             </tbody>
           </table>
         </div>
         <div class="panel">
-          ${selected ? renderDetail(selected) : `<p class="empty-state">Seleccione una instancia.</p>`}
+          ${selected ? renderDetail(selected) : `<p class="gestion-empty">Seleccion\xE1 una instancia.</p>`}
         </div>
       </div>
     </section>`;
@@ -3704,26 +3757,27 @@
     const prog = countProgress(instance);
     const node = getCurrentNode(instance);
     const inputs = Object.entries(instance.inputValues).map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`).join("");
-    const context = Object.entries(instance.context ?? {}).map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`).join("");
+    const ctxEntries = Object.entries(instance.context ?? {});
+    const context = ctxEntries.length === 0 ? "<li>\u2014</li>" : `<pre class="report-context-json">${escapeHtml(JSON.stringify(Object.fromEntries(ctxEntries), null, 2))}</pre>`;
     const trace = instance.trace.map(
       (t) => `
     <li class="trace-item">
       <time>${formatDateTime(t.at)}</time> \u2014 ${escapeHtml(t.message)}
-      ${t.comment ? `<div style="color:var(--muted)">Comentario: ${escapeHtml(t.comment)}</div>` : ""}
-      ${t.decision ? `<div>Decisi\xF3n: ${escapeHtml(t.decision)}</div>` : ""}
+      ${t.comment ? `<div class="form-hint">Comentario: ${escapeHtml(t.comment)}</div>` : ""}
+      ${t.decision ? `<div class="form-hint">Decisi\xF3n: ${escapeHtml(t.decision)}</div>` : ""}
     </li>`
     ).join("");
     return `
-    <h3 style="margin-top:0">${escapeHtml(instance.flowName)}</h3>
+    <h3 class="report-detail-title">${escapeHtml(instance.flowName)}</h3>
     <p><span class="badge badge-${badgeForStatus(instance.status)}">${statusLabel(instance.status)}</span></p>
     <div class="progress-bar"><span style="width:${prog.pct}%"></span></div>
-    <p style="font-size:0.8rem;color:var(--muted)">${prog.done} actividades registradas \xB7 Paso actual: ${escapeHtml(node?.name ?? "\u2014")}</p>
+    <p class="form-hint">${prog.done} actividades registradas \xB7 Paso actual: ${escapeHtml(node?.name ?? "\u2014")}</p>
     <h4>Datos de entrada</h4>
-    <ul style="font-size:0.85rem">${inputs || "<li>\u2014</li>"}</ul>
+    <ul class="trace-list">${inputs || "<li>\u2014</li>"}</ul>
     <h4>Contexto de instancia</h4>
-    <ul style="font-size:0.85rem">${context || "<li>\u2014</li>"}</ul>
+    ${context.startsWith("<pre") ? context : `<ul class="trace-list">${context}</ul>`}
     <h4>Traza</h4>
-    <ul class="trace-list">${trace}</ul>`;
+    <ul class="trace-list">${trace || "<li>\u2014</li>"}</ul>`;
   }
 
   // js/shell.js
