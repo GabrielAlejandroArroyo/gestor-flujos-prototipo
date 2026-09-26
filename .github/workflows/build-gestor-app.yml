@@ -1,0 +1,38 @@
+name: Build Gestor App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "gestor-app/**"
+      - ".github/workflows/build-gestor-app.yml"
+  pull_request:
+    paths:
+      - "gestor-app/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gestor-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: gestor-app/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ""
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""

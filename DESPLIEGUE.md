@@ -14,6 +14,10 @@ Documento **personal**. Este mock **no** se despliega en Accusys, AccuOne ni rep
 
 No hay Supabase en este despliegue: los flujos e instancias se guardan en **`localStorage` del navegador** en esa URL (no se sincronizan con Git ni con ninguna base).
 
+### App Next.js (motor en servidor)
+
+La carpeta **`gestor-app/`** no se publica en Pages. Desplegala en **Vercel** (u otro host Node). Guía: [`gestor-app/DEPLOY.md`](gestor-app/DEPLOY.md).
+
 ---
 
 ## Qué se publica

@@ -3,6 +3,8 @@
 
 # Dependencias y secretos
 node_modules/
+gestor-app/node_modules/
+gestor-app/.next/
 .env
 .env.*
 *.pem
