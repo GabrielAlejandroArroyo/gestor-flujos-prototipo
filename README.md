@@ -12,14 +12,13 @@ Repositorio **personal privado**. La app usable está en [`prototipo/`](prototip
 
 ## GitHub Pages
 
-Repo: **https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo** (privado).
+Repo: **https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo** (público — requerido para Pages en plan Free).
 
-### GitHub Pages
+### GitHub Pages (activo)
 
-1. **Settings → Pages → Source: GitHub Actions** (ver [prototipo/DEPLOY-PAGES.md](prototipo/DEPLOY-PAGES.md)).
-2. En plan **Free**, Pages en repo **privado** suele requerir **GitHub Pro** o hacer el repo **público**.
-3. URL cuando Pages esté activo:  
-   **https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/**
+**https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/**
+
+Deploy automático en cada push a `main` ([workflow](.github/workflows/deploy-pages.yml)). Detalle: [prototipo/DEPLOY-PAGES.md](prototipo/DEPLOY-PAGES.md).
 
 Los datos viven en `localStorage` del navegador (no se sincronizan con Git).
 
