@@ -116,9 +116,8 @@ Documentación (`documentacion.md` / `documentacion.html`) y bitácora (`bitacor
 
 ## 2026-09-26 — Repo personal + GitHub Pages
 
-- Repo privado `gestor-flujos-prototipo`; deploy vía GitHub Actions desde `prototipo/`.
-- `.cursor/` excluido de Git; `PLATINO.md` documenta independencia Accusys.
-- Guía: [DEPLOY-PAGES.md](./DEPLOY-PAGES.md).
+- Cuenta **GabrielAlejandroArroyo**; deploy Actions desde `prototipo/` (sin Accusys/Supabase org).
+- Guía personal: [DESPLIEGUE.md](../DESPLIEGUE.md) en la raíz del repo.
 
 ## 2026-09-26 00:05 — Estudio Pantalla + Automatización (contratos e integraciones)
 

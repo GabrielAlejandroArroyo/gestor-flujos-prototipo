@@ -14,5 +14,6 @@ Solo si el titular del repo confirma **6 veces**, de forma explícita y separada
 
 ## Este repo
 
-- Remote: `github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo` (privado).
+- Remote: `github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo` (público — solo para GitHub Pages Free).
+- Despliegue: ver [DESPLIEGUE.md](DESPLIEGUE.md) (instrucciones personales, sin Accusys).
 - `.cursor/` no se versiona (reglas locales opcionales en tu máquina).

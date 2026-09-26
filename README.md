@@ -10,15 +10,14 @@ Repositorio **personal privado**. La app usable está en [`prototipo/`](prototip
 | Snapshots congelados | [`prototipo/versiones/`](prototipo/versiones/) |
 | Regenerar JS | [`prototipo/build-mock.ps1`](prototipo/build-mock.ps1) |
 
-## GitHub Pages
+## Despliegue (tu GitHub, no Accusys)
 
-Repo: **https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo** (público — requerido para Pages en plan Free).
+| | |
+|--|--|
+| **App** | https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/ |
+| **Repo** | https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo |
 
-### GitHub Pages (activo)
-
-**https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/**
-
-Deploy automático en cada push a `main` ([workflow](.github/workflows/deploy-pages.yml)). Detalle: [prototipo/DEPLOY-PAGES.md](prototipo/DEPLOY-PAGES.md).
+Instrucciones completas solo para vos: **[DESPLIEGUE.md](DESPLIEGUE.md)**.
 
 Los datos viven en `localStorage` del navegador (no se sincronizan con Git).
 
