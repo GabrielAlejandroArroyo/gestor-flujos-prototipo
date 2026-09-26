@@ -24,6 +24,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build mock bundles
+        working-directory: prototipo
+        run: |
+          npx --yes esbuild js/entry-main.js --bundle --format=iife --outfile=js/bundle.js
+          npx --yes esbuild js/entry-theme.js --bundle --format=iife --outfile=js/theme-bundle.js
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

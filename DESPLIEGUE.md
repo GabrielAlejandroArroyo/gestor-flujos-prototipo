@@ -8,7 +8,7 @@ Documento **personal**. Este mock **no** se despliega en Accusys, AccuOne ni rep
 
 | Qué | Enlace |
 |-----|--------|
-| **Mock en vivo** | https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/ |
+| **Mock en vivo (URL oficial)** | https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/ |
 | **Repositorio** | https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo |
 | **Actions (deploys)** | https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo/actions |
 
