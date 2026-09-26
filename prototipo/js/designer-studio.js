@@ -35,18 +35,22 @@ const SCREEN_COMPONENTS = [
 export function renderStudioToolbar(flowName, node, studioMode) {
   const isManual = node?.kind === NODE_KINDS.MANUAL;
   const isAuto = node?.kind === NODE_KINDS.AUTOMATICA;
+  const isAgenteIA = node?.kind === NODE_KINDS.AGENTE_IA;
   const tab = (mode, label, enabled) =>
     `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" role="tab" ${enabled ? "" : "disabled"}>${label}</button>`;
   const kindBadge = isManual
     ? `<span class="node-kind-badge">User Task</span>`
     : isAuto
       ? `<span class="node-kind-badge node-kind-badge--auto">Service Task</span>`
-      : "";
+      : isAgenteIA
+        ? `<span class="node-kind-badge node-kind-badge--ai">Agente IA</span>`
+        : "";
   return `<div class="designer-studio-bar" role="tablist" aria-label="Modo de diseño">
     <div class="segmented-control">
     ${tab("path", "Camino", true)}
     ${tab("screen", "Pantalla", isManual)}
     ${tab("automation", "Automatización", isAuto)}
+    ${tab("agente_ia", "Agente IA", isAgenteIA)}
     </div>
     <span class="designer-studio-meta">${escapeHtml(flowName)} · ${escapeHtml(node?.name ?? "—")}${kindBadge}</span>
   </div>`;
@@ -316,4 +320,77 @@ export function bindAutomationStudio(mainEl, flow, node, persist, rerender) {
     const errs = validateNodeIntegration(node);
     if (errs.length) toast(errs[0]);
   });
+}
+
+/**
+ * @param {object} flow
+ * @param {object} node
+ */
+export function renderAgenteIAStudio(flow, node) {
+  const prompt = node.aiPrompt || "";
+  const hitlEmail = node.hitlEmail || "";
+  const hitlType = node.hitlType || "approval"; // approval, input
+  const hitlInterval = node.hitlInterval || "5"; // hours
+
+  return `
+    <div class="studio-layout">
+      <aside class="studio-sidebar">
+        <h3>Configuración del Agente IA</h3>
+        <p class="props-intro">Define el prompt y la interacción humana (HITL).</p>
+      </aside>
+      <main class="studio-main">
+        <div class="studio-section">
+          <h4>Prompt del Agente</h4>
+          <textarea id="ai-prompt" style="width:100%;height:150px;font-family:monospace" placeholder="Ej: Analiza el reclamo y decide si aplica reembolso...">${escapeHtml(prompt)}</textarea>
+        </div>
+        <div class="studio-section">
+          <h4>Human-in-the-loop (HITL)</h4>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Correo responsable</label>
+              <input type="email" id="hitl-email" value="${escapeHtml(hitlEmail)}" placeholder="operador@empresa.com" />
+            </div>
+            <div class="form-row">
+              <label>Tipo de interacción</label>
+              <select id="hitl-type">
+                <option value="approval" ${hitlType === "approval" ? "selected" : ""}>Aprobación (Sí/No)</option>
+                <option value="input" ${hitlType === "input" ? "selected" : ""}>Entrada de datos (Texto)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Recordatorio (Horas)</label>
+              <input type="number" id="hitl-interval" value="${escapeHtml(hitlInterval)}" min="1" max="72" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+}
+
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} flow
+ * @param {object} node
+ * @param {Function} persist
+ * @param {Function} rerender
+ */
+export function bindAgenteIAStudio(mainEl, flow, node, persist, rerender) {
+  const promptEl = mainEl.querySelector("#ai-prompt");
+  const emailEl = mainEl.querySelector("#hitl-email");
+  const typeEl = mainEl.querySelector("#hitl-type");
+  const intervalEl = mainEl.querySelector("#hitl-interval");
+
+  const save = () => {
+    node.aiPrompt = promptEl?.value || "";
+    node.hitlEmail = emailEl?.value || "";
+    node.hitlType = typeEl?.value || "approval";
+    node.hitlInterval = intervalEl?.value || "5";
+    persist();
+  };
+
+  promptEl?.addEventListener("input", save);
+  emailEl?.addEventListener("input", save);
+  typeEl?.addEventListener("change", save);
+  intervalEl?.addEventListener("input", save);
 }

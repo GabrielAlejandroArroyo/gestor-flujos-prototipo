@@ -47,6 +47,22 @@ export function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+const AI_CONFIG_KEY = "gestor_flujos_ai_config";
+
+export function loadAiConfig() {
+  try {
+    const raw = localStorage.getItem(AI_CONFIG_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error("Error cargando config IA", e);
+  }
+  return { provider: "openai", apiKey: "", model: "gpt-4o" };
+}
+
+export function saveAiConfig(config) {
+  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
+}
+
 export function getFlowById(state, flowId) {
   return state.flows.find((f) => f.id === flowId) ?? null;
 }

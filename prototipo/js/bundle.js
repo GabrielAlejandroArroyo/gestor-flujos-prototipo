@@ -550,6 +550,7 @@
     INICIO: "inicio",
     MANUAL: "manual",
     AUTOMATICA: "automatica",
+    AGENTE_IA: "agente_ia",
     GATEWAY: "gateway",
     FIN: "fin"
   };
@@ -697,6 +698,14 @@
           errors.push(`Service Task "${node.name}" debe tener Sequence Flow de continuaci\xF3n.`);
         }
       }
+      if (node.kind === NODE_KINDS.AGENTE_IA) {
+        if (transitionsFrom(flow, node.id, "siempre").length === 0) {
+          errors.push(`Agente IA "${node.name}" debe tener Sequence Flow de continuaci\xF3n.`);
+        }
+        if (!node.aiPrompt || !node.aiPrompt.trim()) {
+          errors.push(`Agente IA "${node.name}" debe tener un prompt configurado.`);
+        }
+      }
       if (node.kind === NODE_KINDS.GATEWAY) {
         const gwType = node.gatewayType ?? DEFAULT_GATEWAY_TYPE;
         if (gwType !== GATEWAY_TYPES.EXCLUSIVE) {
@@ -780,6 +789,19 @@
   }
   function saveState(state) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+  var AI_CONFIG_KEY = "gestor_flujos_ai_config";
+  function loadAiConfig() {
+    try {
+      const raw = localStorage.getItem(AI_CONFIG_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.error("Error cargando config IA", e);
+    }
+    return { provider: "openai", apiKey: "", model: "gpt-4o" };
+  }
+  function saveAiConfig(config) {
+    localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
   }
 
   // js/seed.js
@@ -1020,13 +1042,15 @@
   function renderStudioToolbar(flowName, node, studioMode) {
     const isManual = node?.kind === NODE_KINDS.MANUAL;
     const isAuto = node?.kind === NODE_KINDS.AUTOMATICA;
+    const isAgenteIA = node?.kind === NODE_KINDS.AGENTE_IA;
     const tab = (mode, label, enabled) => `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" role="tab" ${enabled ? "" : "disabled"}>${label}</button>`;
-    const kindBadge = isManual ? `<span class="node-kind-badge">User Task</span>` : isAuto ? `<span class="node-kind-badge node-kind-badge--auto">Service Task</span>` : "";
+    const kindBadge = isManual ? `<span class="node-kind-badge">User Task</span>` : isAuto ? `<span class="node-kind-badge node-kind-badge--auto">Service Task</span>` : isAgenteIA ? `<span class="node-kind-badge node-kind-badge--ai">Agente IA</span>` : "";
     return `<div class="designer-studio-bar" role="tablist" aria-label="Modo de dise\xF1o">
     <div class="segmented-control">
     ${tab("path", "Camino", true)}
     ${tab("screen", "Pantalla", isManual)}
     ${tab("automation", "Automatizaci\xF3n", isAuto)}
+    ${tab("agente_ia", "Agente IA", isAgenteIA)}
     </div>
     <span class="designer-studio-meta">${escapeHtml(flowName)} \xB7 ${escapeHtml(node?.name ?? "\u2014")}${kindBadge}</span>
   </div>`;
@@ -1248,6 +1272,63 @@
       if (errs.length) toast(errs[0]);
     });
   }
+  function renderAgenteIAStudio(flow, node) {
+    const prompt2 = node.aiPrompt || "";
+    const hitlEmail = node.hitlEmail || "";
+    const hitlType = node.hitlType || "approval";
+    const hitlInterval = node.hitlInterval || "5";
+    return `
+    <div class="studio-layout">
+      <aside class="studio-sidebar">
+        <h3>Configuraci\xF3n del Agente IA</h3>
+        <p class="props-intro">Define el prompt y la interacci\xF3n humana (HITL).</p>
+      </aside>
+      <main class="studio-main">
+        <div class="studio-section">
+          <h4>Prompt del Agente</h4>
+          <textarea id="ai-prompt" style="width:100%;height:150px;font-family:monospace" placeholder="Ej: Analiza el reclamo y decide si aplica reembolso...">${escapeHtml(prompt2)}</textarea>
+        </div>
+        <div class="studio-section">
+          <h4>Human-in-the-loop (HITL)</h4>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Correo responsable</label>
+              <input type="email" id="hitl-email" value="${escapeHtml(hitlEmail)}" placeholder="operador@empresa.com" />
+            </div>
+            <div class="form-row">
+              <label>Tipo de interacci\xF3n</label>
+              <select id="hitl-type">
+                <option value="approval" ${hitlType === "approval" ? "selected" : ""}>Aprobaci\xF3n (S\xED/No)</option>
+                <option value="input" ${hitlType === "input" ? "selected" : ""}>Entrada de datos (Texto)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Recordatorio (Horas)</label>
+              <input type="number" id="hitl-interval" value="${escapeHtml(hitlInterval)}" min="1" max="72" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
+  }
+  function bindAgenteIAStudio(mainEl, flow, node, persist, rerender) {
+    const promptEl = mainEl.querySelector("#ai-prompt");
+    const emailEl = mainEl.querySelector("#hitl-email");
+    const typeEl = mainEl.querySelector("#hitl-type");
+    const intervalEl = mainEl.querySelector("#hitl-interval");
+    const save = () => {
+      node.aiPrompt = promptEl?.value || "";
+      node.hitlEmail = emailEl?.value || "";
+      node.hitlType = typeEl?.value || "approval";
+      node.hitlInterval = intervalEl?.value || "5";
+      persist();
+    };
+    promptEl?.addEventListener("input", save);
+    emailEl?.addEventListener("input", save);
+    typeEl?.addEventListener("change", save);
+    intervalEl?.addEventListener("input", save);
+  }
 
   // js/designer.js
   var TOOL_TO_LINE = {
@@ -1266,6 +1347,7 @@
     view: { zoom: 1, panX: 0, panY: 0 },
     mobilePaletteOpen: false,
     mobilePropsOpen: false,
+    copilotOpen: false,
     studioMode: "path"
   };
   var activeLinkDrag = null;
@@ -1302,6 +1384,12 @@
       bindAutomationStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
       return;
     }
+    if (designerContext.studioMode === "agente_ia" && selected?.kind === NODE_KINDS.AGENTE_IA) {
+      mainEl.innerHTML = renderStudioShell(flow, selected, validation, "agente_ia");
+      bindStudioShell(mainEl, flow, selected, state, persist);
+      bindAgenteIAStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
+      return;
+    }
     designerContext.studioMode = "path";
     mainEl.innerHTML = renderFlowEditor(flow);
     bindFlowEditor(mainEl, flow, state, persist);
@@ -1316,7 +1404,7 @@
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
     ${renderStudioToolbar(flow.name, node, mode)}
-    <div class="designer-studio-root">${mode === "screen" ? renderScreenStudio(flow, node) : renderAutomationStudio(flow, node)}</div>`;
+    <div class="designer-studio-root">${mode === "screen" ? renderScreenStudio(flow, node) : mode === "agente_ia" ? renderAgenteIAStudio(flow, node) : renderAutomationStudio(flow, node)}</div>`;
   }
   function bindStudioShell(mainEl, flow, node, state, persist) {
     bindStudioTabs(mainEl, state, persist);
@@ -1585,6 +1673,10 @@
             <span class="palette-kind-icon" aria-hidden="true">\u2699</span>
             <span>Service Task</span>
           </div>
+          <div class="palette-row palette-item palette-agente-ia" draggable="true" data-palette="agente_ia">
+            <span class="palette-kind-icon" aria-hidden="true">\u2728</span>
+            <span>Agente IA</span>
+          </div>
         </div>
         <div class="palette-row palette-item palette-gateway palette-gateway-toggle">
           ${renderGatewayTypeIcon(GATEWAY_TYPES.EXCLUSIVE)}
@@ -1628,6 +1720,7 @@
     const parts = ["split", "split-designer"];
     if (designerContext.mobilePaletteOpen) parts.push("is-palette-open");
     if (designerContext.mobilePropsOpen) parts.push("is-props-open");
+    if (designerContext.copilotOpen) parts.push("is-copilot-open");
     return parts.join(" ");
   }
   function renderFlowEditor(flow) {
@@ -1651,6 +1744,10 @@
         <button type="button" class="btn btn-sm btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
         <button type="button" class="btn btn-sm" id="btn-mark-draft">Borrador</button>
         ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`}
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="toolbar-group">
+        <button type="button" class="btn btn-sm" id="btn-toggle-copilot">\u2728 Copilot</button>
       </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
@@ -1691,6 +1788,21 @@
       </div>
       <aside class="panel props-panel designer-side-panel" id="props-panel">
         ${renderPropsPanelShell(flow, selected)}
+      </aside>
+      <aside class="panel copilot-panel designer-side-panel" id="copilot-panel">
+        <div class="designer-panel-head">
+          <h3 class="panel-title">\u2728 Copilot (Mock)</h3>
+          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="copilot" aria-label="Cerrar Copilot">\xD7</button>
+        </div>
+        <div class="copilot-chat" id="copilot-chat">
+          <div class="copilot-message copilot-message--ai">
+            \xA1Hola! Soy tu asistente de dise\xF1o. \xBFQu\xE9 flujo quer\xE9s armar o modificar?
+          </div>
+        </div>
+        <form id="form-copilot" class="copilot-input-area">
+          <input name="prompt" placeholder="Ej: Agreg\xE1 un paso de revisi\xF3n..." autocomplete="off" />
+          <button type="submit" class="btn btn-sm btn-primary">Enviar</button>
+        </form>
       </aside>
     </div>`;
   }
@@ -2303,6 +2415,7 @@
     }
     const screenBtn = node.kind === NODE_KINDS.MANUAL ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-screen" style="width:100%;margin-top:0.5rem">Dise\xF1ar pantalla (estudio)</button>` : "";
     const automationBtn = node.kind === NODE_KINDS.AUTOMATICA ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-automation" style="width:100%;margin-top:0.5rem">Dise\xF1ar automatizaci\xF3n</button>` : "";
+    const agenteIABtn = node.kind === NODE_KINDS.AGENTE_IA ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-agente-ia" style="width:100%;margin-top:0.5rem">Configurar Agente IA</button>` : "";
     ensureFlowDiagram(flow);
     const laneOptions = flow.lanes.map(
       (lane) => `<option value="${lane.id}" ${node.laneId === lane.id ? "selected" : ""}>${escapeHtml(lane.name)}</option>`
@@ -2314,7 +2427,8 @@
       <div class="form-row"><label>Lane (rol / perfil)</label><select name="laneId">${laneOptions}</select></div>
       ${eventPoolHint}
       ${screenBtn}
-      ${automationBtn}`;
+      ${automationBtn}
+      ${agenteIABtn}`;
     const inputDataSection = node.kind !== NODE_KINDS.INICIO && node.kind !== NODE_KINDS.FIN && node.kind !== NODE_KINDS.GATEWAY ? renderPropsCollapse("input-data", "Datos de entrada que usa", paramsHtml, false) : "";
     const flowParamsSection = node.kind === NODE_KINDS.INICIO ? renderPropsCollapse(
       "flow-params",
@@ -2390,8 +2504,10 @@
     if (!split) return;
     split.classList.toggle("is-palette-open", designerContext.mobilePaletteOpen);
     split.classList.toggle("is-props-open", designerContext.mobilePropsOpen);
+    split.classList.toggle("is-copilot-open", designerContext.copilotOpen);
     mainEl.querySelector("#btn-mobile-palette")?.classList.toggle("is-toggle-active", designerContext.mobilePaletteOpen);
     mainEl.querySelector("#btn-mobile-props")?.classList.toggle("is-toggle-active", designerContext.mobilePropsOpen);
+    mainEl.querySelector("#btn-toggle-copilot")?.classList.toggle("is-toggle-active", designerContext.copilotOpen);
   }
   function bindDesignerSidePanels(mainEl, _state, _persist) {
     const split = mainEl.querySelector("#designer-split");
@@ -2419,6 +2535,14 @@
       },
       { signal }
     );
+    mainEl.querySelector("#btn-toggle-copilot")?.addEventListener(
+      "click",
+      () => {
+        designerContext.copilotOpen = !designerContext.copilotOpen;
+        applyDesignerSidePanelState(mainEl);
+      },
+      { signal }
+    );
     split.addEventListener(
       "click",
       (e) => {
@@ -2427,6 +2551,7 @@
         const target = closeBtn.dataset.designerClose;
         if (target === "palette") designerContext.mobilePaletteOpen = false;
         if (target === "props") designerContext.mobilePropsOpen = false;
+        if (target === "copilot") designerContext.copilotOpen = false;
         applyDesignerSidePanelState(mainEl);
       },
       { signal }
@@ -3201,6 +3326,10 @@
       designerContext.studioMode = "automation";
       renderDesigner(mainEl, state, persist);
     });
+    mainEl.querySelector("#btn-design-agente-ia")?.addEventListener("click", () => {
+      designerContext.studioMode = "agente_ia";
+      renderDesigner(mainEl, state, persist);
+    });
   }
   function openParamModal(flow, param, onSave) {
     const isEdit = !!param;
@@ -3329,6 +3458,18 @@
         });
         return instance;
       }
+      if (node.kind === NODE_KINDS.AGENTE_IA) {
+        instance.currentNodeId = currentId;
+        instance.aiHitlStatus = "waiting";
+        instance.aiHitlSentAt = (/* @__PURE__ */ new Date()).toISOString();
+        instance.aiHitlReminders = 0;
+        appendTrace(instance, {
+          type: "pendiente",
+          message: `Agente IA pendiente (HITL): ${node.name} - Correo: ${node.hitlEmail || "no definido"}`,
+          nodeId: currentId
+        });
+        return instance;
+      }
       if (node.kind === NODE_KINDS.GATEWAY) {
         if (!gatewayDecision) {
           instance.currentNodeId = currentId;
@@ -3444,6 +3585,44 @@
     }
     instance.currentNodeId = nextId;
     return await proceedFromNode(instance, nextId, decision);
+  }
+  function simulateAIHITLReminder(instance) {
+    const nodeId = instance.currentNodeId;
+    const node = findNode(instance.flowSnapshot, nodeId);
+    if (!node || node.kind !== NODE_KINDS.AGENTE_IA) {
+      throw new Error("No hay Agente IA esperando respuesta");
+    }
+    instance.aiHitlReminders = (instance.aiHitlReminders || 0) + 1;
+    appendTrace(instance, {
+      type: "info",
+      message: `Recordatorio enviado a ${node.hitlEmail || "operador"} (Intento ${instance.aiHitlReminders})`,
+      nodeId
+    });
+    return instance;
+  }
+  async function resolveAIHITL(instance, resolutionData) {
+    const nodeId = instance.currentNodeId;
+    const node = findNode(instance.flowSnapshot, nodeId);
+    if (!node || node.kind !== NODE_KINDS.AGENTE_IA) {
+      throw new Error("No hay Agente IA esperando respuesta");
+    }
+    instance.aiHitlStatus = "resolved";
+    completeStep(instance, nodeId, "completada", "Resuelto por IA/HITL");
+    appendTrace(instance, {
+      type: "automatica",
+      message: `Agente IA resuelto: ${node.name}`,
+      nodeId,
+      dataShown: resolutionData
+    });
+    const nextId = nextNodeId(instance.flowSnapshot, nodeId, "siempre");
+    if (!nextId) {
+      instance.status = "completada";
+      instance.finishedAt = (/* @__PURE__ */ new Date()).toISOString();
+      instance.currentNodeId = null;
+      return instance;
+    }
+    instance.currentNodeId = nextId;
+    return await proceedFromNode(instance, nextId);
   }
   function getCurrentNode(instance) {
     if (!instance.currentNodeId) return null;
@@ -3590,6 +3769,20 @@
       <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "")}</p>
       <form id="form-manual" class="screen-preview">${renderScreenForInstance(instance, screen)}</form>`;
     }
+    if (node.kind === NODE_KINDS.AGENTE_IA) {
+      return `
+      <p><strong>${escapeHtml(node.name)}</strong> (Agente IA)</p>
+      <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
+      <div style="background:var(--bg-card);padding:1rem;border-radius:6px;margin:1rem 0;border:1px solid var(--border)">
+        <p style="margin:0 0 0.5rem 0;font-size:0.85rem"><strong>Estado:</strong> Esperando respuesta de ${escapeHtml(node.hitlEmail || "operador")}</p>
+        <p style="margin:0 0 1rem 0;font-size:0.85rem"><strong>Recordatorios enviados:</strong> ${instance.aiHitlReminders || 0}</p>
+        <div style="display:flex;gap:0.5rem">
+          <button type="button" class="btn btn-sm" id="btn-ai-remind">Simular +5 horas (Recordatorio)</button>
+          <button type="button" class="btn btn-sm btn-primary" id="btn-ai-resolve">Simular respuesta recibida</button>
+        </div>
+      </div>
+    `;
+    }
     return `<p>Nodo inesperado: ${escapeHtml(node.name)}</p>`;
   }
   function renderScreenForInstance(instance, screen) {
@@ -3651,6 +3844,22 @@
       if (!instance) return;
       await advanceAutomatic(instance);
       persist();
+      renderGestion(mainEl, state, persist);
+    });
+    mainEl.querySelector("#btn-ai-remind")?.addEventListener("click", async () => {
+      const instance = state.instances.find((i) => i.id === selectedInstanceId);
+      if (!instance) return;
+      simulateAIHITLReminder(instance);
+      persist();
+      toast("Se simul\xF3 el paso de 5 horas y se envi\xF3 un recordatorio.");
+      renderGestion(mainEl, state, persist);
+    });
+    mainEl.querySelector("#btn-ai-resolve")?.addEventListener("click", async () => {
+      const instance = state.instances.find((i) => i.id === selectedInstanceId);
+      if (!instance) return;
+      await resolveAIHITL(instance, { status: "approved", note: "Aprobado v\xEDa correo" });
+      persist();
+      toast("Respuesta recibida. Flujo avanza.");
       renderGestion(mainEl, state, persist);
     });
     const form = mainEl.querySelector("#form-manual");
@@ -3876,6 +4085,53 @@
     bindNavDrawer((view) => {
       currentView = view;
       render();
+    });
+    document.getElementById("btn-ai-config")?.addEventListener("click", () => {
+      const config = loadAiConfig();
+      const { close, root } = openModal(`
+      <div class="modal-header">
+        <h2>Configuraci\xF3n IA (Mock)</h2>
+        <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      </div>
+      <form id="form-ai-config" class="form-grid">
+        <p class="form-hint" style="margin-top:0;margin-bottom:0.5rem">
+          En este prototipo est\xE1tico no se hacen llamadas reales a las APIs. La configuraci\xF3n habilita la UI del Copilot y los Nodos Agente.
+        </p>
+        <div class="form-row">
+          <label>Proveedor</label>
+          <select name="provider">
+            <option value="openai" ${config.provider === "openai" ? "selected" : ""}>OpenAI</option>
+            <option value="anthropic" ${config.provider === "anthropic" ? "selected" : ""}>Anthropic</option>
+            <option value="google" ${config.provider === "google" ? "selected" : ""}>Google (Gemini)</option>
+            <option value="ollama" ${config.provider === "ollama" ? "selected" : ""}>Ollama (Local)</option>
+            <option value="custom" ${config.provider === "custom" ? "selected" : ""}>Otro (Custom)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Modelo por defecto</label>
+          <input name="model" value="${config.model || ""}" placeholder="ej. gpt-4o, claude-3.5-sonnet" />
+        </div>
+        <div class="form-row">
+          <label>API Key (Mock)</label>
+          <input type="password" name="apiKey" value="${config.apiKey || ""}" placeholder="sk-..." />
+          <p class="form-hint">Se guarda en localStorage. Cualquier valor no vac\xEDo activa la UI.</p>
+        </div>
+        <div style="margin-top:0.5rem">
+          <button type="submit" class="btn btn-primary">Guardar configuraci\xF3n</button>
+        </div>
+      </form>
+    `);
+      root.querySelector("#form-ai-config").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        saveAiConfig({
+          provider: fd.get("provider"),
+          model: fd.get("model"),
+          apiKey: fd.get("apiKey")
+        });
+        toast("Configuraci\xF3n IA guardada (Mock)", 2500, "success");
+        close();
+      });
     });
     render();
   } catch (err) {

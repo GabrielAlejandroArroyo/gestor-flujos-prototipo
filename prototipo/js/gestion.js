@@ -5,6 +5,8 @@ import {
   resolveManual,
   advanceAutomatic,
   statusLabel,
+  simulateAIHITLReminder,
+  resolveAIHITL,
 } from "./motor.js";
 import { validateScreenSubmission } from "./contracts.js";
 import { escapeHtml, formatDateTime, renderPageHeader, toast } from "./ui.js";
@@ -157,6 +159,21 @@ function renderResolver(instance, state) {
       <form id="form-manual" class="screen-preview">${renderScreenForInstance(instance, screen)}</form>`;
   }
 
+  if (node.kind === NODE_KINDS.AGENTE_IA) {
+    return `
+      <p><strong>${escapeHtml(node.name)}</strong> (Agente IA)</p>
+      <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
+      <div style="background:var(--bg-card);padding:1rem;border-radius:6px;margin:1rem 0;border:1px solid var(--border)">
+        <p style="margin:0 0 0.5rem 0;font-size:0.85rem"><strong>Estado:</strong> Esperando respuesta de ${escapeHtml(node.hitlEmail || "operador")}</p>
+        <p style="margin:0 0 1rem 0;font-size:0.85rem"><strong>Recordatorios enviados:</strong> ${instance.aiHitlReminders || 0}</p>
+        <div style="display:flex;gap:0.5rem">
+          <button type="button" class="btn btn-sm" id="btn-ai-remind">Simular +5 horas (Recordatorio)</button>
+          <button type="button" class="btn btn-sm btn-primary" id="btn-ai-resolve">Simular respuesta recibida</button>
+        </div>
+      </div>
+    `;
+  }
+
   return `<p>Nodo inesperado: ${escapeHtml(node.name)}</p>`;
 }
 
@@ -221,6 +238,24 @@ function bindResolver(mainEl, state, persist) {
     if (!instance) return;
     await advanceAutomatic(instance);
     persist();
+    renderGestion(mainEl, state, persist);
+  });
+
+  mainEl.querySelector("#btn-ai-remind")?.addEventListener("click", async () => {
+    const instance = state.instances.find((i) => i.id === selectedInstanceId);
+    if (!instance) return;
+    simulateAIHITLReminder(instance);
+    persist();
+    toast("Se simuló el paso de 5 horas y se envió un recordatorio.");
+    renderGestion(mainEl, state, persist);
+  });
+
+  mainEl.querySelector("#btn-ai-resolve")?.addEventListener("click", async () => {
+    const instance = state.instances.find((i) => i.id === selectedInstanceId);
+    if (!instance) return;
+    await resolveAIHITL(instance, { status: "approved", note: "Aprobado vía correo" });
+    persist();
+    toast("Respuesta recibida. Flujo avanza.");
     renderGestion(mainEl, state, persist);
   });
 

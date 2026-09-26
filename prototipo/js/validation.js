@@ -6,6 +6,7 @@ const NODE_KINDS = {
   INICIO: "inicio",
   MANUAL: "manual",
   AUTOMATICA: "automatica",
+  AGENTE_IA: "agente_ia",
   GATEWAY: "gateway",
   FIN: "fin",
 };
@@ -183,6 +184,15 @@ export function validateFlow(flow) {
     if (node.kind === NODE_KINDS.AUTOMATICA) {
       if (transitionsFrom(flow, node.id, "siempre").length === 0) {
         errors.push(`Service Task "${node.name}" debe tener Sequence Flow de continuación.`);
+      }
+    }
+
+    if (node.kind === NODE_KINDS.AGENTE_IA) {
+      if (transitionsFrom(flow, node.id, "siempre").length === 0) {
+        errors.push(`Agente IA "${node.name}" debe tener Sequence Flow de continuación.`);
+      }
+      if (!node.aiPrompt || !node.aiPrompt.trim()) {
+        errors.push(`Agente IA "${node.name}" debe tener un prompt configurado.`);
       }
     }
 

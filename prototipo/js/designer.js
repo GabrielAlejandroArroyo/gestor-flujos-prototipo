@@ -28,8 +28,10 @@ import {
   renderStudioToolbar,
   renderScreenStudio,
   renderAutomationStudio,
+  renderAgenteIAStudio,
   bindScreenStudio,
   bindAutomationStudio,
+  bindAgenteIAStudio,
 } from "./designer-studio.js";
 
 const TOOL_TO_LINE = {
@@ -49,6 +51,7 @@ let designerContext = {
   view: { zoom: 1, panX: 0, panY: 0 },
   mobilePaletteOpen: false,
   mobilePropsOpen: false,
+  copilotOpen: false,
   studioMode: "path",
 };
 
@@ -92,6 +95,12 @@ export function renderDesigner(mainEl, state, persist) {
     bindAutomationStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
     return;
   }
+  if (designerContext.studioMode === "agente_ia" && selected?.kind === NODE_KINDS.AGENTE_IA) {
+    mainEl.innerHTML = renderStudioShell(flow, selected, validation, "agente_ia");
+    bindStudioShell(mainEl, flow, selected, state, persist);
+    bindAgenteIAStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
+    return;
+  }
 
   designerContext.studioMode = "path";
   mainEl.innerHTML = renderFlowEditor(flow);
@@ -108,7 +117,13 @@ function renderStudioShell(flow, node, validation, mode) {
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
     ${renderStudioToolbar(flow.name, node, mode)}
-    <div class="designer-studio-root">${mode === "screen" ? renderScreenStudio(flow, node) : renderAutomationStudio(flow, node)}</div>`;
+    <div class="designer-studio-root">${
+      mode === "screen"
+        ? renderScreenStudio(flow, node)
+        : mode === "agente_ia"
+          ? renderAgenteIAStudio(flow, node)
+          : renderAutomationStudio(flow, node)
+    }</div>`;
 }
 
 function bindStudioShell(mainEl, flow, node, state, persist) {
@@ -419,6 +434,10 @@ function renderPaletteActivitiesBody() {
             <span class="palette-kind-icon" aria-hidden="true">⚙</span>
             <span>Service Task</span>
           </div>
+          <div class="palette-row palette-item palette-agente-ia" draggable="true" data-palette="agente_ia">
+            <span class="palette-kind-icon" aria-hidden="true">✨</span>
+            <span>Agente IA</span>
+          </div>
         </div>
         <div class="palette-row palette-item palette-gateway palette-gateway-toggle">
           ${renderGatewayTypeIcon(GATEWAY_TYPES.EXCLUSIVE)}
@@ -465,6 +484,7 @@ function designerSplitClassNames() {
   const parts = ["split", "split-designer"];
   if (designerContext.mobilePaletteOpen) parts.push("is-palette-open");
   if (designerContext.mobilePropsOpen) parts.push("is-props-open");
+  if (designerContext.copilotOpen) parts.push("is-copilot-open");
   return parts.join(" ");
 }
 
@@ -490,6 +510,10 @@ function renderFlowEditor(flow) {
         <button type="button" class="btn btn-sm btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
         <button type="button" class="btn btn-sm" id="btn-mark-draft">Borrador</button>
         ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`}
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="toolbar-group">
+        <button type="button" class="btn btn-sm" id="btn-toggle-copilot">✨ Copilot</button>
       </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
@@ -530,6 +554,21 @@ function renderFlowEditor(flow) {
       </div>
       <aside class="panel props-panel designer-side-panel" id="props-panel">
         ${renderPropsPanelShell(flow, selected)}
+      </aside>
+      <aside class="panel copilot-panel designer-side-panel" id="copilot-panel">
+        <div class="designer-panel-head">
+          <h3 class="panel-title">✨ Copilot (Mock)</h3>
+          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="copilot" aria-label="Cerrar Copilot">×</button>
+        </div>
+        <div class="copilot-chat" id="copilot-chat">
+          <div class="copilot-message copilot-message--ai">
+            ¡Hola! Soy tu asistente de diseño. ¿Qué flujo querés armar o modificar?
+          </div>
+        </div>
+        <form id="form-copilot" class="copilot-input-area">
+          <input name="prompt" placeholder="Ej: Agregá un paso de revisión..." autocomplete="off" />
+          <button type="submit" class="btn btn-sm btn-primary">Enviar</button>
+        </form>
       </aside>
     </div>`;
 }
@@ -1284,6 +1323,10 @@ function renderNodeProps(flow, node) {
     node.kind === NODE_KINDS.AUTOMATICA
       ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-automation" style="width:100%;margin-top:0.5rem">Diseñar automatización</button>`
       : "";
+  const agenteIABtn =
+    node.kind === NODE_KINDS.AGENTE_IA
+      ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-agente-ia" style="width:100%;margin-top:0.5rem">Configurar Agente IA</button>`
+      : "";
 
   ensureFlowDiagram(flow);
   const laneOptions = flow.lanes
@@ -1304,7 +1347,8 @@ function renderNodeProps(flow, node) {
       <div class="form-row"><label>Lane (rol / perfil)</label><select name="laneId">${laneOptions}</select></div>
       ${eventPoolHint}
       ${screenBtn}
-      ${automationBtn}`;
+      ${automationBtn}
+      ${agenteIABtn}`;
 
   const inputDataSection =
     node.kind !== NODE_KINDS.INICIO &&
@@ -1408,8 +1452,10 @@ function applyDesignerSidePanelState(mainEl) {
   if (!split) return;
   split.classList.toggle("is-palette-open", designerContext.mobilePaletteOpen);
   split.classList.toggle("is-props-open", designerContext.mobilePropsOpen);
+  split.classList.toggle("is-copilot-open", designerContext.copilotOpen);
   mainEl.querySelector("#btn-mobile-palette")?.classList.toggle("is-toggle-active", designerContext.mobilePaletteOpen);
   mainEl.querySelector("#btn-mobile-props")?.classList.toggle("is-toggle-active", designerContext.mobilePropsOpen);
+  mainEl.querySelector("#btn-toggle-copilot")?.classList.toggle("is-toggle-active", designerContext.copilotOpen);
 }
 
 /**
@@ -1446,6 +1492,15 @@ function bindDesignerSidePanels(mainEl, _state, _persist) {
     { signal },
   );
 
+  mainEl.querySelector("#btn-toggle-copilot")?.addEventListener(
+    "click",
+    () => {
+      designerContext.copilotOpen = !designerContext.copilotOpen;
+      applyDesignerSidePanelState(mainEl);
+    },
+    { signal },
+  );
+
   split.addEventListener(
     "click",
     (e) => {
@@ -1454,10 +1509,60 @@ function bindDesignerSidePanels(mainEl, _state, _persist) {
       const target = closeBtn.dataset.designerClose;
       if (target === "palette") designerContext.mobilePaletteOpen = false;
       if (target === "props") designerContext.mobilePropsOpen = false;
+      if (target === "copilot") designerContext.copilotOpen = false;
       applyDesignerSidePanelState(mainEl);
     },
     { signal },
   );
+}
+
+function bindCopilotChat(mainEl, state, persist) {
+  const form = mainEl.querySelector("#form-copilot");
+  const chat = mainEl.querySelector("#copilot-chat");
+  if (!form || !chat) return;
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = form.querySelector('[name="prompt"]');
+    const prompt = input.value.trim();
+    if (!prompt) return;
+
+    input.value = "";
+    
+    // Mensaje del usuario
+    const userMsg = document.createElement("div");
+    userMsg.className = "copilot-message copilot-message--user";
+    userMsg.textContent = prompt;
+    chat.appendChild(userMsg);
+    chat.scrollTop = chat.scrollHeight;
+
+    // Loading mock
+    const loadingMsg = document.createElement("div");
+    loadingMsg.className = "copilot-message copilot-message--ai";
+    loadingMsg.innerHTML = `<span class="copilot-loading">Generando...</span>`;
+    chat.appendChild(loadingMsg);
+    chat.scrollTop = chat.scrollHeight;
+
+    setTimeout(() => {
+      loadingMsg.remove();
+      const aiMsg = document.createElement("div");
+      aiMsg.className = "copilot-message copilot-message--ai";
+      
+      // Simulación básica de acciones
+      if (prompt.toLowerCase().includes("vacaciones")) {
+        aiMsg.textContent = "¡Listo! Armé un flujo básico de vacaciones con revisión y notificación.";
+        // Acá se inyectaría el JSON mock
+      } else if (prompt.toLowerCase().includes("notificaci")) {
+        aiMsg.textContent = "Agregué un paso de notificación al final del flujo.";
+        // Acá se agregaría un nodo
+      } else {
+        aiMsg.textContent = "Entendido. (Mock: en la versión final la IA modificaría el flujo basándose en este prompt).";
+      }
+      
+      chat.appendChild(aiMsg);
+      chat.scrollTop = chat.scrollHeight;
+    }, 1200);
+  });
 }
 
 function bindFlowEditor(mainEl, flow, state, persist) {
@@ -2310,6 +2415,11 @@ function bindNodeProps(mainEl, flow, node, state, persist) {
 
   mainEl.querySelector("#btn-design-automation")?.addEventListener("click", () => {
     designerContext.studioMode = "automation";
+    renderDesigner(mainEl, state, persist);
+  });
+
+  mainEl.querySelector("#btn-design-agente-ia")?.addEventListener("click", () => {
+    designerContext.studioMode = "agente_ia";
     renderDesigner(mainEl, state, persist);
   });
 }

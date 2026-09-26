@@ -106,6 +106,19 @@ async function proceedFromNode(instance, nodeId, gatewayDecision = null) {
       return instance;
     }
 
+    if (node.kind === NODE_KINDS.AGENTE_IA) {
+      instance.currentNodeId = currentId;
+      instance.aiHitlStatus = "waiting";
+      instance.aiHitlSentAt = new Date().toISOString();
+      instance.aiHitlReminders = 0;
+      appendTrace(instance, {
+        type: "pendiente",
+        message: `Agente IA pendiente (HITL): ${node.name} - Correo: ${node.hitlEmail || "no definido"}`,
+        nodeId: currentId,
+      });
+      return instance;
+    }
+
     if (node.kind === NODE_KINDS.GATEWAY) {
       if (!gatewayDecision) {
         instance.currentNodeId = currentId;
@@ -239,6 +252,53 @@ export async function resolveManual(instance, decision, comment = "", formValues
 
   instance.currentNodeId = nextId;
   return await proceedFromNode(instance, nextId, decision);
+}
+
+export function simulateAIHITLReminder(instance) {
+  const nodeId = instance.currentNodeId;
+  const node = findNode(instance.flowSnapshot, nodeId);
+  if (!node || node.kind !== NODE_KINDS.AGENTE_IA) {
+    throw new Error("No hay Agente IA esperando respuesta");
+  }
+
+  instance.aiHitlReminders = (instance.aiHitlReminders || 0) + 1;
+  appendTrace(instance, {
+    type: "info",
+    message: `Recordatorio enviado a ${node.hitlEmail || "operador"} (Intento ${instance.aiHitlReminders})`,
+    nodeId,
+  });
+  return instance;
+}
+
+export async function resolveAIHITL(instance, resolutionData) {
+  const nodeId = instance.currentNodeId;
+  const node = findNode(instance.flowSnapshot, nodeId);
+  if (!node || node.kind !== NODE_KINDS.AGENTE_IA) {
+    throw new Error("No hay Agente IA esperando respuesta");
+  }
+
+  instance.aiHitlStatus = "resolved";
+  completeStep(instance, nodeId, "completada", "Resuelto por IA/HITL");
+
+  // TODO: Apply output mappings if any
+  
+  appendTrace(instance, {
+    type: "automatica",
+    message: `Agente IA resuelto: ${node.name}`,
+    nodeId,
+    dataShown: resolutionData,
+  });
+
+  const nextId = nextNodeId(instance.flowSnapshot, nodeId, "siempre");
+  if (!nextId) {
+    instance.status = "completada";
+    instance.finishedAt = new Date().toISOString();
+    instance.currentNodeId = null;
+    return instance;
+  }
+
+  instance.currentNodeId = nextId;
+  return await proceedFromNode(instance, nextId);
 }
 
 export function getCurrentNode(instance) {
