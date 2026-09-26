@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bitácora — Gestor de flujos</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/theme-init.js"></script>
+  <style>
+    .doc { max-width: 900px; margin: 0 auto; }
+    .doc-links { font-size: 0.85rem; margin-bottom: 1rem; color: var(--muted); }
+    .doc-links a { color: var(--accent); }
+    .bitacora-entry { margin-bottom: 1rem; padding: 0.75rem; background: var(--surface-2); border-radius: 8px; font-size: 0.9rem; }
+    .bitacora-entry h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+    .bitacora-entry time { color: var(--muted); font-size: 0.8rem; display: block; margin-bottom: 0.35rem; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <div>
+          <h1>Bitácora del mock</h1>
+          <p class="subtitle">Cambios pedidos sobre el prototipo</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="btn" href="index.html">← Mock</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Activar modo claro"></button>
+      </div>
+    </header>
+    <main class="app-main doc panel" style="margin:1.5rem">
+
+      <p class="doc-links">
+        Markdown: <a href="bitacora.md">bitacora.md</a> ·
+        Documentación: <a href="documentacion.html">documentacion.html</a> · <a href="documentacion.md">documentacion.md</a>
+      </p>
+
+      <p>Historial de decisiones. Las entradas no se eliminan; reflejan la evolución del diseño antes de la implementación en Next.js y Supabase.</p>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Versión inicial del plan</h3>
+        <p>Diseñador de flujos, motor de instancias y documentador integrados en el concepto.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Iteración de alcance</h3>
+        <p>Mock y documentación en carpeta <code>prototipo</code>. Menú: Diseñador de flujo, Gestión de actividades, Reporte. Diseñador de pantallas para actividades manuales.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Implementación del prototipo</h3>
+        <p>Entrega HTML/CSS/JS con catálogo, lienzo con arrastre, validación, pantallas, instanciación múltiple, motor con traza y reporte filtrable.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Arquitectura objetivo (stack productivo)</h3>
+        <p>Mock sigue vigente. Implementación futura: Next.js / React 19, App Router, Server Components, Tailwind, responsive, ES/EN/PT; API Routes con Zod y reglas centralizadas; Supabase Auth; Postgres con schemas por dominio y RLS.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Supabase local y migraciones</h3>
+        <p>Al implementar: entorno Supabase local en Docker (<code>supabase start</code>); esquema y RLS solo vía migraciones del CLI (<code>supabase/migrations</code>). Supabase Cloud después, con el mismo historial.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Documentación y bitácora en MD y HTML</h3>
+        <p>Pares <code>documentacion.md</code> / <code>documentacion.html</code> y <code>bitacora.md</code> / <code>bitacora.html</code> con el mismo contenido. El mock enlaza a las versiones HTML.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:45">2026-09-25 19:45</time>
+        <h3>Versiones del mock, menú hamburguesa y tema</h3>
+        <p>Snapshot congelado en <code>versiones/2026-09-25_1930_catalogo-lienzo</code>. Índice en <a href="versiones.html">versiones.html</a> y <a href="versiones.md">versiones.md</a>. Mock vigente con menú lateral hamburguesa y alternancia claro/oscuro (preferencia en <code>localStorage</code>).</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:50">2026-09-25 19:50</time>
+        <h3>Corrección menú hamburguesa e icono de tema</h3>
+        <p>Panel de navegación reubicado al final del <code>body</code>, overlay y drawer con <code>z-index</code> elevado y apertura por clases. Tema con iconos sol/luna en lugar del texto «Modo claro/oscuro».</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:55">2026-09-25 19:55</time>
+        <h3>Mock interactivo</h3>
+        <p>Empaquetado en <code>js/bundle.js</code> para evitar bloqueos de módulos ES. Arrastre de nodos y selección corregidos en el diseñador. Script <code>abrir-mock.ps1</code> para servidor local opcional.</p>
+      </article>
+
+    </main>
+  </div>
+  <script src="js/theme-bundle.js" defer></script>
+</body>
+</html>

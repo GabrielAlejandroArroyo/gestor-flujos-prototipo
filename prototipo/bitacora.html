@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bitácora — Gestor de flujos</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/theme-init.js"></script>
+  <style>
+    .doc { max-width: 900px; margin: 0 auto; }
+    .doc-links { font-size: 0.85rem; margin-bottom: 1rem; color: var(--muted); }
+    .doc-links a { color: var(--accent); }
+    .bitacora-entry { margin-bottom: 1rem; padding: 0.75rem; background: var(--surface-2); border-radius: 8px; font-size: 0.9rem; }
+    .bitacora-entry h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+    .bitacora-entry time { color: var(--muted); font-size: 0.8rem; display: block; margin-bottom: 0.35rem; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <div>
+          <h1>Bitácora del mock</h1>
+          <p class="subtitle">Cambios pedidos sobre el prototipo</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="btn" href="index.html">← Mock</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Activar modo claro"></button>
+      </div>
+    </header>
+    <main class="app-main doc panel" style="margin:1.5rem">
+
+      <p class="doc-links">
+        Markdown: <a href="bitacora.md">bitacora.md</a> ·
+        Documentación: <a href="documentacion.html">documentacion.html</a> · <a href="documentacion.md">documentacion.md</a>
+      </p>
+
+      <p>Historial de decisiones. Las entradas no se eliminan; reflejan la evolución del diseño antes de la implementación en Next.js y Supabase.</p>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Versión inicial del plan</h3>
+        <p>Diseñador de flujos, motor de instancias y documentador integrados en el concepto.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Iteración de alcance</h3>
+        <p>Mock y documentación en carpeta <code>prototipo</code>. Menú: Diseñador de flujo, Gestión de actividades, Reporte. Diseñador de pantallas para actividades manuales.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Implementación del prototipo</h3>
+        <p>Entrega HTML/CSS/JS con catálogo, lienzo con arrastre, validación, pantallas, instanciación múltiple, motor con traza y reporte filtrable.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Arquitectura objetivo (stack productivo)</h3>
+        <p>Mock sigue vigente. Implementación futura: Next.js / React 19, App Router, Server Components, Tailwind, responsive, ES/EN/PT; API Routes con Zod y reglas centralizadas; Supabase Auth; Postgres con schemas por dominio y RLS.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Supabase local y migraciones</h3>
+        <p>Al implementar: entorno Supabase local en Docker (<code>supabase start</code>); esquema y RLS solo vía migraciones del CLI (<code>supabase/migrations</code>). Supabase Cloud después, con el mismo historial.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25">2026-09-25</time>
+        <h3>Documentación y bitácora en MD y HTML</h3>
+        <p>Pares <code>documentacion.md</code> / <code>documentacion.html</code> y <code>bitacora.md</code> / <code>bitacora.html</code> con el mismo contenido. El mock enlaza a las versiones HTML.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:45">2026-09-25 19:45</time>
+        <h3>Versiones del mock, menú hamburguesa y tema</h3>
+        <p>Snapshot congelado en <code>versiones/2026-09-25_1930_catalogo-lienzo</code>. Índice en <a href="versiones.html">versiones.html</a> y <a href="versiones.md">versiones.md</a>. Mock vigente con menú lateral hamburguesa y alternancia claro/oscuro (preferencia en <code>localStorage</code>).</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:50">2026-09-25 19:50</time>
+        <h3>Corrección menú hamburguesa e icono de tema</h3>
+        <p>Panel de navegación reubicado al final del <code>body</code>, overlay y drawer con <code>z-index</code> elevado y apertura por clases. Tema con iconos sol/luna en lugar del texto «Modo claro/oscuro».</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:55">2026-09-25 19:55</time>
+        <h3>Mock interactivo</h3>
+        <p>Empaquetado en <code>js/bundle.js</code> para evitar bloqueos de módulos ES. Arrastre de nodos y selección corregidos en el diseñador. Script <code>abrir-mock.ps1</code> para servidor local opcional.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T19:55">2026-09-25 19:55</time>
+        <h3>Diseñador BPMN (Exclusive Gateway)</h3>
+        <p>Subconjunto BPMN 2.0 en el lienzo. User Task → gateway XOR → ramas aceptar/rechazar. Motor y validación actualizados. Clave <code>gestor_flujos_prototipo_v2</code>.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T20:05">2026-09-25 20:05</time>
+        <h3>Menú lateral fijo abierto</h3>
+        <p>Navegación en columna junto al contenido principal, abierta por defecto. En escritorio sin overlay; hamburguesa colapsa la barra.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T20:15">2026-09-25 20:15</time>
+        <h3>Gobernanza Cursor rules (fase mock)</h3>
+        <p>Rules de prototipo y checklist mock; documentación con versionado, Auth TBD y checklist Supabase futuro. Snapshot <code>versiones/2026-09-25_2005_sidebar-docked</code>; índice de versiones corregido (<code>pre-bpmn</code> ↔ carpeta <code>1955_pre-bpmn</code>).</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-26T00:05">2026-09-26 00:05</time>
+        <h3>Estudio Pantalla + Automatización</h3>
+        <p>Contratos, diseñador de formularios, integraciones REST mock y catálogo adaptable.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T23:45">2026-09-25 23:45</time>
+        <h3>Context pad axis-aligned (gateway)</h3>
+        <p>Menús del diseñador sin inclinación; capa visual del rombo separada; regla Cursor ux-axis-aligned-overlays.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T23:35">2026-09-25 23:35</time>
+        <h3>Lanes verticales y encuadre escritorio</h3>
+        <p>Títulos de lane verticales; ancho del pool según viewport; mensaje móvil actualizado.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T23:20">2026-09-25 23:20</time>
+        <h3>Paneles laterales colapsados (canvas-first)</h3>
+        <p>Elementos y Propiedades cerrados por defecto; flyouts en escritorio; toggles siempre en la barra del lienzo; Propiedades al seleccionar nodo.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T23:05">2026-09-25 23:05</time>
+        <h3>Bloqueo móvil y avisos por resolución</h3>
+        <p>Editor bloqueado en teléfono; avisos gran problema (&lt;1024×768) y tablet con limitaciones.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T22:55">2026-09-25 22:55</time>
+        <h3>Diseñador responsive y UI colapsada</h3>
+        <p>Paleta y propiedades en acordeón; toggles Elementos/Propiedades en pantallas pequeñas.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T22:40">2026-09-25 22:40</time>
+        <h3>Start/End Event dentro del pool</h3>
+        <p>Eventos de inicio y fin restringidos al área del pool; pueden usar lanes distintos.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T22:25">2026-09-25 22:25</time>
+        <h3>Catálogo de compuertas BPMN</h3>
+        <p>Siete tipos visibles en paleta, context pad y propiedades; solo Compuerta Exclusiva habilitada; resto Futuro.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T22:10">2026-09-25 22:10</time>
+        <h3>Panel Propiedades: acordeón y scroll interno</h3>
+        <p>Secciones colapsables; <strong>General</strong> abierta por defecto. Scroll vertical dentro de la columna Propiedades sin desbordar el diseñador.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:55">2026-09-25 21:55</time>
+        <h3>Vista inicial y pantalla completa</h3>
+        <p>Encuadre al abrir flujo; pantalla completa con viewport correcto y reajuste de zoom.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:45">2026-09-25 21:45</time>
+        <h3>Pool BPMN vertical, lanes y zoom del lienzo</h3>
+        <p>Pool con título vertical, lanes por rol, navegación zoom/pan en el diseñador.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:35">2026-09-25 21:35</time>
+        <h3>Pool, lanes y Task colapsada</h3>
+        <p>Recuadro pool, lanes por rol; Task genérica con submenú solo al abrir ▾.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:25">2026-09-25 21:25</time>
+        <h3>Context pad: iconos 👤/⚙ en Task</h3>
+        <p>Persona y engranaje en User/Service Task del pad; sin botón flecha en el menú contextual.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:20">2026-09-25 21:20</time>
+        <h3>Context pad: descriptores y sin flecha manual</h3>
+        <p>Texto junto a iconos; sin botón ➜ en el pad; conexión al crear desde el pad.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:10">2026-09-25 21:10</time>
+        <h3>Context pad: Task con submenú</h3>
+        <p>Task colapsada con chevron User/Service; posicionamiento al append evita flechas sobre el pad.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T21:00">2026-09-25 21:00</time>
+        <h3>Context pad: eliminar elemento</h3>
+        <p>Acción 🗑 en el pad contextual para borrar nodos del diagrama (excepto Start Event).</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T20:50">2026-09-25 20:50</time>
+        <h3>Context pad BPMN (estilo modelador)</h3>
+        <p>Context pad al seleccionar nodos: acciones rápidas append + conector a existente; estilo Bizagi/jBPM dentro del subconjunto del mock.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T20:40">2026-09-25 20:40</time>
+        <h3>Eliminar flujos en borrador</h3>
+        <p>Botón Eliminar en catálogo y toolbar del editor cuando <code>status</code> es borrador; no aplica a flujos listos ni si hay instancias en curso.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T20:35">2026-09-25 20:35</time>
+        <h3>Diseñador: puertos, paleta BPMN y líneas clásicas</h3>
+        <p>Start/End al crear flujo; paleta con Task User/Service y líneas Sequence, Message y Association; puertos en nodos seleccionados; motor solo ejecuta Sequence Flow.</p>
+      </article>
+
+      <article class="bitacora-entry">
+        <time datetime="2026-09-25T20:20">2026-09-25 20:20</time>
+        <h3>Limpieza repo y regeneración del mock</h3>
+        <p>Reglas de app futura en <code>.cursor/rules/_fase-app/</code>; skills Supabase en <code>.cursor/_archive/skills/</code>; <code>README.md</code> y <code>build-mock.ps1</code>. Bundles JS regenerados; footer del mock simplificado.</p>
+      </article>
+
+    </main>
+  </div>
+  <script src="js/theme-bundle.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Versiones del mock</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/theme-init.js"></script>
+  <style>
+    .doc { max-width: 900px; margin: 0 auto; }
+    .doc-links { font-size: 0.85rem; margin-bottom: 1rem; color: var(--muted); }
+    .doc-links a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <div>
+          <h1>Versiones del mock</h1>
+          <p class="subtitle">Snapshots fechados</p>
+        </div>
+      </div>
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Activar modo claro"></button>
+    </header>
+    <main class="app-main doc panel" style="margin:1.5rem">
+      <p class="doc-links">Markdown: <a href="versiones.md">versiones.md</a> · <a href="index.html">Mock vigente</a></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Fecha y hora</th><th>Etiqueta</th><th>Descripción</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2026-09-25 19:30</td>
+              <td><code>catalogo-lienzo</code></td>
+              <td>Menú horizontal, tema oscuro fijo</td>
+              <td><a href="versiones/2026-09-25_1930_catalogo-lienzo/index.html">Abrir</a></td>
+            </tr>
+            <tr>
+              <td>2026-09-25 19:55</td>
+              <td><code>pre-bpmn</code></td>
+              <td>Hamburguesa, tema y bundle (sin BPMN XOR)</td>
+              <td><a href="versiones/2026-09-25_1955_pre-bpmn/index.html">Abrir</a></td>
+            </tr>
+            <tr>
+              <td>2026-09-25 20:05</td>
+              <td><code>sidebar-docked</code></td>
+              <td>BPMN XOR + menú lateral fijo</td>
+              <td><a href="versiones/2026-09-25_2005_sidebar-docked/index.html">Abrir</a></td>
+            </tr>
+            <tr>
+              <td>—</td>
+              <td><code>vigente</code></td>
+              <td>Mock editable en la raíz de <code>prototipo/</code></td>
+              <td><a href="index.html">Abrir</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+    <footer class="app-footer">
+      <a href="index.html">Mock vigente</a> · <a href="bitacora.html">Bitácora</a>
+    </footer>
+  </div>
+  <script src="js/theme-bundle.js" defer></script>
+</body>
+</html>

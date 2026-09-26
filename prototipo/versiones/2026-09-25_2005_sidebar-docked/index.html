@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestor de flujos de trabajo — Prototipo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/theme-init.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="header-start">
+        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Cerrar menú" aria-expanded="true" aria-controls="nav-drawer">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>Gestor de flujos</h1>
+            <p class="subtitle">Prototipo HTML · Supabase pendiente</p>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Activar modo claro"></button>
+      </div>
+    </header>
+
+    <div class="app-shell" id="app-shell">
+      <div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
+      <aside class="nav-drawer is-open" id="nav-drawer" aria-label="Menú principal" aria-hidden="false">
+        <p class="nav-drawer-title">Trabajo</p>
+        <button type="button" class="nav-btn is-active" data-view="designer">Diseñador de flujo</button>
+        <button type="button" class="nav-btn" data-view="gestion">Gestión de actividades</button>
+        <button type="button" class="nav-btn" data-view="reporte">Reporte</button>
+        <div class="nav-drawer-footer">
+          <a href="documentacion.html">Documentación</a>
+          <a href="bitacora.html">Bitácora</a>
+          <a href="versiones.html">Índice de versiones</a>
+        </div>
+      </aside>
+      <main id="app-main" class="app-main"></main>
+    </div>
+
+    <footer class="app-footer">
+      <a href="documentacion.html">Documentación</a>
+      ·
+      <a href="bitacora.html">Bitácora</a>
+      ·
+      <a href="versiones.html">Versiones</a>
+      ·
+      <a href="documentacion.md">documentacion.md</a>
+      ·
+      <a href="bitacora.md">bitacora.md</a>
+      ·
+      <a href="versiones.md">versiones.md</a>
+    </footer>
+  </div>
+
+  <div id="modal-root" class="modal-root" hidden></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <script src="js/bundle.js" defer></script>
+</body>
+</html>

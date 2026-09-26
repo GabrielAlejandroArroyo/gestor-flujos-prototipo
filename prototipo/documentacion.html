@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Documentación — Gestor de flujos</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/theme-init.js"></script>
+  <style>
+    .doc { max-width: 900px; margin: 0 auto; }
+    .doc h2 { margin-top: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; }
+    .doc pre { background: var(--bg); padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; border: 1px solid var(--border); white-space: pre-wrap; }
+    .doc ul, .doc table { line-height: 1.6; }
+    .doc table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin: 0.75rem 0; }
+    .doc th, .doc td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); }
+    .doc-links { font-size: 0.85rem; margin-bottom: 1rem; color: var(--muted); }
+    .doc-links a { color: var(--accent); }
+    .arch-layer { padding: 0.75rem; background: var(--surface-2); border-radius: 8px; margin: 0.5rem 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <div>
+          <h1>Documentación del prototipo</h1>
+          <p class="subtitle">Modelo conceptual y arquitectura objetivo</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="btn" href="index.html">← Mock</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Activar modo claro"></button>
+      </div>
+    </header>
+    <main class="app-main doc panel" style="margin:1.5rem">
+
+      <p class="doc-links">
+        Markdown: <a href="documentacion.md">documentacion.md</a> ·
+        Bitácora: <a href="bitacora.html">bitacora.html</a> · <a href="bitacora.md">bitacora.md</a>
+      </p>
+
+      <h2>Propósito</h2>
+      <p>Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de implementarlo con Supabase. Separa la <strong>definición</strong> del flujo (diseñador) de la <strong>ejecución</strong> (instancias, traza y reporte). El mock sigue vigente; la app Next.js es la fase siguiente.</p>
+
+      <h2>Menú del mock</h2>
+      <ul>
+        <li><strong>Diseñador de flujo (BPMN):</strong> catálogo con eliminación solo en borrador; Start/User/Service Task, Exclusive Gateway, End Event, Sequence Flow y pantallas en User Task.</li>
+        <li><strong>Gestión de actividades:</strong> instanciar flujos listos, resolver tareas manuales (Aceptar/Rechazar) y ejecutar automáticas.</li>
+        <li><strong>Reporte:</strong> avance, filtros y traza de cada instancia.</li>
+      </ul>
+
+      <h2>Entidades (modelo conceptual)</h2>
+      <table>
+        <thead><tr><th>Entidad</th><th>Descripción</th></tr></thead>
+        <tbody>
+          <tr><td>TipoFlujo</td><td>Categoría (texto libre en el mock, ej. Aprobación).</td></tr>
+          <tr><td>Flujo</td><td>Tipo, nombre, descripción, estado (borrador | listo), versión.</td></tr>
+          <tr><td>ParametroEntrada</td><td>Clave, etiqueta, tipo (texto, numero, fecha, si_no), obligatorio.</td></tr>
+          <tr><td>Nodo BPMN</td><td>inicio, manual, automatica, gateway, fin</td></tr>
+          <tr><td>Sequence Flow</td><td>Origen, destino, condición (siempre | aceptar | rechazar)</td></tr>
+          <tr><td>Pantalla</td><td>Una por User Task</td></tr>
+          <tr><td>BloquePantalla</td><td>titulo, texto, dato, comentario; orden definido.</td></tr>
+          <tr><td>Instancia</td><td>Copia del flujo al iniciar, valores de entrada, estado, paso actual.</td></tr>
+          <tr><td>PasoInstancia</td><td>Actividad resuelta con decisión y comentario.</td></tr>
+          <tr><td>Traza</td><td>Eventos inmutables para auditoría y reporte.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Diagrama entidad-relación (referencia Supabase)</h2>
+      <pre>TipoFlujo 1 —— * Flujo
+Flujo 1 —— * ParametroEntrada
+Flujo 1 —— * Nodo
+Flujo 1 —— * Transicion
+Nodo * —— * ParametroEntrada  (UsoDato)
+Nodo 1 —— 0..1 Pantalla  (solo actividad manual)
+Pantalla 1 —— * BloquePantalla
+ParametroEntrada 1 —— * BloquePantalla  (bloques tipo dato)
+Flujo 1 —— * Instancia
+Instancia 1 —— * PasoInstancia
+Nodo 1 —— * PasoInstancia
+Instancia 1 —— * Traza</pre>
+
+      <h2>Tablas sugeridas (implementación futura)</h2>
+      <pre>flujo.flujos (id, tipo, nombre, descripcion, estado, version, created_at)
+flujo.parametros_entrada (id, flujo_id, clave, etiqueta, tipo, obligatorio)
+flujo.nodos (id, flujo_id, kind, nombre, descripcion, pos_x, pos_y)
+flujo.nodo_parametros (nodo_id, parametro_id)
+flujo.transiciones (id, flujo_id, from_nodo_id, to_nodo_id, condicion)
+flujo.pantallas (id, nodo_id)
+flujo.bloques_pantalla (id, pantalla_id, orden, tipo, texto, parametro_id)
+ejecucion.instancias (id, flujo_id, flujo_snapshot jsonb, estado, input_values jsonb, current_nodo_id, started_at, finished_at, created_by)
+ejecucion.pasos_instancia (id, instancia_id, nodo_id, estado, comentario, at)
+ejecucion.trazas (id, instancia_id, tipo, mensaje, decision, comentario, data_shown jsonb, at)</pre>
+
+      <h2>Persistencia del mock</h2>
+      <p>Claves <code>localStorage</code>: <code>gestor_flujos_prototipo_v2</code> (datos) y <code>gestor_flujos_theme_v1</code> (tema). Ejemplo «Aprobación de gasto» con User Task → Exclusive Gateway.</p>
+
+      <h2>Procedimiento de versionado del mock</h2>
+      <ul>
+        <li>Mock editable en <code>prototipo/</code>; snapshots congelados en <code>prototipo/versiones/YYYY-MM-DD_HHmm_etiqueta/</code>.</li>
+        <li>Índice: <a href="versiones.html">versiones.html</a> · <a href="versiones.md">versiones.md</a>.</li>
+        <li>Antes de cambios grandes: nuevo snapshot + bitácora; regenerar con <code>build-mock.ps1</code>.</li>
+        <li>Raíz del repo: ver <code>README.md</code>; reglas de app futura en <code>.cursor/rules/_fase-app/</code>.</li>
+        <li>SemVer (<code>lib/version.ts</code>) solo aplica con la app Next.js.</li>
+      </ul>
+
+      <h2>Líneas BPMN en el diseñador</h2>
+      <table>
+        <thead><tr><th>Tipo</th><th>Ejecuta en Gestión</th><th>Notas</th></tr></thead>
+        <tbody>
+          <tr><td>Sequence Flow</td><td>Sí</td><td>Puertos, herramienta o panel Propiedades</td></tr>
+          <tr><td>Message Flow</td><td>No</td><td>Solo diagrama</td></tr>
+          <tr><td>Association</td><td>No</td><td>Enlace visual</td></tr>
+        </tbody>
+      </table>
+      <p>Flujo nuevo: incluye Start y End en el lienzo.</p>
+      <p><strong>Compuertas:</strong> catálogo de siete tipos BPMN en paleta/context pad/propiedades; solo <strong>Compuerta Exclusiva</strong> activa; demás marcadas <em>Futuro</em>.</p>
+      <p><strong>Viewport diseñador:</strong> teléfono bloqueado («Esto no se puede hacer en tu dispositivo…»); recomendado ≥1024×768; avisos en PC baja resolución y tablet.</p>
+      <p><strong>UI canvas-first:</strong> paneles Elementos y Propiedades cerrados por defecto; toggles en la barra del lienzo (todos los anchos); flyouts en escritorio; al seleccionar nodo se abre Propiedades. Secciones internas colapsables con scroll.</p>
+      <p><strong>Start/End Event:</strong> siempre dentro del pool; pueden estar en lanes distintos.</p>
+      <p><strong>Estudio:</strong> Camino (BPMN), Pantalla (formularios User Task), Automatización (REST/SOAP/GraphQL/conectores); contexto de instancia y trazas de integración.</p>
+      <p><strong>Context pad:</strong> menús siempre horizontales/verticales; en gateway el rombo no inclina el pad.</p>
+      <p><strong>Lienzo:</strong> pool con nombre y títulos de lane verticales; ancho del pool proporcional al viewport; encuadre automático al abrir y al resize; zoom/pan; pantalla completa reajusta la vista.</p>
+
+      <h2>Subconjunto BPMN 2.0</h2>
+      <ul>
+        <li><strong>Start Event</strong> — parámetros; salida <code>siempre</code>.</li>
+        <li><strong>User Task</strong> — pantalla; salida <code>siempre</code> al gateway.</li>
+        <li><strong>Exclusive Gateway</strong> — salidas <code>aceptar</code> y <code>rechazar</code>.</li>
+        <li><strong>Service Task</strong> — salida <code>siempre</code>.</li>
+        <li><strong>End Event</strong> — sin salidas.</li>
+      </ul>
+
+      <h2>Arquitectura objetivo (implementación futura)</h2>
+      <p>Tres capas; la implementación arranca contra <strong>Supabase local</strong> (Docker), no contra la nube.</p>
+
+      <div class="arch-layer"><strong>Presentación</strong> — Next.js, React 19, App Router, Server Components, Tailwind CSS, responsive, idiomas ES / EN / PT. Pantallas equivalentes al mock (diseñador con pantallas manuales, gestión, reporte).</div>
+      <div class="arch-layer"><strong>Negocio (API First)</strong> — API Routes de Next.js; reglas en <code>validation</code> y <code>motor</code> del prototipo; validación Zod. <strong>Auth productiva por definir</strong> (Supabase Auth u OIDC/NextAuth).</div>
+      <div class="arch-layer"><strong>Datos</strong> — Postgres vía Supabase CLI (<code>supabase start</code>); schemas <code>flujo</code> y <code>ejecucion</code>; RLS en migraciones; cloud después con el mismo historial.</div>
+
+      <pre>Mock HTML (actual) → Implementación → Supabase local + migraciones → Supabase Cloud</pre>
+
+      <h3>Migraciones</h3>
+      <p>Esquema y políticas solo en <code>supabase/migrations</code> (<code>supabase migration new</code>). No editar el Studio como fuente de verdad.</p>
+
+      <h2>Anexo — Checklist Supabase (fase futura)</h2>
+      <ol>
+        <li>Migración en Git antes de cualquier DDL.</li>
+        <li><code>npx supabase migration new</code> → validar → <code>npx supabase db push</code> en DESA.</li>
+        <li>Regenerar <code>lib/supabase/types.ts</code> y correr <code>npm run verify</code>.</li>
+        <li>No DDL en stage/prod desde el IDE; merge + deploy.</li>
+      </ol>
+      <p>Detalle: migraciones versionadas en Git; setup documentado al iniciar Supabase en un repo de implementación.</p>
+
+      <h2>Fuera de alcance (fase mock actual)</h2>
+      <ul>
+        <li>Proyecto Next.js, Tailwind, i18n, Zod y cliente Supabase.</li>
+        <li>Docker, <code>supabase init</code> y migraciones hasta pedir implementar.</li>
+        <li>Asignación por usuario/rol y acciones automáticas reales (email, webhooks).</li>
+        <li>Diseñador avanzado (zoom, minimapa, historial ilimitado).</li>
+      </ul>
+    </main>
+  </div>
+  <script src="js/theme-bundle.js" defer></script>
+</body>
+</html>

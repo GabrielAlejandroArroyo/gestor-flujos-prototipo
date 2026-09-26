@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestor de flujos de trabajo — Prototipo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>Gestor de flujos</h1>
+          <p class="subtitle">Prototipo HTML · Supabase pendiente</p>
+        </div>
+      </div>
+      <nav class="main-nav" aria-label="Menú principal">
+        <button type="button" class="nav-btn is-active" data-view="designer">Diseñador de flujo</button>
+        <button type="button" class="nav-btn" data-view="gestion">Gestión de actividades</button>
+        <button type="button" class="nav-btn" data-view="reporte">Reporte</button>
+      </nav>
+    </header>
+
+    <main id="app-main" class="app-main"></main>
+
+    <footer class="app-footer">
+      <a href="documentacion.html">Documentación</a>
+      ·
+      <a href="bitacora.html">Bitácora</a>
+      ·
+      <a href="documentacion.md">documentacion.md</a>
+      ·
+      <a href="bitacora.md">bitacora.md</a>
+    </footer>
+  </div>
+
+  <div id="modal-root" class="modal-root" hidden></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

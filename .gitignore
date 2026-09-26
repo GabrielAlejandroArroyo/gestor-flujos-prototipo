@@ -1,0 +1,17 @@
+# Cursor / IDE local (no subir reglas org)
+.cursor/
+
+# Dependencias y secretos
+node_modules/
+.env
+.env.*
+*.pem
+credentials.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build cache (bundles se commitean para Pages sin CI build)
+# npx esbuild se corre localmente con build-mock.ps1

@@ -1,0 +1,2 @@
+Versión congelada: 2026-09-25 19:30 — catalogo-lienzo
+No editar. Mock vigente: ../../index.html
