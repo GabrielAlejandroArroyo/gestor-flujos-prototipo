@@ -13,8 +13,9 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 
 ## Menú del mock
 
-- **Diseñador de flujo (BPMN):** catálogo (crear, abrir, **versionar** flujos listos, **eliminar solo borrador**), ciclo borrador → confirmar versión → listo; al publicar una nueva versión la anterior queda **deprecada**; lienzo BPMN 2.0, parámetros en Start Event, Sequence Flow y pantallas en User Task.
-- **Gestión de actividades:** instanciar solo flujos **listos** (versión activa), resolver tareas manuales (Aceptar/Rechazar) y ejecutar automáticas.
+- **Diseñador de flujo (BPMN):** catálogo de flujos y **catálogo de actividades** (componentes por flujo listo/borrador); crear, abrir, **versionar** flujos listos, **eliminar solo borrador**; ciclo borrador → confirmar versión → listo; lienzo BPMN 2.0, Sequence Flow y pantallas en User Task.
+- **Atributos por componente:** en el catálogo de actividades, **Abrir** muestra un modal para definir parámetros de **entrada** (Start, End, User Task, Service Task) y, en **Gateway**, también de **salida** (0..n, único/lista, obligatorio, opciones en listas). Editable solo en flujo **borrador**; el Start sincroniza con parámetros de instancia en Gestión.
+- **Gestión de actividades:** KPIs (listos, en curso, finalizados); tablas de instancias con **Gestionar** / **Visualizar** a pantalla completa en el área principal (no popup); **Visualizar** con pestañas **Datos**, **Traza** y **Diagrama**; botón **Iniciar instancia** (modal).
 - **Reporte:** avance, filtros y traza de cada instancia.
 
 ## Entidades (modelo conceptual)
@@ -23,7 +24,8 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 |---------|-------------|
 | **TipoFlujo** | Categoría (texto libre en el mock, ej. Aprobación). |
 | **Flujo** | Tipo, nombre, descripción, estado (borrador \| listo \| deprecado), versión (asignada al confirmar), `lineageId` (misma familia de versiones), `supersedesFlowId` (borrador que reemplaza un listo). |
-| **ParametroEntrada** | Clave, etiqueta, tipo (texto, numero, fecha, si_no), obligatorio. |
+| **ParametroEntrada** | Clave, etiqueta, tipo (texto, numero, fecha, si_no), obligatorio; cardinalidad único/lista y opciones (Start → instancia). |
+| **AtributoComponente** | Por nodo: `inputAttributes` (y `outputAttributes` en gateway): clave, etiqueta, tipo, cardinalidad, obligatorio, opciones con obligatoriedad por ítem. |
 | **Nodo** | BPMN: Start Event (`inicio`), User Task (`manual`), Service Task (`automatica`), Exclusive Gateway (`gateway`), End Event (`fin`). |
 | **Sequence Flow** | Origen, destino, `lineType: sequence`, condición (siempre \| aceptar \| rechazar). **Ejecutable** por el motor. |
 | **Message Flow** | Origen, destino, `lineType: message`. Solo diagrama (no ejecuta en Gestión). |

@@ -25,6 +25,11 @@ import {
 } from "./designer-viewport.js";
 import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 import { normalizeFlowContracts } from "./contracts.js";
+import { COMPONENTS_WITH_INPUT_ATTRIBUTES } from "./component-input-attributes.js";
+import {
+  openComponentAttributesModal,
+  renderComponentAttributeChipsHtml,
+} from "./component-attributes-modal.js";
 import {
   renderStudioToolbar,
   renderScreenStudio,
@@ -66,6 +71,7 @@ let designerContext = {
   studioMode: "path",
   catalogView: "flows",
   catalogExpandedLineages: new Set(),
+  catalogExpandedActivityFlows: new Set(),
   readOnly: false,
 };
 
@@ -93,6 +99,15 @@ const ACTIVITY_NODE_KINDS = new Set([
   NODE_KINDS.MANUAL,
   NODE_KINDS.AUTOMATICA,
   NODE_KINDS.AGENTE_IA,
+]);
+
+/** Componentes visibles en el catálogo de actividades (sin Agente IA). */
+const ACTIVITY_CATALOG_COMPONENT_KINDS = new Set([
+  NODE_KINDS.INICIO,
+  NODE_KINDS.FIN,
+  NODE_KINDS.GATEWAY,
+  NODE_KINDS.MANUAL,
+  NODE_KINDS.AUTOMATICA,
 ]);
 
 /**
@@ -488,59 +503,238 @@ function activityKindLabel(kind) {
   return kind;
 }
 
-function renderActivityCatalog(state) {
-  const catalogBlocked = isCatalogActionsBlocked();
-  const catalogCallout = designerCatalogCalloutHtml();
-  const entries = [];
+/**
+ * Etiqueta BPMN para el catálogo de componentes (sin Agente IA).
+ *
+ * @param {string} kind
+ */
+function componentKindLabel(kind) {
+  if (kind === NODE_KINDS.INICIO) return "Start Event";
+  if (kind === NODE_KINDS.FIN) return "End Event";
+  if (kind === NODE_KINDS.GATEWAY) return "Gateway";
+  return activityKindLabel(kind);
+}
 
-  for (const flow of state.flows) {
-    if (flow.status !== "listo") continue;
-    for (const node of flow.nodes ?? []) {
-      if (!ACTIVITY_NODE_KINDS.has(node.kind)) continue;
-      entries.push({ flow, node });
+/**
+ * @param {string} kind
+ */
+function componentKindBadgeClass(kind) {
+  if (kind === NODE_KINDS.INICIO || kind === NODE_KINDS.FIN) return "borrador";
+  if (kind === NODE_KINDS.GATEWAY) return "curso";
+  return "listo";
+}
+
+/**
+ * Flujos listo/borrador para el catálogo de actividades.
+ *
+ * @param {object[]} flows
+ */
+function getActivityCatalogFlows(flows) {
+  return (flows ?? [])
+    .filter((f) => f.status === "listo" || f.status === "borrador")
+    .sort((a, b) => {
+      if (a.status === "listo" && b.status !== "listo") return -1;
+      if (b.status === "listo" && a.status !== "listo") return 1;
+      return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
+    });
+}
+
+/**
+ * Componentes del flujo en orden BFS (sequence), luego no alcanzables por nombre.
+ *
+ * @param {object} flow
+ */
+function listFlowCatalogComponents(flow) {
+  const catalogNodes = (flow.nodes ?? []).filter((n) =>
+    ACTIVITY_CATALOG_COMPONENT_KINDS.has(n.kind),
+  );
+  const nodeById = Object.fromEntries((flow.nodes ?? []).map((n) => [n.id, n]));
+  const start = flow.nodes?.find((n) => n.kind === NODE_KINDS.INICIO);
+  const byFrom = new Map();
+  for (const t of flow.transitions ?? []) {
+    const lt = t.lineType ?? LINE_TYPES.SEQUENCE;
+    if (lt !== LINE_TYPES.SEQUENCE) continue;
+    if (!byFrom.has(t.fromId)) byFrom.set(t.fromId, []);
+    byFrom.get(t.fromId).push(t.toId);
+  }
+
+  const ordered = [];
+  const seen = new Set();
+  if (start) {
+    const queue = [start.id];
+    while (queue.length) {
+      const id = queue.shift();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const node = nodeById[id];
+      if (node && ACTIVITY_CATALOG_COMPONENT_KINDS.has(node.kind)) {
+        ordered.push(node);
+      }
+      for (const next of byFrom.get(id) ?? []) {
+        if (!seen.has(next)) queue.push(next);
+      }
     }
   }
 
-  const rows = entries
-    .map(
-      ({ flow, node }) => `
-    <tr>
-      <td>${escapeHtml(flow.name)}</td>
-      <td>${escapeHtml(node.name)}</td>
-      <td><span class="badge badge-listo">${escapeHtml(activityKindLabel(node.kind))}</span></td>
+  const rest = catalogNodes
+    .filter((n) => !seen.has(n.id))
+    .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), "es"));
+
+  return [...ordered, ...rest];
+}
+
+/**
+ * Icono compacto del tipo de componente (catálogo de actividades).
+ *
+ * @param {object} node
+ */
+function renderCatalogComponentIcon(node) {
+  const title = escapeHtml(componentKindLabel(node.kind));
+  if (node.kind === NODE_KINDS.INICIO) {
+    return `<span class="catalog-component-icon-wrap" title="${title}"><span class="palette-shape-icon icon-start catalog-component-shape" aria-hidden="true"></span></span>`;
+  }
+  if (node.kind === NODE_KINDS.FIN) {
+    return `<span class="catalog-component-icon-wrap" title="${title}"><span class="palette-shape-icon icon-end catalog-component-shape" aria-hidden="true"></span></span>`;
+  }
+  if (node.kind === NODE_KINDS.GATEWAY) {
+    const gt = node.gatewayType ?? DEFAULT_GATEWAY_TYPE;
+    const mark = gatewayMarkClass(gt);
+    return `<span class="catalog-component-icon-wrap catalog-component-icon-wrap--gateway" title="${title}"><span class="icon-gateway-diamond catalog-component-gateway" aria-hidden="true"><span class="gateway-mark ${mark}"></span></span></span>`;
+  }
+  if (node.kind === NODE_KINDS.MANUAL) {
+    return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">👤</span>`;
+  }
+  if (node.kind === NODE_KINDS.AUTOMATICA) {
+    return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">⚙</span>`;
+  }
+  return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">•</span>`;
+}
+
+function renderActivityTreeToggle(flowId, expanded, childCount) {
+  const label = childCount === 1 ? "1 componente" : `${childCount} componentes`;
+  return `<button type="button" class="catalog-tree-toggle ${expanded ? "is-expanded" : ""}" data-toggle-activity-flow="${escapeHtml(flowId)}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? `Contraer ${label}` : `Expandir ${label}`}" title="${expanded ? "Ocultar componentes" : "Ver componentes del flujo"}">
+      <svg class="catalog-tree-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 4l4 4-4 4V4z"/></svg>
+    </button>`;
+}
+
+/**
+ * @param {object} node
+ * @param {object} flow
+ * @param {boolean} catalogBlocked
+ */
+function renderActivityComponentRow(node, flow, catalogBlocked) {
+  const badgeClass = componentKindBadgeClass(node.kind);
+  const kindLabel = componentKindLabel(node.kind);
+  return `
+    <tr class="catalog-row catalog-row--child catalog-row--component" data-activity-flow-child="${escapeHtml(flow.id)}">
+      <td class="catalog-name-cell catalog-name-cell--child">
+        <span class="catalog-tree-node catalog-tree-node--component">
+          <span class="catalog-tree-rail" aria-hidden="true"></span>
+          ${renderCatalogComponentIcon(node)}
+          <span class="catalog-component-meta">
+            <span class="catalog-component-name">${escapeHtml(node.name)}</span>
+            <span class="catalog-component-kind-hint">${escapeHtml(kindLabel)}</span>
+          </span>
+        </span>
+      </td>
+      <td>—</td>
+      <td><span class="badge badge-${badgeClass}">${escapeHtml(kindLabel)}</span></td>
       <td>${escapeHtml(node.description || "—")}</td>
       <td class="catalog-actions">
         <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Abrir</button>
       </td>
-    </tr>`,
-    )
+    </tr>`;
+}
+
+function renderActivityCatalog(state) {
+  const catalogBlocked = isCatalogActionsBlocked();
+  const catalogCallout = designerCatalogCalloutHtml();
+  const activityFlows = getActivityCatalogFlows(state.flows);
+
+  const flowGroupsHtml = activityFlows
+    .map((flow) => {
+      const components = listFlowCatalogComponents(flow);
+      const expanded = designerContext.catalogExpandedActivityFlows.has(flow.id);
+      const childCount = components.length;
+      const hasChildren = childCount > 0;
+      const toggle = hasChildren
+        ? renderActivityTreeToggle(flow.id, expanded, childCount)
+        : `<span class="catalog-tree-toggle catalog-tree-toggle--spacer" aria-hidden="true"></span>`;
+      const countChip = hasChildren
+        ? !expanded
+          ? `<span class="catalog-tree-count" title="Componentes del diagrama">${childCount} ${childCount === 1 ? "componente" : "componentes"}</span>`
+          : ""
+        : `<span class="catalog-tree-count catalog-tree-count--muted" title="Agente IA no se lista en este catálogo">Sin componentes listados</span>`;
+      const openFlowBtn = `<button type="button" class="btn btn-sm" data-open-flow-only="${flow.id}" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Abrir flujo</button>`;
+
+      const parentRow = `
+    <tr class="catalog-row catalog-row--parent catalog-row--activity-flow ${hasChildren ? "catalog-row--has-children" : ""} ${expanded ? "catalog-row--expanded" : "catalog-row--collapsed"}" data-activity-flow-parent="${escapeHtml(flow.id)}">
+      <td class="catalog-name-cell">
+        <div class="catalog-name-cell-inner">
+          ${toggle}
+          <span class="catalog-flow-name">${escapeHtml(flow.name)}</span>
+          ${countChip}
+        </div>
+      </td>
+      <td>${escapeHtml(flow.type)}</td>
+      <td><span class="catalog-version catalog-version--current">${escapeHtml(formatFlowVersion(flow))}</span></td>
+      <td>${renderFlowStatusBadge(flow)}</td>
+      <td class="catalog-actions">${openFlowBtn}</td>
+    </tr>`;
+
+      let childRowsHtml = "";
+      if (expanded) {
+        if (hasChildren) {
+          childRowsHtml = components
+            .map((node) => renderActivityComponentRow(node, flow, catalogBlocked))
+            .join("");
+        } else {
+          childRowsHtml = `
+    <tr class="catalog-row catalog-row--child catalog-row--empty" data-activity-flow-child="${escapeHtml(flow.id)}">
+      <td class="catalog-name-cell catalog-name-cell--child" colspan="5">
+        <span class="catalog-tree-node catalog-tree-node--empty">
+          <span class="catalog-tree-rail" aria-hidden="true"></span>
+          <span class="catalog-muted">Sin componentes listados (Agente IA no aparece en este catálogo).</span>
+        </span>
+      </td>
+    </tr>`;
+        }
+      }
+
+      const groupState = expanded ? "is-expanded" : "is-collapsed";
+      return `<tbody class="catalog-lineage-group catalog-activity-flow-group ${groupState} ${hasChildren ? "has-children" : ""}" data-activity-flow-group="${escapeHtml(flow.id)}">
+      ${parentRow}
+      ${childRowsHtml}
+    </tbody>`;
+    })
     .join("");
 
-  const emptyBody =
-    rows === ""
-      ? `<div class="empty-state empty-state--rich">
-          <strong>Sin actividades</strong>
-          <p>Agregá User Task, Service Task o Agente IA en tus flujos para verlas acá.</p>
+  const hasFlows = activityFlows.length > 0;
+
+  const emptyBody = !hasFlows
+    ? `<div class="empty-state empty-state--rich">
+          <strong>Sin flujos para listar</strong>
+          <p>Activá un borrador o publicá un flujo en estado Listo. Las versiones deprecadas no aparecen acá.</p>
           <button type="button" class="btn btn-sm" id="btn-goto-flow-catalog">Ir al catálogo de flujos</button>
         </div>`
-      : "";
+    : "";
 
   return `
     <section class="panel panel--catalog">
       ${renderPageHeader(
         "Catálogo de actividades",
-        "Todas las actividades definidas en tus flujos. Abrí una para editarla en el lienzo.",
+        "Flujos en estado Listo o Borrador. Desplegá cada fila para ver Start, End, Gateway y tareas (User/Service). Agente IA no se lista.",
       )}
       ${catalogCallout}
       ${emptyBody}
       ${
-        rows
+        hasFlows
           ? `<div class="table-wrap table-wrap--modern">
-        <table class="table-modern">
+        <table class="table-modern catalog-flow-tree catalog-activity-tree">
           <thead>
-            <tr><th>Flujo</th><th>Actividad</th><th>Tipo</th><th>Descripción</th><th>Acciones</th></tr>
+            <tr><th>Flujo / componente</th><th>Tipo de flujo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
-          <tbody>${rows}</tbody>
+          ${flowGroupsHtml}
         </table>
       </div>`
           : ""
@@ -554,15 +748,66 @@ function bindActivityCatalog(mainEl, state, persist) {
     document.querySelector('[data-nav-group="designer"] [data-catalog="flows"]')?.click();
   });
 
+  mainEl.querySelectorAll("[data-toggle-activity-flow]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const flowId = btn.dataset.toggleActivityFlow;
+      if (!flowId) return;
+      if (designerContext.catalogExpandedActivityFlows.has(flowId)) {
+        designerContext.catalogExpandedActivityFlows.delete(flowId);
+      } else {
+        designerContext.catalogExpandedActivityFlows.add(flowId);
+      }
+      renderDesigner(mainEl, state, persist);
+    });
+  });
+
+  mainEl.querySelectorAll("[data-open-flow-only]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled || isCatalogActionsBlocked()) {
+        toast(designerBlockedMessage().body);
+        return;
+      }
+      designerContext.selectedFlowId = btn.dataset.openFlowOnly;
+      designerContext.selectedNodeId = null;
+      renderDesigner(mainEl, state, persist);
+    });
+  });
+
   mainEl.querySelectorAll("[data-open-activity]").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (btn.disabled || isCatalogActionsBlocked()) {
         toast(designerBlockedMessage().body);
         return;
       }
-      designerContext.selectedFlowId = btn.dataset.openActivity;
-      designerContext.selectedNodeId = btn.dataset.nodeId;
-      renderDesigner(mainEl, state, persist);
+      const flowId = btn.dataset.openActivity;
+      const nodeId = btn.dataset.nodeId;
+      const flow = state.flows.find((f) => f.id === flowId);
+      const node = flow?.nodes?.find((n) => n.id === nodeId);
+      if (!flow || !node || !COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) {
+        designerContext.selectedFlowId = flowId;
+        designerContext.selectedNodeId = nodeId;
+        renderDesigner(mainEl, state, persist);
+        return;
+      }
+      const readOnly = !isFlowEditable(flow);
+      const openCanvas = () => {
+        designerContext.selectedFlowId = flowId;
+        designerContext.selectedNodeId = nodeId;
+        renderDesigner(mainEl, state, persist);
+      };
+      openComponentAttributesModal({
+        flow,
+        node,
+        kindLabel: componentKindLabel(node.kind),
+        readOnly,
+        onSaved: () => {
+          persist();
+          renderDesigner(mainEl, state, persist);
+        },
+        onOpenCanvas: openCanvas,
+      });
     });
   });
 }
@@ -1906,13 +2151,33 @@ function renderNodeProps(flow, node) {
       ? renderPropsCollapse("input-data", "Datos de entrada que usa", paramsHtml, false)
       : "";
 
-  const flowParamsSection =
-    node.kind === NODE_KINDS.INICIO
+  const componentAttrsKinds = COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind);
+  const editAttrsBtn = (tab = "input") =>
+    !designerContext.readOnly && componentAttrsKinds
+      ? `<button type="button" class="btn btn-sm btn-primary" id="btn-edit-component-attrs" data-attr-tab="${tab}" style="margin-top:0.5rem">Editar parámetros de entrada</button>`
+      : "";
+
+  const componentInputSection = componentAttrsKinds
+    ? renderPropsCollapse(
+        "component-input-attrs",
+        node.kind === NODE_KINDS.INICIO
+          ? "Parámetros de entrada del flujo"
+          : "Parámetros de entrada del componente",
+        `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.inputAttributes ?? [])}</div>${editAttrsBtn("input")}`,
+        false,
+      )
+    : "";
+
+  const componentOutputSection =
+    node.kind === NODE_KINDS.GATEWAY
       ? renderPropsCollapse(
-          "flow-params",
-          "Parámetros de entrada del flujo",
-          `<div id="input-params-list">${renderInputParamsList(flow)}</div>
-      ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-sm" id="btn-add-param">+ Parámetro</button>`}`,
+          "component-output-attrs",
+          "Parámetros de salida del componente",
+          `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.outputAttributes ?? [])}</div>${
+            !designerContext.readOnly
+              ? `<button type="button" class="btn btn-sm" id="btn-edit-component-attrs-out" data-attr-tab="output" style="margin-top:0.5rem">Editar parámetros de salida</button>`
+              : ""
+          }`,
           false,
         )
       : "";
@@ -1995,24 +2260,12 @@ function renderNodeProps(flow, node) {
           : ""
       }
       ${inputDataSection}
-      ${flowParamsSection}
+      ${componentInputSection}
+      ${componentOutputSection}
       ${incomingSection}
       ${connectionsSection}
       ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-danger btn-sm props-delete-node" id="btn-delete-node">Eliminar nodo</button>`}
     </form>`;
-}
-
-function renderInputParamsList(flow) {
-  return flow.inputParams
-    .map(
-      (p) => `
-    <div class="chip-list" style="margin-bottom:0.5rem">
-      <span class="chip">${escapeHtml(p.label)} · ${escapeHtml(p.type)} ${p.required ? "*" : ""}
-        ${designerContext.readOnly ? "" : `<button type="button" data-del-param="${p.id}" title="Eliminar">×</button>`}
-      </span>
-    </div>`,
-    )
-    .join("");
 }
 
 /** Sincroniza clases del split y toggles con el estado de paneles laterales. */
@@ -2346,8 +2599,34 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
   }
 
   const selected = flow.nodes.find((n) => n.id === designerContext.selectedNodeId);
-  if (selected) bindNodeProps(mainEl, flow, selected, state, saveFlow);
-  else bindFlowDiagramProps(mainEl, flow, state, saveFlow);
+  if (selected) {
+    bindNodeProps(mainEl, flow, selected, state, saveFlow);
+    bindComponentAttributesEditor(mainEl, flow, selected, state, saveFlow);
+  } else bindFlowDiagramProps(mainEl, flow, state, saveFlow);
+}
+
+function bindComponentAttributesEditor(mainEl, flow, node, state, persist) {
+  if (!COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) return;
+  const openEditor = (initialTab) => {
+    openComponentAttributesModal({
+      flow,
+      node,
+      kindLabel: componentKindLabel(node.kind),
+      readOnly: designerContext.readOnly,
+      initialTab,
+      onSaved: () => {
+        persist();
+        renderDesigner(mainEl, state, persist);
+      },
+    });
+  };
+  mainEl.querySelector("#btn-edit-component-attrs")?.addEventListener("click", () => {
+    const tab = mainEl.querySelector("#btn-edit-component-attrs")?.dataset.attrTab;
+    openEditor(tab === "output" ? "output" : "input");
+  });
+  mainEl.querySelector("#btn-edit-component-attrs-out")?.addEventListener("click", () => {
+    openEditor("output");
+  });
 }
 
 function bindCanvasViewport(mainEl, flow, state, persist) {
@@ -3060,30 +3339,6 @@ function bindNodeProps(mainEl, flow, node, state, persist) {
     });
   });
 
-  mainEl.querySelector("#btn-add-param")?.addEventListener("click", () => {
-    openParamModal(flow, null, () => {
-      persist();
-      renderDesigner(mainEl, state, persist);
-    });
-  });
-
-  mainEl.querySelectorAll("[data-del-param]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const pid = btn.dataset.delParam;
-      flow.inputParams = flow.inputParams.filter((p) => p.id !== pid);
-      for (const n of flow.nodes) {
-        n.usedParamIds = (n.usedParamIds ?? []).filter((id) => id !== pid);
-      }
-      for (const nid of Object.keys(flow.screens)) {
-        flow.screens[nid].blocks = flow.screens[nid].blocks.filter(
-          (b) => !(b.type === "dato" && b.paramId === pid),
-        );
-      }
-      persist();
-      renderDesigner(mainEl, state, persist);
-    });
-  });
-
   const lineTypeSelect = mainEl.querySelector("#connect-line-type");
   const conditionRow = mainEl.querySelector("#connect-condition-row");
   const syncConditionRow = () => {
@@ -3144,47 +3399,6 @@ function bindNodeProps(mainEl, flow, node, state, persist) {
   mainEl.querySelector("#btn-design-agente-ia")?.addEventListener("click", () => {
     designerContext.studioMode = "agente_ia";
     renderDesigner(mainEl, state, persist);
-  });
-}
-
-function openParamModal(flow, param, onSave) {
-  const isEdit = !!param;
-  const { close, root } = openModal(`
-    <div class="modal-header"><h2>${isEdit ? "Editar" : "Nuevo"} parámetro</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
-    <form id="form-param" class="form-grid">
-      <div class="form-row"><label>Clave</label><input name="key" required pattern="[a-z0-9_]+" value="${param ? escapeHtml(param.key) : ""}" placeholder="ej. monto" /></div>
-      <div class="form-row"><label>Etiqueta</label><input name="label" required value="${param ? escapeHtml(param.label) : ""}" /></div>
-      <div class="form-row"><label>Tipo</label>
-        <select name="type">
-          <option value="texto" ${param?.type === "texto" ? "selected" : ""}>Texto</option>
-          <option value="numero" ${param?.type === "numero" ? "selected" : ""}>Número</option>
-          <option value="fecha" ${param?.type === "fecha" ? "selected" : ""}>Fecha</option>
-          <option value="si_no" ${param?.type === "si_no" ? "selected" : ""}>Sí / No</option>
-        </select>
-      </div>
-      <label style="font-size:0.85rem"><input type="checkbox" name="required" ${param?.required ? "checked" : ""} /> Obligatorio</label>
-      <button type="submit" class="btn btn-primary">Guardar</button>
-    </form>
-  `);
-
-  root.querySelector("#form-param").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const entry = {
-      id: param?.id ?? createId("param"),
-      key: String(fd.get("key")).trim(),
-      label: String(fd.get("label")).trim(),
-      type: fd.get("type"),
-      required: fd.get("required") === "on",
-    };
-    if (isEdit) {
-      const idx = flow.inputParams.findIndex((p) => p.id === param.id);
-      flow.inputParams[idx] = entry;
-    } else {
-      flow.inputParams.push(entry);
-    }
-    onSave();
-    close();
   });
 }
 

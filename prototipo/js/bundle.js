@@ -152,6 +152,122 @@
     return `${prefix}_${time}_${rand}`;
   }
 
+  // js/component-input-attributes.js
+  var DEFAULT_DATA_TYPE = "texto";
+  var INPUT_CARDINALITY = {
+    UNICO: "unico",
+    LISTA: "lista"
+  };
+  var COMPONENTS_WITH_INPUT_ATTRIBUTES = /* @__PURE__ */ new Set([
+    "inicio",
+    "fin",
+    "manual",
+    "automatica",
+    "gateway"
+  ]);
+  var KINDS_WITH_OUTPUT_ATTRIBUTES = /* @__PURE__ */ new Set(["gateway"]);
+  function createEmptyListOption() {
+    return { id: createId("opt"), label: "", required: false };
+  }
+  function createEmptyAttribute() {
+    return {
+      id: createId("attr"),
+      key: "",
+      label: "",
+      dataType: DEFAULT_DATA_TYPE,
+      cardinality: INPUT_CARDINALITY.UNICO,
+      required: false,
+      listOptions: []
+    };
+  }
+  function normalizeComponentAttribute(attr) {
+    if (!attr || typeof attr !== "object") return createEmptyAttribute();
+    const cardinality = attr.cardinality === INPUT_CARDINALITY.LISTA ? INPUT_CARDINALITY.LISTA : INPUT_CARDINALITY.UNICO;
+    const listOptions = cardinality === INPUT_CARDINALITY.LISTA && Array.isArray(attr.listOptions) ? attr.listOptions.map((o) => ({
+      id: o?.id ?? createId("opt"),
+      label: String(o?.label ?? "").trim(),
+      required: !!o?.required
+    })) : [];
+    return {
+      id: attr.id ?? createId("attr"),
+      key: String(attr.key ?? "").trim(),
+      label: String(attr.label ?? "").trim(),
+      dataType: attr.dataType ?? attr.type ?? DEFAULT_DATA_TYPE,
+      cardinality,
+      required: !!attr.required,
+      listOptions
+    };
+  }
+  function normalizeAttributeList(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map((a) => normalizeComponentAttribute(a));
+  }
+  function ensureNodeComponentAttributes(node) {
+    if (!node || !COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) return;
+    if (!Array.isArray(node.inputAttributes)) node.inputAttributes = [];
+    else node.inputAttributes = normalizeAttributeList(node.inputAttributes);
+    if (KINDS_WITH_OUTPUT_ATTRIBUTES.has(node.kind)) {
+      if (!Array.isArray(node.outputAttributes)) node.outputAttributes = [];
+      else node.outputAttributes = normalizeAttributeList(node.outputAttributes);
+    } else if (node.outputAttributes) {
+      delete node.outputAttributes;
+    }
+  }
+  function validateAttributeList(attrs, scopeLabel, nodeName) {
+    const errors = [];
+    const keys = /* @__PURE__ */ new Set();
+    const who = nodeName ? `\xAB${nodeName}\xBB` : "componente";
+    for (const attr of attrs ?? []) {
+      const a = normalizeComponentAttribute(attr);
+      if (!a.key) errors.push(`${who} (${scopeLabel}): hay un atributo sin clave.`);
+      else if (!/^[a-z0-9_]+$/.test(a.key)) {
+        errors.push(`${who} (${scopeLabel}): clave \xAB${a.key}\xBB inv\xE1lida (use a-z, 0-9, _).`);
+      } else if (keys.has(a.key)) {
+        errors.push(`${who} (${scopeLabel}): clave duplicada \xAB${a.key}\xBB.`);
+      } else keys.add(a.key);
+      if (!a.label) errors.push(`${who} (${scopeLabel}): atributo \xAB${a.key || "?"}\xBB sin etiqueta.`);
+      if (a.cardinality === INPUT_CARDINALITY.LISTA) {
+        if (!a.listOptions.length) {
+          errors.push(`${who} (${scopeLabel}): \xAB${a.key || "?"}\xBB es lista y debe tener al menos una opci\xF3n.`);
+        }
+        for (const opt of a.listOptions) {
+          if (!String(opt.label ?? "").trim()) {
+            errors.push(`${who} (${scopeLabel}): \xAB${a.key}\xBB tiene una opci\xF3n sin etiqueta.`);
+          }
+        }
+      }
+    }
+    return errors;
+  }
+  function validateNodeInputAttributes(node) {
+    if (!node || !COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) return [];
+    return validateAttributeList(node.inputAttributes, "entrada", node.name ?? node.id);
+  }
+  function validateNodeOutputAttributes(node) {
+    if (!node || !KINDS_WITH_OUTPUT_ATTRIBUTES.has(node.kind)) return [];
+    return validateAttributeList(node.outputAttributes, "salida", node.name ?? node.id);
+  }
+  function validateNodeComponentAttributes(node) {
+    return [...validateNodeInputAttributes(node), ...validateNodeOutputAttributes(node)];
+  }
+  function cloneAttributeList(attrs) {
+    return normalizeAttributeList(attrs).map((a) => ({
+      ...a,
+      listOptions: a.listOptions.map((o) => ({ ...o }))
+    }));
+  }
+  function summarizeAttributes(attrs) {
+    return normalizeAttributeList(attrs).map((a) => ({
+      id: a.id,
+      label: a.label || a.key || "?",
+      key: a.key,
+      cardinality: a.cardinality,
+      required: a.required,
+      dataType: a.dataType,
+      optionCount: a.listOptions.length
+    }));
+  }
+
   // js/contracts.js
   var DATA_TYPES = {
     TEXTO: "texto",
@@ -177,8 +293,32 @@
         label: p.label,
         type: p.type ?? DATA_TYPES.TEXTO,
         required: !!p.required,
-        scope: "flow_input"
+        scope: "flow_input",
+        cardinality: p.cardinality ?? INPUT_CARDINALITY.UNICO,
+        listOptions: Array.isArray(p.listOptions) ? p.listOptions : []
       }));
+    }
+    if (flow.nodes) {
+      for (const node of flow.nodes) {
+        ensureNodeComponentAttributes(node);
+      }
+      const startNode = flow.nodes.find((n) => n.kind === "inicio");
+      if (startNode) {
+        if (!startNode.inputAttributes.length && (flow.dataDefinitions?.length ?? 0) > 0) {
+          startNode.inputAttributes = flow.dataDefinitions.map(
+            (d) => normalizeComponentAttribute({
+              id: d.id,
+              key: d.key,
+              label: d.label,
+              dataType: d.type,
+              cardinality: d.cardinality ?? INPUT_CARDINALITY.UNICO,
+              required: d.required,
+              listOptions: d.listOptions ?? []
+            })
+          );
+        }
+        flow.dataDefinitions = startNode.inputAttributes.map((attr) => attributeToFlowDefinition(attr));
+      }
     }
     syncInputParamsFromDefinitions(flow);
     if (!flow.nodes) return;
@@ -199,13 +339,28 @@
       syncUsedParamIdsFromMappings(node, flow);
     }
   }
+  function attributeToFlowDefinition(attr) {
+    const a = normalizeComponentAttribute(attr);
+    return {
+      id: a.id,
+      key: a.key,
+      label: a.label,
+      type: a.dataType,
+      required: a.required,
+      scope: "flow_input",
+      cardinality: a.cardinality,
+      listOptions: a.cardinality === INPUT_CARDINALITY.LISTA ? a.listOptions.map((o) => ({ id: o.id, label: o.label, required: !!o.required })) : []
+    };
+  }
   function syncInputParamsFromDefinitions(flow) {
-    flow.inputParams = flow.dataDefinitions.map((d) => ({
+    flow.inputParams = (flow.dataDefinitions ?? []).map((d) => ({
       id: d.id,
       key: d.key,
       label: d.label,
       type: d.type,
-      required: !!d.required
+      required: !!d.required,
+      cardinality: d.cardinality ?? INPUT_CARDINALITY.UNICO,
+      listOptions: Array.isArray(d.listOptions) ? d.listOptions : []
     }));
   }
   function syncUsedParamIdsFromMappings(node, flow) {
@@ -283,6 +438,7 @@
           errors.push(`Service Task \xAB${node.name}\xBB: falta adaptador de integraci\xF3n.`);
         }
       }
+      errors.push(...validateNodeComponentAttributes(node));
     }
     return errors;
   }
@@ -1182,6 +1338,293 @@
     }
   }
 
+  // js/component-attributes-modal.js
+  var DATA_TYPE_OPTIONS = [
+    { value: "texto", label: "Texto" },
+    { value: "numero", label: "N\xFAmero" },
+    { value: "fecha", label: "Fecha" },
+    { value: "si_no", label: "S\xED / No" }
+  ];
+  function renderComponentAttributeChipsHtml(attrs) {
+    const items = summarizeAttributes(attrs);
+    if (!items.length) {
+      return `<p class="component-attr-empty">Sin atributos definidos.</p>`;
+    }
+    return items.map((a) => {
+      const card = a.cardinality === INPUT_CARDINALITY.LISTA ? `lista \xB7 ${a.optionCount} opc.` : "\xFAnico";
+      const req = a.required ? " *" : "";
+      return `<span class="chip component-attr-chip">${escapeHtml(a.label)} \xB7 ${escapeHtml(card)}${req}</span>`;
+    }).join("");
+  }
+  function renderAttributeCard(attr, index, scope, readOnly) {
+    const dis = readOnly ? " disabled" : "";
+    const typeOpts = DATA_TYPE_OPTIONS.map(
+      (o) => `<option value="${o.value}" ${attr.dataType === o.value ? "selected" : ""}>${o.label}</option>`
+    ).join("");
+    const isLista = attr.cardinality === INPUT_CARDINALITY.LISTA;
+    const optionsHtml = (attr.listOptions ?? []).map(
+      (opt, oi) => `
+      <div class="component-attr-option-row" data-opt-index="${oi}">
+        <input type="text" data-field="opt-label" value="${escapeHtml(opt.label)}" placeholder="Etiqueta opci\xF3n"${dis} />
+        <label class="component-attr-opt-req"><input type="checkbox" data-field="opt-required" ${opt.required ? "checked" : ""}${dis} /> Obligatoria</label>
+        ${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-opt>\xD7</button>`}
+      </div>`
+    ).join("");
+    return `
+    <div class="component-attr-card" data-attr-index="${index}" data-attr-scope="${scope}">
+      <div class="component-attr-card-head">
+        <strong>Atributo ${index + 1}</strong>
+        ${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-attr>Eliminar</button>`}
+      </div>
+      <div class="form-grid component-attr-fields">
+        <div class="form-row"><label>Clave</label><input data-field="key" pattern="[a-z0-9_]+" required value="${escapeHtml(attr.key)}" placeholder="ej. monto"${dis} /></div>
+        <div class="form-row"><label>Etiqueta</label><input data-field="label" required value="${escapeHtml(attr.label)}"${dis} /></div>
+        <div class="form-row"><label>Tipo</label><select data-field="dataType"${dis}>${typeOpts}</select></div>
+        <div class="form-row"><label>Cardinalidad</label>
+          <select data-field="cardinality"${dis}>
+            <option value="unico" ${!isLista ? "selected" : ""}>\xDAnico</option>
+            <option value="lista" ${isLista ? "selected" : ""}>Lista</option>
+          </select>
+        </div>
+        <label class="component-attr-required"><input type="checkbox" data-field="required" ${attr.required ? "checked" : ""}${dis} /> Obligatorio</label>
+      </div>
+      <div class="component-attr-options" data-options-block style="${isLista ? "" : "display:none"}">
+        <div class="component-attr-options-head">
+          <span>Opciones (lista)</span>
+          ${readOnly ? "" : `<button type="button" class="btn btn-sm" data-add-opt>+ Opci\xF3n</button>`}
+        </div>
+        <div class="component-attr-options-list">${optionsHtml || `<p class="component-attr-empty">Agreg\xE1 al menos una opci\xF3n.</p>`}</div>
+      </div>
+    </div>`;
+  }
+  function renderAttributePanel(attrs, scope, readOnly) {
+    const cards = attrs.map((a, i) => renderAttributeCard(a, i, scope, readOnly)).join("");
+    return `
+    <div class="component-attr-panel" data-attr-panel="${scope}">
+      <div class="component-attr-list">${cards || `<p class="component-attr-empty">No hay atributos. Us\xE1 \xAB+ Atributo\xBB.</p>`}</div>
+      ${readOnly ? "" : `<button type="button" class="btn btn-sm" data-add-attr data-add-scope="${scope}">+ Atributo</button>`}
+    </div>`;
+  }
+  function repaintPanel(panel, attrs, scope, readOnly) {
+    const list = panel.querySelector(".component-attr-list");
+    if (!list) return;
+    list.innerHTML = attrs.map((a, i) => renderAttributeCard(a, i, scope, readOnly)).join("") || `<p class="component-attr-empty">No hay atributos. Us\xE1 \xAB+ Atributo\xBB.</p>`;
+  }
+  function getAttrPanel(root, scope) {
+    return root.querySelector(`[data-attr-panel="${scope}"]`);
+  }
+  function collectAttributesFromPanel(root, scope) {
+    const panel = getAttrPanel(root, scope);
+    if (!panel) return [];
+    const cards = panel.querySelectorAll(`.component-attr-card[data-attr-scope="${scope}"]`);
+    const out = [];
+    cards.forEach((card) => {
+      const key = card.querySelector('[data-field="key"]')?.value?.trim() ?? "";
+      const label = card.querySelector('[data-field="label"]')?.value?.trim() ?? "";
+      const dataType = card.querySelector('[data-field="dataType"]')?.value ?? "texto";
+      const cardinality = card.querySelector('[data-field="cardinality"]')?.value ?? INPUT_CARDINALITY.UNICO;
+      const required = card.querySelector('[data-field="required"]')?.checked ?? false;
+      const listOptions = [];
+      if (cardinality === INPUT_CARDINALITY.LISTA) {
+        card.querySelectorAll(".component-attr-option-row").forEach((row) => {
+          listOptions.push({
+            id: row.dataset.optId || void 0,
+            label: row.querySelector('[data-field="opt-label"]')?.value?.trim() ?? "",
+            required: row.querySelector('[data-field="opt-required"]')?.checked ?? false
+          });
+        });
+      }
+      out.push({
+        id: card.dataset.attrId || createId("attr"),
+        key,
+        label,
+        dataType,
+        cardinality,
+        required,
+        listOptions: listOptions.map((o) => ({
+          id: o.id || createId("opt"),
+          label: o.label,
+          required: o.required
+        }))
+      });
+    });
+    return out;
+  }
+  function openComponentAttributesModal({
+    flow,
+    node,
+    kindLabel,
+    readOnly,
+    onSaved,
+    onOpenCanvas,
+    initialTab = "input"
+  }) {
+    const hasOutput = KINDS_WITH_OUTPUT_ATTRIBUTES.has(node.kind);
+    let activeTab = hasOutput && initialTab === "output" ? "output" : "input";
+    const draft = {
+      input: cloneAttributeList(node.inputAttributes ?? []),
+      output: hasOutput ? cloneAttributeList(node.outputAttributes ?? []) : []
+    };
+    const tabsHtml = hasOutput ? `<div class="component-attr-tabs" role="tablist">
+        <button type="button" class="component-attr-tab ${activeTab === "input" ? "is-active" : ""}" data-attr-tab="input" role="tab">Entrada</button>
+        <button type="button" class="component-attr-tab ${activeTab === "output" ? "is-active" : ""}" data-attr-tab="output" role="tab">Salida</button>
+      </div>` : "";
+    const bodyHtml = hasOutput ? `${renderAttributePanel(draft.input, "input", readOnly)}
+       ${renderAttributePanel(draft.output, "output", readOnly)}` : renderAttributePanel(draft.input, "input", readOnly);
+    const titleKind = kindLabel ? escapeHtml(kindLabel) : escapeHtml(node.kind);
+    const { close, root } = openModal(`
+    <div class="modal-header modal-header--component-attrs">
+      <div>
+        <h2>Atributos del componente</h2>
+        <p class="modal-subtitle">${titleKind} \xB7 ${escapeHtml(node.name)} \xB7 ${escapeHtml(flow.name ?? "")}</p>
+      </div>
+      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+    </div>
+    <div class="component-attr-modal-body">
+      ${readOnly ? `<p class="props-intro props-intro--readonly">Solo lectura: el flujo no est\xE1 en borrador.</p>` : ""}
+      ${tabsHtml}
+      <div class="component-attr-panels">${bodyHtml}</div>
+    </div>
+    <div class="modal-footer component-attr-modal-footer">
+      ${onOpenCanvas ? `<button type="button" class="btn btn-sm" data-open-canvas>${readOnly ? "Ver en lienzo" : "Guardar y abrir lienzo"}</button>` : ""}
+      ${readOnly ? "" : `<button type="button" class="btn btn-primary" data-save-attrs>Guardar</button>`}
+    </div>
+  `);
+    const syncTabVisibility = () => {
+      if (!hasOutput) return;
+      root.querySelectorAll(".component-attr-tab").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.attrTab === activeTab);
+      });
+      root.querySelectorAll("[data-attr-panel]").forEach((panel) => {
+        const show = panel.dataset.attrPanel === activeTab;
+        panel.hidden = !show;
+      });
+    };
+    syncTabVisibility();
+    const pullDraftFromDom = () => {
+      draft.input = collectAttributesFromPanel(root, "input");
+      if (hasOutput) draft.output = collectAttributesFromPanel(root, "output");
+    };
+    const assignIdsToCards = (scope, attrs) => {
+      const panel = getAttrPanel(root, scope);
+      if (!panel) return;
+      const cards = panel.querySelectorAll(`.component-attr-card[data-attr-scope="${scope}"]`);
+      cards.forEach((card, i) => {
+        if (attrs[i]?.id) card.dataset.attrId = attrs[i].id;
+        if (attrs[i]?.listOptions) {
+          const rows = card.querySelectorAll(".component-attr-option-row");
+          rows.forEach((row, oi) => {
+            if (attrs[i].listOptions[oi]?.id) row.dataset.optId = attrs[i].listOptions[oi].id;
+          });
+        }
+      });
+    };
+    const persistDraftToNode = () => {
+      pullDraftFromDom();
+      const errors = [
+        ...validateAttributeList(draft.input, "entrada", node.name),
+        ...hasOutput ? validateAttributeList(draft.output, "salida", node.name) : []
+      ];
+      if (errors.length) {
+        toast(errors[0]);
+        return false;
+      }
+      node.inputAttributes = cloneAttributeList(draft.input);
+      if (hasOutput) node.outputAttributes = cloneAttributeList(draft.output);
+      normalizeFlowContracts(flow);
+      onSaved();
+      return true;
+    };
+    root.querySelectorAll("[data-attr-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pullDraftFromDom();
+        activeTab = btn.dataset.attrTab === "output" ? "output" : "input";
+        syncTabVisibility();
+      });
+    });
+    root.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.matches("[data-add-attr]")) {
+        const scope = t.dataset.addScope ?? "input";
+        pullDraftFromDom();
+        if (scope === "output") draft.output.push(createEmptyAttribute());
+        else draft.input.push(createEmptyAttribute());
+        const panelAdd = getAttrPanel(root, scope);
+        if (panelAdd) repaintPanel(panelAdd, scope === "output" ? draft.output : draft.input, scope, readOnly);
+        assignIdsToCards(scope, scope === "output" ? draft.output : draft.input);
+        return;
+      }
+      if (t.matches("[data-rm-attr]")) {
+        const card = t.closest(".component-attr-card");
+        if (!card) return;
+        const scope = card.dataset.attrScope ?? "input";
+        pullDraftFromDom();
+        const panelRm = getAttrPanel(root, scope);
+        const cards = panelRm ? [...panelRm.querySelectorAll(`.component-attr-card[data-attr-scope="${scope}"]`)] : [];
+        const idx = cards.indexOf(card);
+        const list = scope === "output" ? draft.output : draft.input;
+        if (idx >= 0) list.splice(idx, 1);
+        if (panelRm) repaintPanel(panelRm, list, scope, readOnly);
+        assignIdsToCards(scope, list);
+        return;
+      }
+      if (t.matches("[data-add-opt]")) {
+        const card = t.closest(".component-attr-card");
+        if (!card) return;
+        const scope = card.dataset.attrScope ?? "input";
+        pullDraftFromDom();
+        const panelOpt = getAttrPanel(root, scope);
+        const cards = panelOpt ? [...panelOpt.querySelectorAll(`.component-attr-card[data-attr-scope="${scope}"]`)] : [];
+        const idx = cards.indexOf(card);
+        const list = scope === "output" ? draft.output : draft.input;
+        const attr = idx >= 0 ? list[idx] : null;
+        if (!attr) return;
+        if (!attr.listOptions) attr.listOptions = [];
+        attr.listOptions.push(createEmptyListOption());
+        if (panelOpt) repaintPanel(panelOpt, list, scope, readOnly);
+        assignIdsToCards(scope, list);
+        return;
+      }
+      if (t.matches("[data-rm-opt]")) {
+        const row = t.closest(".component-attr-option-row");
+        const card = t.closest(".component-attr-card");
+        if (!row || !card) return;
+        const scope = card.dataset.attrScope ?? "input";
+        pullDraftFromDom();
+        const panelRmOpt = getAttrPanel(root, scope);
+        const cards = panelRmOpt ? [...panelRmOpt.querySelectorAll(`.component-attr-card[data-attr-scope="${scope}"]`)] : [];
+        const idx = cards.indexOf(card);
+        const optionRows = card ? [...card.querySelectorAll(".component-attr-option-row")] : [];
+        const oi = optionRows.indexOf(row);
+        const list = scope === "output" ? draft.output : draft.input;
+        if (idx >= 0 && oi >= 0) list[idx]?.listOptions?.splice(oi, 1);
+        if (panelRmOpt) repaintPanel(panelRmOpt, list, scope, readOnly);
+        assignIdsToCards(scope, list);
+      }
+    });
+    root.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.matches('[data-field="cardinality"]')) {
+        const card = t.closest(".component-attr-card");
+        const block = card?.querySelector("[data-options-block]");
+        if (block) block.style.display = t.value === INPUT_CARDINALITY.LISTA ? "" : "none";
+      }
+    });
+    root.querySelector("[data-save-attrs]")?.addEventListener("click", () => {
+      if (persistDraftToNode()) close();
+    });
+    root.querySelector("[data-open-canvas]")?.addEventListener("click", () => {
+      if (!readOnly && !persistDraftToNode()) return;
+      if (readOnly) pullDraftFromDom();
+      close();
+      onOpenCanvas?.();
+    });
+    assignIdsToCards("input", draft.input);
+    if (hasOutput) assignIdsToCards("output", draft.output);
+  }
+
   // js/designer-studio.js
   var SCREEN_COMPONENTS = [
     { type: "titulo", label: "T\xEDtulo" },
@@ -1507,6 +1950,7 @@
     studioMode: "path",
     catalogView: "flows",
     catalogExpandedLineages: /* @__PURE__ */ new Set(),
+    catalogExpandedActivityFlows: /* @__PURE__ */ new Set(),
     readOnly: false
   };
   function renderFlowStatusBadge(flow) {
@@ -1529,6 +1973,13 @@
     NODE_KINDS.MANUAL,
     NODE_KINDS.AUTOMATICA,
     NODE_KINDS.AGENTE_IA
+  ]);
+  var ACTIVITY_CATALOG_COMPONENT_KINDS = /* @__PURE__ */ new Set([
+    NODE_KINDS.INICIO,
+    NODE_KINDS.FIN,
+    NODE_KINDS.GATEWAY,
+    NODE_KINDS.MANUAL,
+    NODE_KINDS.AUTOMATICA
   ]);
   function setDesignerCatalogView(view) {
     if (view === "flows" || view === "activities") {
@@ -1828,48 +2279,175 @@
     if (kind === NODE_KINDS.AGENTE_IA) return "Agente IA";
     return kind;
   }
-  function renderActivityCatalog(state) {
-    const catalogBlocked = isCatalogActionsBlocked();
-    const catalogCallout = designerCatalogCalloutHtml();
-    const entries = [];
-    for (const flow of state.flows) {
-      if (flow.status !== "listo") continue;
-      for (const node of flow.nodes ?? []) {
-        if (!ACTIVITY_NODE_KINDS.has(node.kind)) continue;
-        entries.push({ flow, node });
+  function componentKindLabel(kind) {
+    if (kind === NODE_KINDS.INICIO) return "Start Event";
+    if (kind === NODE_KINDS.FIN) return "End Event";
+    if (kind === NODE_KINDS.GATEWAY) return "Gateway";
+    return activityKindLabel(kind);
+  }
+  function componentKindBadgeClass(kind) {
+    if (kind === NODE_KINDS.INICIO || kind === NODE_KINDS.FIN) return "borrador";
+    if (kind === NODE_KINDS.GATEWAY) return "curso";
+    return "listo";
+  }
+  function getActivityCatalogFlows(flows) {
+    return (flows ?? []).filter((f) => f.status === "listo" || f.status === "borrador").sort((a, b) => {
+      if (a.status === "listo" && b.status !== "listo") return -1;
+      if (b.status === "listo" && a.status !== "listo") return 1;
+      return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
+    });
+  }
+  function listFlowCatalogComponents(flow) {
+    const catalogNodes = (flow.nodes ?? []).filter(
+      (n) => ACTIVITY_CATALOG_COMPONENT_KINDS.has(n.kind)
+    );
+    const nodeById = Object.fromEntries((flow.nodes ?? []).map((n) => [n.id, n]));
+    const start = flow.nodes?.find((n) => n.kind === NODE_KINDS.INICIO);
+    const byFrom = /* @__PURE__ */ new Map();
+    for (const t of flow.transitions ?? []) {
+      const lt = t.lineType ?? LINE_TYPES.SEQUENCE;
+      if (lt !== LINE_TYPES.SEQUENCE) continue;
+      if (!byFrom.has(t.fromId)) byFrom.set(t.fromId, []);
+      byFrom.get(t.fromId).push(t.toId);
+    }
+    const ordered = [];
+    const seen = /* @__PURE__ */ new Set();
+    if (start) {
+      const queue = [start.id];
+      while (queue.length) {
+        const id = queue.shift();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const node = nodeById[id];
+        if (node && ACTIVITY_CATALOG_COMPONENT_KINDS.has(node.kind)) {
+          ordered.push(node);
+        }
+        for (const next of byFrom.get(id) ?? []) {
+          if (!seen.has(next)) queue.push(next);
+        }
       }
     }
-    const rows = entries.map(
-      ({ flow, node }) => `
-    <tr>
-      <td>${escapeHtml(flow.name)}</td>
-      <td>${escapeHtml(node.name)}</td>
-      <td><span class="badge badge-listo">${escapeHtml(activityKindLabel(node.kind))}</span></td>
+    const rest = catalogNodes.filter((n) => !seen.has(n.id)).sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), "es"));
+    return [...ordered, ...rest];
+  }
+  function renderCatalogComponentIcon(node) {
+    const title = escapeHtml(componentKindLabel(node.kind));
+    if (node.kind === NODE_KINDS.INICIO) {
+      return `<span class="catalog-component-icon-wrap" title="${title}"><span class="palette-shape-icon icon-start catalog-component-shape" aria-hidden="true"></span></span>`;
+    }
+    if (node.kind === NODE_KINDS.FIN) {
+      return `<span class="catalog-component-icon-wrap" title="${title}"><span class="palette-shape-icon icon-end catalog-component-shape" aria-hidden="true"></span></span>`;
+    }
+    if (node.kind === NODE_KINDS.GATEWAY) {
+      const gt = node.gatewayType ?? DEFAULT_GATEWAY_TYPE;
+      const mark = gatewayMarkClass(gt);
+      return `<span class="catalog-component-icon-wrap catalog-component-icon-wrap--gateway" title="${title}"><span class="icon-gateway-diamond catalog-component-gateway" aria-hidden="true"><span class="gateway-mark ${mark}"></span></span></span>`;
+    }
+    if (node.kind === NODE_KINDS.MANUAL) {
+      return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">\u{1F464}</span>`;
+    }
+    if (node.kind === NODE_KINDS.AUTOMATICA) {
+      return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">\u2699</span>`;
+    }
+    return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">\u2022</span>`;
+  }
+  function renderActivityTreeToggle(flowId, expanded, childCount) {
+    const label = childCount === 1 ? "1 componente" : `${childCount} componentes`;
+    return `<button type="button" class="catalog-tree-toggle ${expanded ? "is-expanded" : ""}" data-toggle-activity-flow="${escapeHtml(flowId)}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? `Contraer ${label}` : `Expandir ${label}`}" title="${expanded ? "Ocultar componentes" : "Ver componentes del flujo"}">
+      <svg class="catalog-tree-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 4l4 4-4 4V4z"/></svg>
+    </button>`;
+  }
+  function renderActivityComponentRow(node, flow, catalogBlocked) {
+    const badgeClass = componentKindBadgeClass(node.kind);
+    const kindLabel = componentKindLabel(node.kind);
+    return `
+    <tr class="catalog-row catalog-row--child catalog-row--component" data-activity-flow-child="${escapeHtml(flow.id)}">
+      <td class="catalog-name-cell catalog-name-cell--child">
+        <span class="catalog-tree-node catalog-tree-node--component">
+          <span class="catalog-tree-rail" aria-hidden="true"></span>
+          ${renderCatalogComponentIcon(node)}
+          <span class="catalog-component-meta">
+            <span class="catalog-component-name">${escapeHtml(node.name)}</span>
+            <span class="catalog-component-kind-hint">${escapeHtml(kindLabel)}</span>
+          </span>
+        </span>
+      </td>
+      <td>\u2014</td>
+      <td><span class="badge badge-${badgeClass}">${escapeHtml(kindLabel)}</span></td>
       <td>${escapeHtml(node.description || "\u2014")}</td>
       <td class="catalog-actions">
         <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
       </td>
-    </tr>`
-    ).join("");
-    const emptyBody = rows === "" ? `<div class="empty-state empty-state--rich">
-          <strong>Sin actividades</strong>
-          <p>Agreg\xE1 User Task, Service Task o Agente IA en tus flujos para verlas ac\xE1.</p>
+    </tr>`;
+  }
+  function renderActivityCatalog(state) {
+    const catalogBlocked = isCatalogActionsBlocked();
+    const catalogCallout = designerCatalogCalloutHtml();
+    const activityFlows = getActivityCatalogFlows(state.flows);
+    const flowGroupsHtml = activityFlows.map((flow) => {
+      const components = listFlowCatalogComponents(flow);
+      const expanded = designerContext.catalogExpandedActivityFlows.has(flow.id);
+      const childCount = components.length;
+      const hasChildren = childCount > 0;
+      const toggle = hasChildren ? renderActivityTreeToggle(flow.id, expanded, childCount) : `<span class="catalog-tree-toggle catalog-tree-toggle--spacer" aria-hidden="true"></span>`;
+      const countChip = hasChildren ? !expanded ? `<span class="catalog-tree-count" title="Componentes del diagrama">${childCount} ${childCount === 1 ? "componente" : "componentes"}</span>` : "" : `<span class="catalog-tree-count catalog-tree-count--muted" title="Agente IA no se lista en este cat\xE1logo">Sin componentes listados</span>`;
+      const openFlowBtn = `<button type="button" class="btn btn-sm" data-open-flow-only="${flow.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir flujo</button>`;
+      const parentRow = `
+    <tr class="catalog-row catalog-row--parent catalog-row--activity-flow ${hasChildren ? "catalog-row--has-children" : ""} ${expanded ? "catalog-row--expanded" : "catalog-row--collapsed"}" data-activity-flow-parent="${escapeHtml(flow.id)}">
+      <td class="catalog-name-cell">
+        <div class="catalog-name-cell-inner">
+          ${toggle}
+          <span class="catalog-flow-name">${escapeHtml(flow.name)}</span>
+          ${countChip}
+        </div>
+      </td>
+      <td>${escapeHtml(flow.type)}</td>
+      <td><span class="catalog-version catalog-version--current">${escapeHtml(formatFlowVersion(flow))}</span></td>
+      <td>${renderFlowStatusBadge(flow)}</td>
+      <td class="catalog-actions">${openFlowBtn}</td>
+    </tr>`;
+      let childRowsHtml = "";
+      if (expanded) {
+        if (hasChildren) {
+          childRowsHtml = components.map((node) => renderActivityComponentRow(node, flow, catalogBlocked)).join("");
+        } else {
+          childRowsHtml = `
+    <tr class="catalog-row catalog-row--child catalog-row--empty" data-activity-flow-child="${escapeHtml(flow.id)}">
+      <td class="catalog-name-cell catalog-name-cell--child" colspan="5">
+        <span class="catalog-tree-node catalog-tree-node--empty">
+          <span class="catalog-tree-rail" aria-hidden="true"></span>
+          <span class="catalog-muted">Sin componentes listados (Agente IA no aparece en este cat\xE1logo).</span>
+        </span>
+      </td>
+    </tr>`;
+        }
+      }
+      const groupState = expanded ? "is-expanded" : "is-collapsed";
+      return `<tbody class="catalog-lineage-group catalog-activity-flow-group ${groupState} ${hasChildren ? "has-children" : ""}" data-activity-flow-group="${escapeHtml(flow.id)}">
+      ${parentRow}
+      ${childRowsHtml}
+    </tbody>`;
+    }).join("");
+    const hasFlows = activityFlows.length > 0;
+    const emptyBody = !hasFlows ? `<div class="empty-state empty-state--rich">
+          <strong>Sin flujos para listar</strong>
+          <p>Activ\xE1 un borrador o public\xE1 un flujo en estado Listo. Las versiones deprecadas no aparecen ac\xE1.</p>
           <button type="button" class="btn btn-sm" id="btn-goto-flow-catalog">Ir al cat\xE1logo de flujos</button>
         </div>` : "";
     return `
     <section class="panel panel--catalog">
       ${renderPageHeader(
       "Cat\xE1logo de actividades",
-      "Todas las actividades definidas en tus flujos. Abr\xED una para editarla en el lienzo."
+      "Flujos en estado Listo o Borrador. Despleg\xE1 cada fila para ver Start, End, Gateway y tareas (User/Service). Agente IA no se lista."
     )}
       ${catalogCallout}
       ${emptyBody}
-      ${rows ? `<div class="table-wrap table-wrap--modern">
-        <table class="table-modern">
+      ${hasFlows ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern catalog-flow-tree catalog-activity-tree">
           <thead>
-            <tr><th>Flujo</th><th>Actividad</th><th>Tipo</th><th>Descripci\xF3n</th><th>Acciones</th></tr>
+            <tr><th>Flujo / componente</th><th>Tipo de flujo</th><th>Versi\xF3n</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
-          <tbody>${rows}</tbody>
+          ${flowGroupsHtml}
         </table>
       </div>` : ""}
     </section>`;
@@ -1879,15 +2457,64 @@
       designerContext.catalogView = "flows";
       document.querySelector('[data-nav-group="designer"] [data-catalog="flows"]')?.click();
     });
+    mainEl.querySelectorAll("[data-toggle-activity-flow]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const flowId = btn.dataset.toggleActivityFlow;
+        if (!flowId) return;
+        if (designerContext.catalogExpandedActivityFlows.has(flowId)) {
+          designerContext.catalogExpandedActivityFlows.delete(flowId);
+        } else {
+          designerContext.catalogExpandedActivityFlows.add(flowId);
+        }
+        renderDesigner(mainEl, state, persist);
+      });
+    });
+    mainEl.querySelectorAll("[data-open-flow-only]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled || isCatalogActionsBlocked()) {
+          toast(designerBlockedMessage().body);
+          return;
+        }
+        designerContext.selectedFlowId = btn.dataset.openFlowOnly;
+        designerContext.selectedNodeId = null;
+        renderDesigner(mainEl, state, persist);
+      });
+    });
     mainEl.querySelectorAll("[data-open-activity]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.disabled || isCatalogActionsBlocked()) {
           toast(designerBlockedMessage().body);
           return;
         }
-        designerContext.selectedFlowId = btn.dataset.openActivity;
-        designerContext.selectedNodeId = btn.dataset.nodeId;
-        renderDesigner(mainEl, state, persist);
+        const flowId = btn.dataset.openActivity;
+        const nodeId = btn.dataset.nodeId;
+        const flow = state.flows.find((f) => f.id === flowId);
+        const node = flow?.nodes?.find((n) => n.id === nodeId);
+        if (!flow || !node || !COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) {
+          designerContext.selectedFlowId = flowId;
+          designerContext.selectedNodeId = nodeId;
+          renderDesigner(mainEl, state, persist);
+          return;
+        }
+        const readOnly = !isFlowEditable(flow);
+        const openCanvas = () => {
+          designerContext.selectedFlowId = flowId;
+          designerContext.selectedNodeId = nodeId;
+          renderDesigner(mainEl, state, persist);
+        };
+        openComponentAttributesModal({
+          flow,
+          node,
+          kindLabel: componentKindLabel(node.kind),
+          readOnly,
+          onSaved: () => {
+            persist();
+            renderDesigner(mainEl, state, persist);
+          },
+          onOpenCanvas: openCanvas
+        });
       });
     });
   }
@@ -2991,11 +3618,18 @@
       ${automationBtn}
       ${agenteIABtn}`;
     const inputDataSection = node.kind !== NODE_KINDS.INICIO && node.kind !== NODE_KINDS.FIN && node.kind !== NODE_KINDS.GATEWAY ? renderPropsCollapse("input-data", "Datos de entrada que usa", paramsHtml, false) : "";
-    const flowParamsSection = node.kind === NODE_KINDS.INICIO ? renderPropsCollapse(
-      "flow-params",
-      "Par\xE1metros de entrada del flujo",
-      `<div id="input-params-list">${renderInputParamsList(flow)}</div>
-      ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-sm" id="btn-add-param">+ Par\xE1metro</button>`}`,
+    const componentAttrsKinds = COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind);
+    const editAttrsBtn = (tab = "input") => !designerContext.readOnly && componentAttrsKinds ? `<button type="button" class="btn btn-sm btn-primary" id="btn-edit-component-attrs" data-attr-tab="${tab}" style="margin-top:0.5rem">Editar par\xE1metros de entrada</button>` : "";
+    const componentInputSection = componentAttrsKinds ? renderPropsCollapse(
+      "component-input-attrs",
+      node.kind === NODE_KINDS.INICIO ? "Par\xE1metros de entrada del flujo" : "Par\xE1metros de entrada del componente",
+      `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.inputAttributes ?? [])}</div>${editAttrsBtn("input")}`,
+      false
+    ) : "";
+    const componentOutputSection = node.kind === NODE_KINDS.GATEWAY ? renderPropsCollapse(
+      "component-output-attrs",
+      "Par\xE1metros de salida del componente",
+      `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.outputAttributes ?? [])}</div>${!designerContext.readOnly ? `<button type="button" class="btn btn-sm" id="btn-edit-component-attrs-out" data-attr-tab="output" style="margin-top:0.5rem">Editar par\xE1metros de salida</button>` : ""}`,
       false
     ) : "";
     const connectionListItem = (t, peerId, arrow) => {
@@ -3057,21 +3691,12 @@
       false
     ) : ""}
       ${inputDataSection}
-      ${flowParamsSection}
+      ${componentInputSection}
+      ${componentOutputSection}
       ${incomingSection}
       ${connectionsSection}
       ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-danger btn-sm props-delete-node" id="btn-delete-node">Eliminar nodo</button>`}
     </form>`;
-  }
-  function renderInputParamsList(flow) {
-    return flow.inputParams.map(
-      (p) => `
-    <div class="chip-list" style="margin-bottom:0.5rem">
-      <span class="chip">${escapeHtml(p.label)} \xB7 ${escapeHtml(p.type)} ${p.required ? "*" : ""}
-        ${designerContext.readOnly ? "" : `<button type="button" data-del-param="${p.id}" title="Eliminar">\xD7</button>`}
-      </span>
-    </div>`
-    ).join("");
   }
   function applyDesignerSidePanelState(mainEl) {
     const split = mainEl.querySelector("#designer-split");
@@ -3288,6 +3913,10 @@
     });
     mainEl.querySelectorAll("[data-tool]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (designerContext.readOnly && btn.dataset.tool !== "select") {
+          toast(designerReadOnlyMessage(flow));
+          return;
+        }
         designerContext.tool = btn.dataset.tool;
         designerContext.connectClickFrom = null;
         if (btn.dataset.tool === "select") {
@@ -3317,8 +3946,33 @@
       });
     }
     const selected = flow.nodes.find((n) => n.id === designerContext.selectedNodeId);
-    if (selected) bindNodeProps(mainEl, flow, selected, state, saveFlow);
-    else bindFlowDiagramProps(mainEl, flow, state, saveFlow);
+    if (selected) {
+      bindNodeProps(mainEl, flow, selected, state, saveFlow);
+      bindComponentAttributesEditor(mainEl, flow, selected, state, saveFlow);
+    } else bindFlowDiagramProps(mainEl, flow, state, saveFlow);
+  }
+  function bindComponentAttributesEditor(mainEl, flow, node, state, persist) {
+    if (!COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) return;
+    const openEditor = (initialTab) => {
+      openComponentAttributesModal({
+        flow,
+        node,
+        kindLabel: componentKindLabel(node.kind),
+        readOnly: designerContext.readOnly,
+        initialTab,
+        onSaved: () => {
+          persist();
+          renderDesigner(mainEl, state, persist);
+        }
+      });
+    };
+    mainEl.querySelector("#btn-edit-component-attrs")?.addEventListener("click", () => {
+      const tab = mainEl.querySelector("#btn-edit-component-attrs")?.dataset.attrTab;
+      openEditor(tab === "output" ? "output" : "input");
+    });
+    mainEl.querySelector("#btn-edit-component-attrs-out")?.addEventListener("click", () => {
+      openEditor("output");
+    });
   }
   function bindCanvasViewport(mainEl, flow, state, persist) {
     const wrap = mainEl.querySelector("#canvas-wrap");
@@ -3440,6 +4094,7 @@
     });
   }
   function bindFlowDiagramProps(mainEl, flow, state, persist) {
+    if (designerContext.readOnly) return;
     mainEl.querySelector("#btn-add-lane")?.addEventListener("click", () => {
       if (designerContext.readOnly) {
         toast("Este flujo no es editable.");
@@ -3924,6 +4579,7 @@
     ${paths}`;
   }
   function bindNodeProps(mainEl, flow, node, state, persist) {
+    if (designerContext.readOnly) return;
     const form = mainEl.querySelector("#node-props-form");
     form?.querySelector('[name="name"]')?.addEventListener("change", (e) => {
       node.name = e.target.value;
@@ -3951,28 +4607,6 @@
         if (cb.checked) node.usedParamIds.push(cb.dataset.usedParam);
         else node.usedParamIds = node.usedParamIds.filter((id) => id !== cb.dataset.usedParam);
         persist();
-      });
-    });
-    mainEl.querySelector("#btn-add-param")?.addEventListener("click", () => {
-      openParamModal(flow, null, () => {
-        persist();
-        renderDesigner(mainEl, state, persist);
-      });
-    });
-    mainEl.querySelectorAll("[data-del-param]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const pid = btn.dataset.delParam;
-        flow.inputParams = flow.inputParams.filter((p) => p.id !== pid);
-        for (const n of flow.nodes) {
-          n.usedParamIds = (n.usedParamIds ?? []).filter((id) => id !== pid);
-        }
-        for (const nid of Object.keys(flow.screens)) {
-          flow.screens[nid].blocks = flow.screens[nid].blocks.filter(
-            (b) => !(b.type === "dato" && b.paramId === pid)
-          );
-        }
-        persist();
-        renderDesigner(mainEl, state, persist);
       });
     });
     const lineTypeSelect = mainEl.querySelector("#connect-line-type");
@@ -4028,45 +4662,6 @@
     mainEl.querySelector("#btn-design-agente-ia")?.addEventListener("click", () => {
       designerContext.studioMode = "agente_ia";
       renderDesigner(mainEl, state, persist);
-    });
-  }
-  function openParamModal(flow, param, onSave) {
-    const isEdit = !!param;
-    const { close, root } = openModal(`
-    <div class="modal-header"><h2>${isEdit ? "Editar" : "Nuevo"} par\xE1metro</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
-    <form id="form-param" class="form-grid">
-      <div class="form-row"><label>Clave</label><input name="key" required pattern="[a-z0-9_]+" value="${param ? escapeHtml(param.key) : ""}" placeholder="ej. monto" /></div>
-      <div class="form-row"><label>Etiqueta</label><input name="label" required value="${param ? escapeHtml(param.label) : ""}" /></div>
-      <div class="form-row"><label>Tipo</label>
-        <select name="type">
-          <option value="texto" ${param?.type === "texto" ? "selected" : ""}>Texto</option>
-          <option value="numero" ${param?.type === "numero" ? "selected" : ""}>N\xFAmero</option>
-          <option value="fecha" ${param?.type === "fecha" ? "selected" : ""}>Fecha</option>
-          <option value="si_no" ${param?.type === "si_no" ? "selected" : ""}>S\xED / No</option>
-        </select>
-      </div>
-      <label style="font-size:0.85rem"><input type="checkbox" name="required" ${param?.required ? "checked" : ""} /> Obligatorio</label>
-      <button type="submit" class="btn btn-primary">Guardar</button>
-    </form>
-  `);
-    root.querySelector("#form-param").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const entry = {
-        id: param?.id ?? createId("param"),
-        key: String(fd.get("key")).trim(),
-        label: String(fd.get("label")).trim(),
-        type: fd.get("type"),
-        required: fd.get("required") === "on"
-      };
-      if (isEdit) {
-        const idx = flow.inputParams.findIndex((p) => p.id === param.id);
-        flow.inputParams[idx] = entry;
-      } else {
-        flow.inputParams.push(entry);
-      }
-      onSave();
-      close();
     });
   }
 
@@ -4173,8 +4768,8 @@
         if (!gatewayDecision) {
           instance.currentNodeId = currentId;
           appendTrace(instance, {
-            type: "error",
-            message: `Gateway "${node.name}" requiere decisi\xF3n Aceptar/Rechazar.`,
+            type: "pendiente",
+            message: `Gateway pendiente: ${node.name}`,
             nodeId: currentId
           });
           return instance;
@@ -4285,6 +4880,32 @@
     instance.currentNodeId = nextId;
     return await proceedFromNode(instance, nextId, decision);
   }
+  async function resolveGateway(instance, decision) {
+    const nodeId = instance.currentNodeId;
+    const node = findNode(instance.flowSnapshot, nodeId);
+    if (!node || node.kind !== NODE_KINDS.GATEWAY) {
+      throw new Error("No hay Gateway pendiente");
+    }
+    if (decision !== "aceptar" && decision !== "rechazar") {
+      throw new Error("Decisi\xF3n de gateway inv\xE1lida");
+    }
+    completeStep(instance, nodeId, "completada", decision);
+    appendTrace(instance, {
+      type: "gateway",
+      message: `${node.name}: ${decision}`,
+      nodeId,
+      decision
+    });
+    const nextId = nextNodeId(instance.flowSnapshot, nodeId, decision);
+    if (!nextId) {
+      instance.status = decision === "rechazar" ? "cerrada_rechazo" : "completada";
+      instance.finishedAt = (/* @__PURE__ */ new Date()).toISOString();
+      instance.currentNodeId = null;
+      return instance;
+    }
+    instance.currentNodeId = nextId;
+    return await proceedFromNode(instance, nextId);
+  }
   function simulateAIHITLReminder(instance) {
     const nodeId = instance.currentNodeId;
     const node = findNode(instance.flowSnapshot, nodeId);
@@ -4344,81 +4965,910 @@
     return map[status] ?? status;
   }
 
+  // js/gestion-input-fields.js
+  var HTML_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  function localTodayHtmlDate() {
+    const d = /* @__PURE__ */ new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function htmlDateFromUnknown(raw) {
+    if (raw === null || raw === void 0 || raw === "") return "";
+    const s = String(raw).trim();
+    if (HTML_DATE_RE.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0, 10);
+    const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+    if (dmy) {
+      const day = dmy[1].padStart(2, "0");
+      const month = dmy[2].padStart(2, "0");
+      const year = dmy[3];
+      return `${year}-${month}-${day}`;
+    }
+    const parsed = new Date(s);
+    if (!Number.isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const day = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+    return "";
+  }
+  var DATE_PICKER_ICON = `<svg class="date-input-picker-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  function renderHtmlDateField(name, label, required, prefill) {
+    const req = required ? "required" : "";
+    const normalized = htmlDateFromUnknown(prefill);
+    const value = normalized || localTodayHtmlDate();
+    return `
+    <div class="form-row form-row--date">
+      <label>${escapeHtml(label)}${required ? " *" : ""}</label>
+      <div class="date-input-wrap">
+        <input type="date" class="input-date-native" name="${name}" ${req} value="${escapeHtml(value)}" />
+        <button type="button" class="date-input-picker-btn" data-date-picker-trigger tabindex="-1" aria-label="Abrir calendario">
+          ${DATE_PICKER_ICON}
+        </button>
+      </div>
+    </div>`;
+  }
+  function bindNativeDateFields(root) {
+    root.querySelectorAll(".date-input-wrap").forEach((wrap) => {
+      const input = wrap.querySelector('input[type="date"]');
+      const trigger = wrap.querySelector("[data-date-picker-trigger]");
+      if (!input || !trigger || trigger.dataset.dateBound === "1") return;
+      trigger.dataset.dateBound = "1";
+      const openPicker = () => {
+        if (typeof input.showPicker === "function") {
+          try {
+            input.showPicker();
+            return;
+          } catch {
+          }
+        }
+        input.focus();
+      };
+      trigger.addEventListener("click", (e) => {
+        e.preventDefault();
+        openPicker();
+      });
+      input.addEventListener("click", () => {
+        if (typeof input.showPicker === "function") {
+          try {
+            input.showPicker();
+          } catch {
+          }
+        }
+      });
+    });
+  }
+  function renderInstanceParamField(p) {
+    const key = escapeHtml(p.key);
+    const req = p.required ? "required" : "";
+    const cardinality = p.cardinality ?? INPUT_CARDINALITY.UNICO;
+    const options = Array.isArray(p.listOptions) ? p.listOptions : [];
+    const prefill = p._prefill;
+    if (cardinality === INPUT_CARDINALITY.LISTA && options.length > 0) {
+      const selected = Array.isArray(prefill) ? prefill.map(String) : [];
+      const boxes = options.map((o, i) => {
+        const id = `${key}_opt_${i}`;
+        const val = escapeHtml(o.label);
+        const checked = selected.includes(o.label) ? "checked" : "";
+        return `<label class="instance-list-option" for="${id}"><input type="checkbox" id="${id}" name="${key}__list" value="${val}" data-opt-required="${o.required ? "1" : "0"}" ${checked} /> ${val}${o.required ? " *" : ""}</label>`;
+      }).join("");
+      return `<div class="form-row form-row--list"><label>${escapeHtml(p.label)}${p.required ? " *" : ""}</label><div class="instance-list-options">${boxes}</div></div>`;
+    }
+    if (cardinality === INPUT_CARDINALITY.UNICO && options.length > 0) {
+      const prefillStr = prefill === null || prefill === void 0 ? "" : String(prefill);
+      const optsHtml = options.map((o) => {
+        const val = escapeHtml(o.label);
+        const sel = prefillStr === o.label ? "selected" : "";
+        return `<option value="${val}" ${sel}>${val}${o.required ? " *" : ""}</option>`;
+      }).join("");
+      const selectReq = p.required ? "required" : "";
+      return `<div class="form-row"><label>${escapeHtml(p.label)}</label><select name="${key}" ${selectReq}><option value="">\u2014</option>${optsHtml}</select></div>`;
+    }
+    const valueAttr = prefill !== null && prefill !== void 0 && prefill !== "" ? ` value="${escapeHtml(String(prefill))}"` : "";
+    if (p.type === "fecha") {
+      return renderHtmlDateField(key, p.label, !!p.required, prefill);
+    }
+    let input = `<input name="${key}" ${req}${valueAttr} />`;
+    if (p.type === "numero") input = `<input type="number" name="${key}" ${req}${valueAttr} />`;
+    if (p.type === "si_no") {
+      const pre = prefill === null || prefill === void 0 ? "" : String(prefill);
+      input = `<select name="${key}" ${req}><option value="">\u2014</option><option value="si"${pre === "si" ? " selected" : ""}>S\xED</option><option value="no"${pre === "no" ? " selected" : ""}>No</option></select>`;
+    }
+    return `<div class="form-row"><label>${escapeHtml(p.label)}</label>${input}</div>`;
+  }
+  function renderInputFieldsHtml(flow) {
+    return (flow.inputParams ?? []).map((p) => renderInstanceParamField(p)).join("");
+  }
+  function readInstanceParamValue(fd, p) {
+    const errors = [];
+    const raw = fd.get(p.key);
+    const cardinality = p.cardinality ?? INPUT_CARDINALITY.UNICO;
+    const options = Array.isArray(p.listOptions) ? p.listOptions : [];
+    if (cardinality === INPUT_CARDINALITY.LISTA && options.length > 0) {
+      const selected = fd.getAll(`${p.key}__list`).map((v) => String(v));
+      if (p.required && selected.length === 0) {
+        errors.push(`Campo obligatorio: ${p.label ?? p.key}.`);
+      }
+      for (const o of options) {
+        if (o.required && !selected.includes(o.label)) {
+          errors.push(`Opci\xF3n obligatoria \xAB${o.label}\xBB en ${p.label ?? p.key}.`);
+        }
+      }
+      return { value: selected, errors };
+    }
+    if (cardinality === INPUT_CARDINALITY.UNICO && options.length > 0) {
+      const val2 = raw === null || raw === void 0 ? "" : String(raw);
+      if (p.required && !val2.trim()) {
+        errors.push(`Campo obligatorio: ${p.label ?? p.key}.`);
+      }
+      return { value: val2, errors };
+    }
+    let val = raw;
+    if (p.type === "numero" && val !== "" && val !== null) val = Number(val);
+    if (val === null || val === void 0) val = "";
+    if (p.required && !String(val).trim()) {
+      errors.push(`Campo obligatorio: ${p.label ?? p.key}.`);
+    }
+    return { value: val, errors };
+  }
+
+  // js/gestion-catalog.js
+  function getReadyFlowsByType(flows) {
+    const map = /* @__PURE__ */ new Map();
+    for (const flow of flows ?? []) {
+      if (flow.status !== "listo") continue;
+      const type = String(flow.type ?? "").trim() || "Sin tipo";
+      if (!map.has(type)) map.set(type, []);
+      map.get(type).push(flow);
+    }
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const na = (a.name ?? "").localeCompare(b.name ?? "", "es");
+        if (na !== 0) return na;
+        return (b.version ?? 0) - (a.version ?? 0);
+      });
+    }
+    return map;
+  }
+  function listReadyFlowTypes(byType) {
+    return [...byType.keys()].sort((a, b) => a.localeCompare(b, "es"));
+  }
+  function formatFlowCatalogLabel(flow) {
+    return `${flow.name ?? "Flujo"} (${formatFlowVersion(flow)})`;
+  }
+
+  // js/gestion-instance-helpers.js
+  function formatInstanceValue(val) {
+    if (Array.isArray(val)) return val.filter(Boolean).join(", ") || "\u2014";
+    if (val === null || val === void 0 || val === "") return "\u2014";
+    return String(val);
+  }
+  function componentAttrContextKey(nodeId, attrKey) {
+    return `${nodeId}__${attrKey}`;
+  }
+  function isInstanceFinalized(status) {
+    return status !== "en_curso";
+  }
+  function instanceStatusBadgeClass(status) {
+    if (status === "en_curso") return "curso";
+    if (status === "completada") return "completada";
+    return "rechazada";
+  }
+  function formatStepStatusLabel(status) {
+    const map = {
+      aceptada: "Aceptada",
+      rechazada: "Rechazada",
+      completada: "Completada",
+      pendiente: "Pendiente"
+    };
+    return map[status ?? ""] ?? status ?? "\u2014";
+  }
+  function buildInstanceDataSections(instance) {
+    const snap = instance.flowSnapshot;
+    const nodes = snap?.nodes ?? [];
+    const nodeById = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    const sectionOrder = [];
+    const sectionByKey = /* @__PURE__ */ new Map();
+    const ensureSection = (key, fallbackTitle) => {
+      if (!sectionByKey.has(key)) {
+        const node = key.includes("__") ? null : nodeById[key];
+        const sec = {
+          sectionKey: key,
+          nodeId: node?.id ?? key,
+          title: node?.name ?? fallbackTitle,
+          kind: node?.kind ?? "",
+          at: null,
+          status: null,
+          comment: null,
+          fields: []
+        };
+        sectionByKey.set(key, sec);
+        sectionOrder.push(key);
+      }
+      return sectionByKey.get(key);
+    };
+    const addField = (sec, label, value) => {
+      if (value === void 0) return;
+      const lbl = String(label || "").trim() || "\u2014";
+      if (sec.fields.some((f) => f.label === lbl)) return;
+      sec.fields.push({ label: lbl, value: formatInstanceValue(value) });
+    };
+    const start = nodes.find((n) => n.kind === NODE_KINDS.INICIO);
+    if (start) {
+      const sec = ensureSection(start.id, "Inicio");
+      sec.at = instance.startedAt ?? null;
+      for (const p of snap.inputParams ?? []) {
+        addField(sec, p.label || p.key, instance.inputValues?.[p.key]);
+      }
+      for (const attr of start.inputAttributes ?? []) {
+        const a = normalizeComponentAttribute(attr);
+        if (a.key) addField(sec, a.label || a.key, instance.inputValues?.[a.key]);
+      }
+      const inicioTrace = (instance.trace ?? []).find((t) => t.type === "inicio");
+      if (inicioTrace?.dataShown && typeof inicioTrace.dataShown === "object") {
+        for (const [k, v] of Object.entries(inicioTrace.dataShown)) {
+          addField(sec, k, v);
+        }
+      }
+    }
+    for (const [ctxKey, val] of Object.entries(instance.context ?? {})) {
+      const m = ctxKey.match(/^(.+)__(.+)$/);
+      if (!m) continue;
+      const [, nodeId, attrKey] = m;
+      const node = nodeById[nodeId];
+      const sec = ensureSection(nodeId, node?.name ?? "Paso");
+      const attr = (node?.inputAttributes ?? []).find(
+        (a) => normalizeComponentAttribute(a).key === attrKey
+      );
+      const label = attr ? normalizeComponentAttribute(attr).label || attrKey : attrKey;
+      addField(sec, label, val);
+    }
+    for (const step of instance.steps ?? []) {
+      const sec = ensureSection(step.nodeId, "Paso");
+      if (!sec.at || new Date(step.at).getTime() >= new Date(sec.at).getTime()) {
+        sec.at = step.at;
+      }
+      sec.status = step.status;
+      if (step.comment) sec.comment = step.comment;
+    }
+    for (const t of instance.trace ?? []) {
+      if (!t.nodeId || !t.dataShown || typeof t.dataShown !== "object") continue;
+      if (t.type === "inicio") continue;
+      const sec = ensureSection(t.nodeId, "Paso");
+      if (!sec.at && t.at) sec.at = t.at;
+      if (t.decision && !sec.status) {
+        sec.status = t.decision === "aceptar" ? "aceptada" : t.decision === "rechazar" ? "rechazada" : t.decision;
+      }
+      if (t.comment && !sec.comment) sec.comment = t.comment;
+      for (const [k, v] of Object.entries(t.dataShown)) {
+        const label = k === "comment" ? "Comentario" : k;
+        addField(sec, label, v);
+      }
+    }
+    const orphanKey = "__orphan__";
+    for (const [k, v] of Object.entries(instance.context ?? {})) {
+      if (/^.+__.+$/.test(k)) continue;
+      const sec = ensureSection(orphanKey, "Otros datos");
+      addField(sec, k, v);
+    }
+    const ordered = sectionOrder.map((k) => sectionByKey.get(k)).filter(Boolean).sort((a, b) => {
+      if (a.kind === NODE_KINDS.INICIO) return -1;
+      if (b.kind === NODE_KINDS.INICIO) return 1;
+      if (a.sectionKey === orphanKey) return 1;
+      if (b.sectionKey === orphanKey) return -1;
+      const ta = a.at ? new Date(a.at).getTime() : 0;
+      const tb = b.at ? new Date(b.at).getTime() : 0;
+      return ta - tb;
+    });
+    return ordered.filter((s) => s.fields.length > 0 || s.status || s.comment);
+  }
+  function getFirstStartAttributeDisplay(instance) {
+    const snap = instance.flowSnapshot;
+    if (!snap) return "\u2014";
+    const start = snap.nodes?.find((n) => n.kind === NODE_KINDS.INICIO);
+    let first = null;
+    if (start?.inputAttributes?.length) {
+      const a = start.inputAttributes[0];
+      first = { label: a.label || a.key || "?", key: a.key };
+    } else if (snap.inputParams?.length) {
+      const p = snap.inputParams[0];
+      first = { label: p.label || p.key || "?", key: p.key };
+    }
+    if (!first?.key) return "\u2014";
+    const val = instance.inputValues?.[first.key];
+    return `${first.label}: ${formatInstanceValue(val)}`;
+  }
+
+  // js/gestion-component-fields.js
+  function attrToParam(attr, nodeId, instance) {
+    const a = normalizeComponentAttribute(attr);
+    const ctxKey = componentAttrContextKey(nodeId, a.key);
+    const stored = instance.context?.[ctxKey];
+    return {
+      id: a.id,
+      key: `nodeattr_${a.id}`,
+      storageKey: ctxKey,
+      label: a.label,
+      type: a.dataType,
+      required: a.required,
+      cardinality: a.cardinality,
+      listOptions: a.listOptions,
+      _prefill: stored
+    };
+  }
+  function renderNodeInputAttributesForm(node, instance) {
+    const attrs = node.inputAttributes ?? [];
+    if (!attrs.length) return "";
+    const fields = attrs.map((attr) => {
+      const p = attrToParam(attr, node.id, instance);
+      return renderInstanceParamField(p);
+    }).join("");
+    return `
+    <section class="gestion-manage-attrs">
+      <h3 class="gestion-manage-section-title">Datos del componente</h3>
+      <form id="form-node-attrs" class="form-grid">${fields}</form>
+    </section>`;
+  }
+  function readNodeInputAttributesFromForm(form, node, instance) {
+    const errors = [];
+    const patch = {};
+    const fd = new FormData(form);
+    for (const attr of node.inputAttributes ?? []) {
+      const p = attrToParam(attr, node.id, instance);
+      const { value, errors: fieldErrors } = readInstanceParamValue(fd, p);
+      errors.push(...fieldErrors);
+      patch[p.storageKey] = value;
+    }
+    return { errors, patch };
+  }
+  function applyComponentAttrPatch(instance, patch) {
+    if (!instance.context) instance.context = {};
+    Object.assign(instance.context, patch);
+  }
+
+  // js/gestion-flow-preview.js
+  function nodePortOut2(node, condition = null) {
+    const box = getNodeBox(node.kind);
+    const baseX = node.x + box.w;
+    const midY = node.y + box.h / 2;
+    if (node.kind === NODE_KINDS.GATEWAY && condition === "aceptar") {
+      return { x: baseX, y: node.y + box.h * 0.3 };
+    }
+    if (node.kind === NODE_KINDS.GATEWAY && condition === "rechazar") {
+      return { x: baseX, y: node.y + box.h * 0.7 };
+    }
+    return { x: baseX, y: midY };
+  }
+  function nodePortIn2(node) {
+    const box = getNodeBox(node.kind);
+    return { x: node.x, y: node.y + box.h / 2 };
+  }
+  function renderPreviewNode(node, currentNodeId) {
+    const isCurrent = node.id === currentNodeId;
+    const kindLabel = {
+      inicio: "Start",
+      manual: "User Task",
+      automatica: "Service Task",
+      gateway: "Gateway",
+      fin: "End"
+    }[node.kind];
+    const icon = node.kind === NODE_KINDS.MANUAL ? `<span class="bpmn-task-icon" aria-hidden="true">\u{1F464}</span>` : node.kind === NODE_KINDS.AUTOMATICA ? `<span class="bpmn-task-icon" aria-hidden="true">\u2699</span>` : node.kind === NODE_KINDS.GATEWAY ? `<span class="bpmn-gateway-x gateway-mark gateway-mark-exclusive" aria-hidden="true"></span>` : "";
+    const body = node.kind === NODE_KINDS.GATEWAY ? `<div class="gateway-node-shape">${icon}<div class="node-kind">${kindLabel}</div><div class="node-name">${escapeHtml(node.name)}</div></div>` : `${icon}<div class="node-kind">${kindLabel}</div><div class="node-name">${escapeHtml(node.name)}</div>`;
+    return `
+    <div class="flow-node flow-node--readonly node-${node.kind} ${isCurrent ? "is-instance-current" : ""}"
+         style="left:${node.x}px;top:${node.y}px"
+         title="${escapeHtml(node.name)}">
+      ${body}
+    </div>`;
+  }
+  function traceTypeLabel(type) {
+    const map = {
+      inicio: "Inicio",
+      manual: "User Task",
+      automatica: "Autom\xE1tico",
+      gateway: "Gateway",
+      integration_request: "Integraci\xF3n",
+      integration_response: "Respuesta",
+      fin: "Fin",
+      error: "Error",
+      info: "Info"
+    };
+    return map[type] ?? type ?? "Evento";
+  }
+  function traceDecisionLabel(decision) {
+    if (decision === "aceptar") return "Aprobaci\xF3n / Aceptar";
+    if (decision === "rechazar") return "Rechazo";
+    return decision;
+  }
+  function renderInstanceDataPanel(sections) {
+    if (!sections.length) {
+      return `<p class="gestion-empty">Todav\xEDa no hay datos cargados en esta instancia.</p>`;
+    }
+    const cards = sections.map((sec) => {
+      const meta = [
+        sec.at ? `<time class="instance-preview-step-time">${formatDateTime(sec.at)}</time>` : "",
+        sec.status ? `<span class="badge badge-${sec.status === "rechazada" ? "rechazada" : sec.status === "aceptada" ? "completada" : "curso"}">${escapeHtml(formatStepStatusLabel(sec.status))}</span>` : ""
+      ].filter(Boolean).join("");
+      const rows = sec.fields.map(
+        (f) => `<tr><th scope="row">${escapeHtml(f.label)}</th><td>${escapeHtml(f.value)}</td></tr>`
+      ).join("");
+      return `
+      <article class="instance-preview-step-card">
+        <header class="instance-preview-step-head">
+          <div>
+            <strong>${escapeHtml(sec.title)}</strong>
+            ${sec.kind ? `<span class="form-hint instance-preview-step-kind">${escapeHtml(sec.kind)}</span>` : ""}
+          </div>
+          ${meta ? `<div class="instance-preview-step-meta">${meta}</div>` : ""}
+        </header>
+        ${sec.comment ? `<p class="form-hint instance-preview-step-comment">Comentario: ${escapeHtml(sec.comment)}</p>` : ""}
+        ${rows ? `<table class="instance-preview-fields table-modern"><tbody>${rows}</tbody></table>` : `<p class="form-hint">Sin campos registrados.</p>`}
+      </article>`;
+    }).join("");
+    return `<div class="instance-preview-data-list">${cards}</div>`;
+  }
+  function renderInstanceTracePanel(instance) {
+    const trace = [...instance.trace ?? []].sort(
+      (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+    );
+    if (!trace.length) {
+      return `<p class="gestion-empty">Sin eventos en la traza.</p>`;
+    }
+    const items = trace.map((t) => {
+      const node = instance.flowSnapshot?.nodes?.find((n) => n.id === t.nodeId);
+      return `
+      <li class="trace-item instance-preview-trace-item">
+        <div class="instance-preview-trace-head">
+          <time>${formatDateTime(t.at)}</time>
+          <span class="badge badge-borrador">${escapeHtml(traceTypeLabel(t.type))}</span>
+        </div>
+        <p class="instance-preview-trace-msg">${escapeHtml(t.message)}</p>
+        ${node ? `<p class="form-hint">Paso: ${escapeHtml(node.name)}</p>` : ""}
+        ${t.decision ? `<p class="form-hint"><strong>Decisi\xF3n:</strong> ${escapeHtml(traceDecisionLabel(t.decision))}</p>` : ""}
+        ${t.comment ? `<p class="form-hint"><strong>Comentario:</strong> ${escapeHtml(t.comment)}</p>` : ""}
+      </li>`;
+    }).join("");
+    return `<ul class="trace-list instance-preview-trace-list">${items}</ul>`;
+  }
+  function renderFlowDiagramPanel(instance) {
+    const flow = JSON.parse(JSON.stringify(instance.flowSnapshot));
+    if (!flow.lanes?.length) {
+      flow.lanes = [{ id: createId("lane"), name: "General", height: 180 }];
+    }
+    normalizeFlowNodes(flow);
+    const layout = computeLaneLayout(flow, { viewportWidth: 960 });
+    const nodeById = Object.fromEntries((flow.nodes ?? []).map((n) => [n.id, n]));
+    const laneHtml = layout.lanes.map(
+      (lane) => `<div class="flow-lane-band" style="top:${lane.top}px;left:${lane.left}px;width:${lane.width}px;height:${lane.height}px">
+          <div class="flow-lane-title">${escapeHtml(lane.name)}</div>
+        </div>`
+    ).join("");
+    const paths = (flow.transitions ?? []).map((t) => {
+      const from = nodeById[t.fromId];
+      const to = nodeById[t.toId];
+      if (!from || !to) return "";
+      const lt = t.lineType ?? LINE_TYPES.SEQUENCE;
+      if (lt !== LINE_TYPES.SEQUENCE) return "";
+      const cond = lt === LINE_TYPES.SEQUENCE ? t.condition : null;
+      const a = nodePortOut2(from, cond === "siempre" ? null : cond);
+      const b = nodePortIn2(to);
+      return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow-preview)" />`;
+    }).join("");
+    const nodesHtml = (flow.nodes ?? []).map((n) => renderPreviewNode(n, instance.currentNodeId)).join("");
+    const legend = instance.currentNodeId ? `<p class="gestion-preview-legend">El paso resaltado es el paso actual de la instancia.</p>` : `<p class="gestion-preview-legend">Instancia finalizada \u2014 diagrama en solo lectura.</p>`;
+    return `
+    ${legend}
+    <div class="gestion-flow-preview-wrap">
+      <div class="gestion-flow-preview-canvas" style="width:${layout.canvasMinWidth}px;height:${layout.canvasMinHeight}px">
+        <svg class="gestion-flow-preview-svg" width="${layout.canvasMinWidth}" height="${layout.canvasMinHeight}">
+          <defs>
+            <marker id="arrow-preview" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8" />
+            </marker>
+          </defs>
+          ${paths}
+        </svg>
+        ${laneHtml}
+        ${nodesHtml}
+      </div>
+    </div>`;
+  }
+  function bindPreviewTabs(root, activeTab) {
+    let tab = activeTab;
+    const sync = () => {
+      root.querySelectorAll("[data-preview-tab]").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.previewTab === tab);
+        btn.setAttribute("aria-selected", btn.dataset.previewTab === tab ? "true" : "false");
+      });
+      root.querySelectorAll("[data-preview-panel]").forEach((panel) => {
+        const show = panel.dataset.previewPanel === tab;
+        panel.hidden = !show;
+      });
+    };
+    root.querySelectorAll("[data-preview-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tab = btn.dataset.previewTab ?? "datos";
+        sync();
+      });
+    });
+    sync();
+  }
+  function renderFlowPreviewPageHtml(instance) {
+    const dataSections = buildInstanceDataSections(instance);
+    const statusBadge = `<span class="badge badge-${instanceStatusBadgeClass(instance.status)}">${escapeHtml(statusLabel2(instance.status))}</span>`;
+    return `
+    <section class="gestion-hero gestion-hero--preview panel">
+      <header class="gestion-hero-header">
+        <button type="button" class="btn btn-sm gestion-hero-back" data-gestion-back>Volver al listado</button>
+        <div class="gestion-hero-heading">
+          <h2>Visualizar flujo</h2>
+          <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} \xB7 ${statusBadge}</p>
+        </div>
+      </header>
+      <div class="gestion-preview-tabs component-attr-tabs" role="tablist">
+        <button type="button" class="component-attr-tab is-active" data-preview-tab="datos" role="tab" aria-selected="true">Datos</button>
+        <button type="button" class="component-attr-tab" data-preview-tab="traza" role="tab" aria-selected="false">Traza</button>
+        <button type="button" class="component-attr-tab" data-preview-tab="diagrama" role="tab" aria-selected="false">Diagrama</button>
+      </div>
+      <div class="gestion-preview-panels gestion-preview-panels--hero">
+        <div class="gestion-preview-panel" data-preview-panel="datos" role="tabpanel">
+          <p class="gestion-preview-legend">Valores cargados en cada paso del flujo (inicio, tareas y atributos de componente).</p>
+          ${renderInstanceDataPanel(dataSections)}
+        </div>
+        <div class="gestion-preview-panel" data-preview-panel="traza" role="tabpanel" hidden>
+          <p class="gestion-preview-legend">Historial de acciones con fecha y hora, decisiones y comentarios.</p>
+          ${renderInstanceTracePanel(instance)}
+        </div>
+        <div class="gestion-preview-panel" data-preview-panel="diagrama" role="tabpanel" hidden>
+          ${renderFlowDiagramPanel(instance)}
+        </div>
+      </div>
+    </section>`;
+  }
+  function bindFlowPreviewPage(root, instance, activeTab = "datos") {
+    bindPreviewTabs(root, activeTab);
+  }
+
   // js/gestion.js
-  var selectedInstanceId = null;
-  function renderGestion(mainEl, state, persist) {
+  var gestionScreen = { mode: "list", instanceId: null };
+  function enterGestionHub() {
+    gestionScreen = { mode: "list", instanceId: null };
+  }
+  function stepKindBadge(node) {
+    if (!node) return "";
+    if (node.kind === NODE_KINDS.MANUAL) return `<span class="badge badge-curso">Manual</span>`;
+    if (node.kind === NODE_KINDS.AUTOMATICA) return `<span class="badge badge-listo">Auto</span>`;
+    if (node.kind === NODE_KINDS.GATEWAY) return `<span class="badge badge-borrador">Gateway</span>`;
+    if (node.kind === NODE_KINDS.AGENTE_IA) return `<span class="badge badge-curso">Agente IA</span>`;
+    return "";
+  }
+  function sortInstancesByStarted(activeInstances) {
+    return [...activeInstances].sort(
+      (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+  }
+  function sortInstancesByFinished(instances) {
+    return [...instances].sort((a, b) => {
+      const aEnd = a.finishedAt ? new Date(a.finishedAt).getTime() : 0;
+      const bEnd = b.finishedAt ? new Date(b.finishedAt).getTime() : 0;
+      if (bEnd !== aEnd) return bEnd - aEnd;
+      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+    });
+  }
+  function renderInstanceStatusBadge(status) {
+    const cls = instanceStatusBadgeClass(status);
+    return `<span class="badge badge-${cls}">${escapeHtml(statusLabel2(status))}</span>`;
+  }
+  function renderActiveInstancesTable(instances) {
+    if (!instances.length) {
+      return `<p class="gestion-empty">No hay instancias en curso.</p>`;
+    }
+    const rows = instances.map((inst) => {
+      const node = getCurrentNode(inst);
+      const flowType = inst.flowSnapshot?.type ?? "\u2014";
+      const startAttr = getFirstStartAttributeDisplay(inst);
+      return `
+    <tr class="gestion-instance-row" data-inst-row="${inst.id}">
+      <td><strong>${escapeHtml(inst.flowName)}</strong></td>
+      <td>${escapeHtml(flowType)}</td>
+      <td class="gestion-cell-muted">${formatDateTime(inst.startedAt)}</td>
+      <td class="gestion-cell-muted">${escapeHtml(startAttr)}</td>
+      <td>
+        <span class="gestion-step-label">${escapeHtml(node?.name ?? "\u2014")}</span>
+        ${stepKindBadge(node)}
+      </td>
+      <td class="gestion-instance-actions">
+        <button type="button" class="btn btn-sm btn-primary" data-manage-inst="${inst.id}">Gestionar</button>
+        <button type="button" class="btn btn-sm" data-view-inst="${inst.id}">Visualizar</button>
+      </td>
+    </tr>`;
+    }).join("");
+    return `
+    <div class="table-wrap table-wrap--modern">
+      <table class="table-modern gestion-instance-list">
+        <thead>
+          <tr>
+            <th>Flujo</th>
+            <th>Tipo</th>
+            <th>Inicio</th>
+            <th>Dato inicio</th>
+            <th>Paso actual</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+  function renderFinalizedInstancesTable(instances) {
+    if (!instances.length) {
+      return `<p class="gestion-empty">No hay instancias finalizadas.</p>`;
+    }
+    const rows = instances.map((inst) => {
+      const flowType = inst.flowSnapshot?.type ?? "\u2014";
+      const startAttr = getFirstStartAttributeDisplay(inst);
+      const finished = inst.finishedAt ? formatDateTime(inst.finishedAt) : "\u2014";
+      return `
+    <tr class="gestion-instance-row gestion-instance-row--final" data-inst-row="${inst.id}">
+      <td><strong>${escapeHtml(inst.flowName)}</strong></td>
+      <td>${escapeHtml(flowType)}</td>
+      <td class="gestion-cell-muted">${formatDateTime(inst.startedAt)}</td>
+      <td class="gestion-cell-muted">${escapeHtml(startAttr)}</td>
+      <td>${renderInstanceStatusBadge(inst.status)}</td>
+      <td class="gestion-cell-muted">${finished}</td>
+      <td class="gestion-instance-actions">
+        <button type="button" class="btn btn-sm" data-view-inst="${inst.id}">Visualizar</button>
+      </td>
+    </tr>`;
+    }).join("");
+    return `
+    <div class="table-wrap table-wrap--modern">
+      <table class="table-modern gestion-instance-list gestion-instance-list--final">
+        <thead>
+          <tr>
+            <th>Flujo</th>
+            <th>Tipo</th>
+            <th>Inicio</th>
+            <th>Dato inicio</th>
+            <th>Estado</th>
+            <th>Fin</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+  function renderNewInstanceFormFields(readyFlows, types) {
+    if (!readyFlows.length) {
+      return `<p class="gestion-empty">No hay flujos listos. Activ\xE1 uno en el dise\xF1ador.</p>`;
+    }
+    const typeOptions = types.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+    return `
+    <form id="form-new-instance" class="form-grid">
+      <div class="form-row">
+        <label>Tipo de flujo</label>
+        <select id="select-flow-type" required>
+          <option value="">\u2014 Eleg\xED un tipo \u2014</option>
+          ${typeOptions}
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Flujo (listo)</label>
+        <select name="flowId" id="select-flow" required disabled>
+          <option value="">\u2014 Eleg\xED tipo primero \u2014</option>
+        </select>
+      </div>
+      <div id="input-fields"></div>
+      <div class="modal-footer" style="margin-top:0;padding-top:0;border:0">
+        <button type="button" class="btn btn-sm" data-modal-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Iniciar instancia</button>
+      </div>
+    </form>`;
+  }
+  function bindGestionBack(mainEl, state, persist) {
+    mainEl.querySelector("[data-gestion-back]")?.addEventListener("click", () => {
+      enterGestionHub();
+      renderGestion(mainEl, state, persist);
+    });
+  }
+  function renderGestionManage(mainEl, state, persist, instanceId) {
+    const instance = state.instances.find((i) => i.id === instanceId);
+    if (!instance || instance.status !== "en_curso") {
+      enterGestionHub();
+      renderGestion(mainEl, state, persist);
+      return;
+    }
+    const node = getCurrentNode(instance);
+    if (!node) {
+      toast("La instancia ya no tiene pasos pendientes.");
+      enterGestionHub();
+      renderGestion(mainEl, state, persist);
+      return;
+    }
+    mainEl.innerHTML = `
+    <section class="gestion-hero gestion-hero--manage panel">
+      <header class="gestion-hero-header">
+        <button type="button" class="btn btn-sm gestion-hero-back" data-gestion-back>Volver al listado</button>
+        <div class="gestion-hero-heading">
+          <h2>Gestionar flujo</h2>
+          <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} \xB7 Paso actual: <strong>${escapeHtml(node.name)}</strong> ${stepKindBadge(node)}</p>
+        </div>
+      </header>
+      <div class="gestion-manage-body gestion-manage-body--hero">
+        ${renderNodeInputAttributesForm(node, instance)}
+        <div class="gestion-manage-resolver">${renderResolver(instance)}</div>
+      </div>
+    </section>`;
+    const done = () => {
+      enterGestionHub();
+      renderGestion(mainEl, state, persist);
+    };
+    bindGestionBack(mainEl, state, persist);
+    bindInstanceResolver(mainEl, instance, node, persist, done);
+    bindNativeDateFields(mainEl);
+  }
+  function renderGestionPreview(mainEl, state, persist, instanceId) {
+    const instance = state.instances.find((i) => i.id === instanceId);
+    if (!instance) {
+      enterGestionHub();
+      renderGestion(mainEl, state, persist);
+      return;
+    }
+    mainEl.innerHTML = renderFlowPreviewPageHtml(instance);
+    bindGestionBack(mainEl, state, persist);
+    bindFlowPreviewPage(mainEl, instance, "datos");
+  }
+  function openManageInstanceScreen(mainEl, state, persist, instanceId) {
+    gestionScreen = { mode: "manage", instanceId };
+    renderGestion(mainEl, state, persist);
+  }
+  function openPreviewInstanceScreen(mainEl, state, persist, instanceId) {
+    const id = instanceId?.trim?.() ?? instanceId;
+    if (!id) {
+      toast("No se pudo abrir la instancia.");
+      return;
+    }
+    if (!state.instances.some((i) => i.id === id)) {
+      toast("Instancia no encontrada.");
+      return;
+    }
+    gestionScreen = { mode: "preview", instanceId: id };
+    renderGestion(mainEl, state, persist);
+  }
+  function renderGestionHub(mainEl, state, persist) {
     const readyFlows = state.flows.filter((f) => f.status === "listo");
-    const activeInstances = state.instances.filter((i) => i.status === "en_curso");
-    const selected = state.instances.find((i) => i.id === selectedInstanceId);
+    const byType = getReadyFlowsByType(state.flows);
+    const types = listReadyFlowTypes(byType);
+    const activeInstances = sortInstancesByStarted(state.instances.filter((i) => i.status === "en_curso"));
+    const finalizedInstances = sortInstancesByFinished(
+      state.instances.filter((i) => isInstanceFinalized(i.status))
+    );
     mainEl.innerHTML = `
     ${renderPageHeader(
       "Gesti\xF3n de actividades",
-      "Instanci\xE1 flujos listos y complet\xE1 User Tasks. Los datos quedan en el contexto de cada instancia."
+      "Instancias en curso y finalizadas: gestion\xE1 el paso actual, visualiz\xE1 el diagrama o revis\xE1 instancias cerradas."
     )}
     <div class="kpi-row">
       <span class="stat-chip">Flujos listos <strong>${readyFlows.length}</strong></span>
       <span class="stat-chip">En curso <strong>${activeInstances.length}</strong></span>
+      <span class="stat-chip">Finalizados <strong>${finalizedInstances.length}</strong></span>
     </div>
-    <div class="gestion-layout">
-      <section class="panel">
-        <h2 class="panel-title">Instanciar flujo</h2>
-        ${readyFlows.length === 0 ? `<p class="gestion-empty">No hay flujos listos. Marc\xE1 uno en el dise\xF1ador.</p>` : `
-        <form id="form-new-instance" class="form-grid">
-          <div class="form-row">
-            <label>Flujo</label>
-            <select name="flowId" id="select-flow" required>
-              ${readyFlows.map((f) => `<option value="${f.id}">${escapeHtml(f.name)} (${formatFlowVersion(f)})</option>`).join("")}
-            </select>
-          </div>
-          <div id="input-fields"></div>
-          <button type="submit" class="btn btn-primary">Iniciar instancia</button>
-        </form>`}
-        <h3 class="panel-title" style="margin-top:1.25rem">En curso (${activeInstances.length})</h3>
-        <div class="card-grid">
-          ${activeInstances.map((i) => renderInstanceCard(i, i.id === selectedInstanceId)).join("") || `<p class="gestion-empty">Sin instancias activas.</p>`}
+    <div class="gestion-layout gestion-layout--hub">
+      <section class="panel gestion-panel-list">
+        <h2 class="panel-title">Instancias en curso</h2>
+        ${renderActiveInstancesTable(activeInstances)}
+        <div class="gestion-start-actions">
+          ${readyFlows.length ? `<button type="button" class="btn btn-primary" id="btn-open-start-modal">Iniciar instancia</button>` : `<p class="gestion-empty gestion-empty--inline">No hay flujos listos para instanciar.</p>`}
         </div>
       </section>
-      <section class="panel resolver-panel">
-        <h2 class="panel-title">Resolver actividad</h2>
-        ${selected ? renderResolver(selected, state) : `<p class="gestion-empty">Seleccion\xE1 una instancia en curso.</p>`}
+      <section class="panel gestion-panel-list gestion-panel-finished">
+        <h2 class="panel-title">Instancias finalizadas</h2>
+        ${renderFinalizedInstancesTable(finalizedInstances)}
       </section>
     </div>`;
-    bindGestion(mainEl, state, persist, readyFlows);
+    bindGestion(mainEl, state, persist, byType, types, readyFlows);
   }
-  function renderInstanceCard(instance, isSelected) {
-    const node = getCurrentNode(instance);
-    const kindBadge = node?.kind === NODE_KINDS.AUTOMATICA ? `<span class="badge badge-listo">Auto</span>` : node?.kind === NODE_KINDS.MANUAL ? `<span class="badge badge-curso">Manual</span>` : "";
-    return `
-    <article class="panel instance-card ${isSelected ? "is-selected" : ""}" data-inst="${instance.id}">
-      <strong>${escapeHtml(instance.flowName)}</strong>
-      <div class="instance-card__meta">${formatDateTime(instance.startedAt)}</div>
-      <div class="instance-card__step">Pendiente: ${escapeHtml(node?.name ?? "\u2014")} ${kindBadge}</div>
-    </article>`;
+  function renderGestion(mainEl, state, persist) {
+    if (gestionScreen.mode === "manage" && gestionScreen.instanceId) {
+      renderGestionManage(mainEl, state, persist, gestionScreen.instanceId);
+      return;
+    }
+    if (gestionScreen.mode === "preview" && gestionScreen.instanceId) {
+      renderGestionPreview(mainEl, state, persist, gestionScreen.instanceId);
+      return;
+    }
+    renderGestionHub(mainEl, state, persist);
   }
   function renderInputFields(flow) {
-    return flow.inputParams.map((p) => {
-      let input = `<input name="${escapeHtml(p.key)}" ${p.required ? "required" : ""} />`;
-      if (p.type === "fecha") input = `<input type="date" name="${escapeHtml(p.key)}" ${p.required ? "required" : ""} />`;
-      if (p.type === "numero") input = `<input type="number" name="${escapeHtml(p.key)}" ${p.required ? "required" : ""} />`;
-      if (p.type === "si_no") {
-        input = `<select name="${escapeHtml(p.key)}" ${p.required ? "required" : ""}><option value="">\u2014</option><option value="si">S\xED</option><option value="no">No</option></select>`;
-      }
-      return `<div class="form-row"><label>${escapeHtml(p.label)}</label>${input}</div>`;
-    }).join("");
+    return renderInputFieldsHtml(flow);
   }
-  function bindGestion(mainEl, state, persist, readyFlows) {
-    const selectFlow = mainEl.querySelector("#select-flow");
-    const inputFields = mainEl.querySelector("#input-fields");
-    const updateFields = () => {
+  function bindGestion(mainEl, state, persist, byType, types, readyFlows) {
+    mainEl.querySelector("#btn-open-start-modal")?.addEventListener("click", () => {
+      openStartInstanceModal(mainEl, state, persist, byType, types, readyFlows);
+    });
+    if (mainEl.dataset.gestionRowActionsBound !== "1") {
+      mainEl.dataset.gestionRowActionsBound = "1";
+      mainEl.addEventListener("click", (e) => {
+        const viewBtn = e.target.closest("[data-view-inst]");
+        if (viewBtn && mainEl.contains(viewBtn)) {
+          e.preventDefault();
+          e.stopPropagation();
+          openPreviewInstanceScreen(
+            mainEl,
+            state,
+            persist,
+            viewBtn.getAttribute("data-view-inst")
+          );
+          return;
+        }
+        const manageBtn = e.target.closest("[data-manage-inst]");
+        if (manageBtn && mainEl.contains(manageBtn)) {
+          e.preventDefault();
+          e.stopPropagation();
+          openManageInstanceScreen(
+            mainEl,
+            state,
+            persist,
+            manageBtn.getAttribute("data-manage-inst")
+          );
+        }
+      });
+    }
+  }
+  function persistNodeAttrsFromModal(root, node, instance) {
+    const form = root.querySelector("#form-node-attrs");
+    if (!form) return true;
+    const { errors, patch } = readNodeInputAttributesFromForm(form, node, instance);
+    if (errors.length) {
+      toast(errors[0]);
+      return false;
+    }
+    applyComponentAttrPatch(instance, patch);
+    return true;
+  }
+  function openStartInstanceModal(mainEl, state, persist, byType, types, readyFlows) {
+    const { close, root } = openModal(`
+    <div class="modal-header">
+      <h2>Iniciar instancia</h2>
+      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+    </div>
+    ${renderNewInstanceFormFields(readyFlows, types)}
+  `);
+    const form = root.querySelector("#form-new-instance");
+    if (!form) return;
+    const selectType = root.querySelector("#select-flow-type");
+    const selectFlow = root.querySelector("#select-flow");
+    const inputFields = root.querySelector("#input-fields");
+    const syncFlowOptions = () => {
+      if (!selectType || !selectFlow) return;
+      const type = selectType.value;
+      const flows = byType.get(type) ?? [];
+      if (!type) {
+        selectFlow.disabled = true;
+        selectFlow.innerHTML = `<option value="">\u2014 Eleg\xED tipo primero \u2014</option>`;
+        if (inputFields) inputFields.innerHTML = "";
+        return;
+      }
+      selectFlow.disabled = false;
+      selectFlow.innerHTML = flows.map((f) => `<option value="${f.id}">${escapeHtml(formatFlowCatalogLabel(f))}</option>`).join("");
+      if (flows.length === 1) selectFlow.value = flows[0].id;
+      updateInputFields();
+    };
+    const updateInputFields = () => {
       if (!selectFlow || !inputFields) return;
       const flow = state.flows.find((f) => f.id === selectFlow.value);
       inputFields.innerHTML = flow ? renderInputFields(flow) : "";
+      bindNativeDateFields(root);
     };
-    selectFlow?.addEventListener("change", updateFields);
-    updateFields();
-    mainEl.querySelector("#form-new-instance")?.addEventListener("submit", async (e) => {
+    selectType?.addEventListener("change", syncFlowOptions);
+    selectFlow?.addEventListener("change", updateInputFields);
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
+      const fd = new FormData(form);
       const flowId = fd.get("flowId");
       const flow = state.flows.find((f) => f.id === flowId);
       if (!flow || flow.status !== "listo") return;
@@ -4428,59 +5878,81 @@
         return;
       }
       const inputValues = {};
+      const inputErrors = [];
       for (const p of flow.inputParams) {
-        let val = fd.get(p.key);
-        if (p.type === "numero" && val !== "") val = Number(val);
-        inputValues[p.key] = val ?? "";
+        const { value, errors } = readInstanceParamValue(fd, p);
+        inputErrors.push(...errors);
+        inputValues[p.key] = value ?? "";
+      }
+      if (inputErrors.length) {
+        toast(inputErrors[0]);
+        return;
       }
       const snapshot = cloneFlowSnapshot(flow);
       const instance = await createInstance(snapshot, inputValues);
       state.instances.unshift(instance);
-      selectedInstanceId = instance.id;
       persist();
+      close();
       toast("Instancia iniciada.");
       renderGestion(mainEl, state, persist);
+      openManageInstanceScreen(mainEl, state, persist, instance.id);
     });
-    mainEl.querySelectorAll("[data-inst]").forEach((card) => {
-      card.addEventListener("click", () => {
-        selectedInstanceId = card.dataset.inst;
-        renderGestion(mainEl, state, persist);
-      });
-    });
-    bindResolver(mainEl, state, persist);
   }
-  function renderResolver(instance, state) {
+  function renderResolver(instance) {
     const node = getCurrentNode(instance);
     if (!node) {
       return `<p>Instancia finalizada: <span class="badge badge-${instance.status === "completada" ? "completada" : "rechazada"}">${statusLabel2(instance.status)}</span></p>`;
     }
+    if (node.kind === NODE_KINDS.GATEWAY) {
+      return `
+      <section class="gestion-manage-step">
+        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "Eleg\xED la rama del flujo.")}</p>
+        <div class="preview-actions">
+          <button type="button" class="btn btn-success" id="btn-gateway-aceptar">Aceptar</button>
+          <button type="button" class="btn btn-danger" id="btn-gateway-rechazar">Rechazar</button>
+        </div>
+      </section>`;
+    }
     if (node.kind === NODE_KINDS.AUTOMATICA) {
       const adapter = node.integration?.adapter ?? "simulation";
       return `
-      <p><strong>${escapeHtml(node.name)}</strong> (Service Task)</p>
-      <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
-      <p style="font-size:0.8rem;color:var(--muted)">Adaptador: ${escapeHtml(adapter)} \xB7 modo ${escapeHtml(node.integration?.executionMode ?? "mock")}</p>
-      <button type="button" class="btn btn-primary" id="btn-run-auto">Ejecutar y continuar</button>`;
+      <section class="gestion-manage-step">
+        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
+        <p style="font-size:0.8rem;color:var(--muted)">Adaptador: ${escapeHtml(adapter)}</p>
+        <button type="button" class="btn btn-primary" id="btn-run-auto">Ejecutar y continuar</button>
+      </section>`;
     }
     if (node.kind === NODE_KINDS.MANUAL) {
       const screen = instance.flowSnapshot.screens?.[node.id];
       return `
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "")}</p>
-      <form id="form-manual" class="screen-preview">${renderScreenForInstance(instance, screen)}</form>`;
+      <section class="gestion-manage-step">
+        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "")}</p>
+        <form id="form-manual" class="screen-preview">${renderScreenForInstance(instance, screen)}</form>
+      </section>`;
     }
     if (node.kind === NODE_KINDS.AGENTE_IA) {
       return `
-      <p><strong>${escapeHtml(node.name)}</strong> (Agente IA)</p>
-      <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
-      <div style="background:var(--bg-card);padding:1rem;border-radius:6px;margin:1rem 0;border:1px solid var(--border)">
-        <p style="margin:0 0 0.5rem 0;font-size:0.85rem"><strong>Estado:</strong> Esperando respuesta de ${escapeHtml(node.hitlEmail || "operador")}</p>
-        <p style="margin:0 0 1rem 0;font-size:0.85rem"><strong>Recordatorios enviados:</strong> ${instance.aiHitlReminders || 0}</p>
-        <div style="display:flex;gap:0.5rem">
-          <button type="button" class="btn btn-sm" id="btn-ai-remind">Simular +5 horas (Recordatorio)</button>
-          <button type="button" class="btn btn-sm btn-primary" id="btn-ai-resolve">Simular respuesta recibida</button>
+      <section class="gestion-manage-step">
+        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
+        <div style="background:var(--bg-card);padding:1rem;border-radius:6px;margin:1rem 0;border:1px solid var(--border)">
+          <p style="margin:0 0 0.5rem 0;font-size:0.85rem"><strong>Estado:</strong> Esperando respuesta de ${escapeHtml(node.hitlEmail || "operador")}</p>
+          <p style="margin:0 0 1rem 0;font-size:0.85rem"><strong>Recordatorios:</strong> ${instance.aiHitlReminders || 0}</p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm" id="btn-ai-remind">Simular +5 h (recordatorio)</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btn-ai-resolve">Simular respuesta recibida</button>
+          </div>
         </div>
-      </div>
-    `;
+      </section>`;
+    }
+    if (node.kind === NODE_KINDS.INICIO || node.kind === NODE_KINDS.FIN) {
+      return `
+      <section class="gestion-manage-step">
+        <p style="font-size:0.85rem;color:var(--muted)">Complet\xE1 los datos del componente arriba si aplica. Este evento no requiere m\xE1s acciones en el mock.</p>
+      </section>`;
     }
     return `<p>Nodo inesperado: ${escapeHtml(node.name)}</p>`;
   }
@@ -4537,38 +6009,48 @@
     }
     return raw;
   }
-  function bindResolver(mainEl, state, persist) {
-    mainEl.querySelector("#btn-run-auto")?.addEventListener("click", async () => {
-      const instance = state.instances.find((i) => i.id === selectedInstanceId);
-      if (!instance) return;
+  function bindInstanceResolver(root, instance, node, persist, onDone) {
+    root.querySelector("#btn-run-auto")?.addEventListener("click", async () => {
+      if (!persistNodeAttrsFromModal(root, node, instance)) return;
       await advanceAutomatic(instance);
       persist();
-      renderGestion(mainEl, state, persist);
+      toast("Service Task ejecutada.");
+      onDone();
     });
-    mainEl.querySelector("#btn-ai-remind")?.addEventListener("click", async () => {
-      const instance = state.instances.find((i) => i.id === selectedInstanceId);
-      if (!instance) return;
+    root.querySelector("#btn-gateway-aceptar")?.addEventListener("click", async () => {
+      if (!persistNodeAttrsFromModal(root, node, instance)) return;
+      await resolveGateway(instance, "aceptar");
+      persist();
+      toast("Rama aceptar.");
+      onDone();
+    });
+    root.querySelector("#btn-gateway-rechazar")?.addEventListener("click", async () => {
+      if (!persistNodeAttrsFromModal(root, node, instance)) return;
+      await resolveGateway(instance, "rechazar");
+      persist();
+      toast("Rama rechazar.");
+      onDone();
+    });
+    root.querySelector("#btn-ai-remind")?.addEventListener("click", () => {
       simulateAIHITLReminder(instance);
       persist();
-      toast("Se simul\xF3 el paso de 5 horas y se envi\xF3 un recordatorio.");
-      renderGestion(mainEl, state, persist);
+      toast("Recordatorio simulado.");
+      onDone();
     });
-    mainEl.querySelector("#btn-ai-resolve")?.addEventListener("click", async () => {
-      const instance = state.instances.find((i) => i.id === selectedInstanceId);
-      if (!instance) return;
+    root.querySelector("#btn-ai-resolve")?.addEventListener("click", async () => {
+      if (!persistNodeAttrsFromModal(root, node, instance)) return;
       await resolveAIHITL(instance, { status: "approved", note: "Aprobado v\xEDa correo" });
       persist();
-      toast("Respuesta recibida. Flujo avanza.");
-      renderGestion(mainEl, state, persist);
+      toast("Respuesta recibida.");
+      onDone();
     });
-    const form = mainEl.querySelector("#form-manual");
+    const form = root.querySelector("#form-manual");
     if (!form) return;
     form.querySelectorAll("[data-decision]").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        const instance = state.instances.find((i) => i.id === selectedInstanceId);
-        if (!instance) return;
-        const node = getCurrentNode(instance);
-        const screen = instance.flowSnapshot.screens?.[node?.id];
+        if (!persistNodeAttrsFromModal(root, node, instance)) return;
+        const current = getCurrentNode(instance);
+        const screen = instance.flowSnapshot.screens?.[current?.id];
         const raw = collectFormValues(form, screen);
         const { values, errors } = validateScreenSubmission(screen, raw);
         if (errors.length) {
@@ -4579,7 +6061,7 @@
         await resolveManual(instance, btn.dataset.decision, comment, values);
         persist();
         toast(btn.dataset.decision === "aceptar" ? "Aceptado." : "Rechazado.");
-        renderGestion(mainEl, state, persist);
+        onDone();
       });
     });
   }
@@ -4796,6 +6278,12 @@
       }, 150);
     });
     bindNavDrawer((view, catalog) => {
+      if (view === "gestion" && currentView !== "gestion") {
+        enterGestionHub();
+      }
+      if (currentView === "gestion" && view !== "gestion") {
+        enterGestionHub();
+      }
       currentView = view;
       if (view === "designer" && catalog) {
         enterDesignerCatalog(catalog);

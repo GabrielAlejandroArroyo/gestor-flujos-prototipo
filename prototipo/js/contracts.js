@@ -3,6 +3,12 @@
  */
 
 import { createId } from "./ids.js";
+import {
+  ensureNodeComponentAttributes,
+  normalizeComponentAttribute,
+  validateNodeComponentAttributes,
+  INPUT_CARDINALITY,
+} from "./component-input-attributes.js";
 
 export const DATA_TYPES = {
   TEXTO: "texto",
@@ -35,8 +41,34 @@ export function normalizeFlowContracts(flow) {
       type: p.type ?? DATA_TYPES.TEXTO,
       required: !!p.required,
       scope: "flow_input",
+      cardinality: p.cardinality ?? INPUT_CARDINALITY.UNICO,
+      listOptions: Array.isArray(p.listOptions) ? p.listOptions : [],
     }));
   }
+
+  if (flow.nodes) {
+    for (const node of flow.nodes) {
+      ensureNodeComponentAttributes(node);
+    }
+    const startNode = flow.nodes.find((n) => n.kind === "inicio");
+    if (startNode) {
+      if (!startNode.inputAttributes.length && (flow.dataDefinitions?.length ?? 0) > 0) {
+        startNode.inputAttributes = flow.dataDefinitions.map((d) =>
+          normalizeComponentAttribute({
+            id: d.id,
+            key: d.key,
+            label: d.label,
+            dataType: d.type,
+            cardinality: d.cardinality ?? INPUT_CARDINALITY.UNICO,
+            required: d.required,
+            listOptions: d.listOptions ?? [],
+          }),
+        );
+      }
+      flow.dataDefinitions = startNode.inputAttributes.map((attr) => attributeToFlowDefinition(attr));
+    }
+  }
+
   syncInputParamsFromDefinitions(flow);
   if (!flow.nodes) return;
   for (const node of flow.nodes) {
@@ -57,13 +89,35 @@ export function normalizeFlowContracts(flow) {
   }
 }
 
+/**
+ * @param {object} attr
+ */
+function attributeToFlowDefinition(attr) {
+  const a = normalizeComponentAttribute(attr);
+  return {
+    id: a.id,
+    key: a.key,
+    label: a.label,
+    type: a.dataType,
+    required: a.required,
+    scope: "flow_input",
+    cardinality: a.cardinality,
+    listOptions:
+      a.cardinality === INPUT_CARDINALITY.LISTA
+        ? a.listOptions.map((o) => ({ id: o.id, label: o.label, required: !!o.required }))
+        : [],
+  };
+}
+
 function syncInputParamsFromDefinitions(flow) {
-  flow.inputParams = flow.dataDefinitions.map((d) => ({
+  flow.inputParams = (flow.dataDefinitions ?? []).map((d) => ({
     id: d.id,
     key: d.key,
     label: d.label,
     type: d.type,
     required: !!d.required,
+    cardinality: d.cardinality ?? INPUT_CARDINALITY.UNICO,
+    listOptions: Array.isArray(d.listOptions) ? d.listOptions : [],
   }));
 }
 
@@ -159,6 +213,7 @@ export function validateFlowContracts(flow) {
         errors.push(`Service Task «${node.name}»: falta adaptador de integración.`);
       }
     }
+    errors.push(...validateNodeComponentAttributes(node));
   }
   return errors;
 }

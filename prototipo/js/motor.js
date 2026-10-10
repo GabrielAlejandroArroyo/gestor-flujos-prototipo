@@ -123,8 +123,8 @@ async function proceedFromNode(instance, nodeId, gatewayDecision = null) {
       if (!gatewayDecision) {
         instance.currentNodeId = currentId;
         appendTrace(instance, {
-          type: "error",
-          message: `Gateway "${node.name}" requiere decisión Aceptar/Rechazar.`,
+          type: "pendiente",
+          message: `Gateway pendiente: ${node.name}`,
           nodeId: currentId,
         });
         return instance;
@@ -252,6 +252,43 @@ export async function resolveManual(instance, decision, comment = "", formValues
 
   instance.currentNodeId = nextId;
   return await proceedFromNode(instance, nextId, decision);
+}
+
+/**
+ * Avanza desde un Exclusive Gateway con rama aceptar o rechazar.
+ *
+ * @param {object} instance
+ * @param {"aceptar"|"rechazar"} decision
+ */
+export async function resolveGateway(instance, decision) {
+  const nodeId = instance.currentNodeId;
+  const node = findNode(instance.flowSnapshot, nodeId);
+  if (!node || node.kind !== NODE_KINDS.GATEWAY) {
+    throw new Error("No hay Gateway pendiente");
+  }
+  if (decision !== "aceptar" && decision !== "rechazar") {
+    throw new Error("Decisión de gateway inválida");
+  }
+
+  completeStep(instance, nodeId, "completada", decision);
+
+  appendTrace(instance, {
+    type: "gateway",
+    message: `${node.name}: ${decision}`,
+    nodeId,
+    decision,
+  });
+
+  const nextId = nextNodeId(instance.flowSnapshot, nodeId, decision);
+  if (!nextId) {
+    instance.status = decision === "rechazar" ? "cerrada_rechazo" : "completada";
+    instance.finishedAt = new Date().toISOString();
+    instance.currentNodeId = null;
+    return instance;
+  }
+
+  instance.currentNodeId = nextId;
+  return await proceedFromNode(instance, nextId);
 }
 
 export function simulateAIHITLReminder(instance) {

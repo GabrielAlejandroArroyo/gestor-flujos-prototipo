@@ -1,7 +1,7 @@
 import { loadState, saveState, loadAiConfig, saveAiConfig } from "./storage.js";
 import { ensureSeed } from "./seed.js";
 import { renderDesigner, enterDesignerCatalog } from "./designer.js";
-import { renderGestion } from "./gestion.js";
+import { enterGestionHub, renderGestion } from "./gestion.js";
 import { renderReporte } from "./reporte.js";
 import { bindNavDrawer } from "./shell.js";
 import { openModal, toast } from "./ui.js";
@@ -45,6 +45,12 @@ try {
   });
 
   bindNavDrawer((view, catalog) => {
+    if (view === "gestion" && currentView !== "gestion") {
+      enterGestionHub();
+    }
+    if (currentView === "gestion" && view !== "gestion") {
+      enterGestionHub();
+    }
     currentView = view;
     if (view === "designer" && catalog) {
       enterDesignerCatalog(catalog);
