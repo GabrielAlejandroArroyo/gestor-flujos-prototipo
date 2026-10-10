@@ -25,6 +25,7 @@ En el **mock** (`:8765`), bajo «Diseñador de flujo», están «Catálogo de fl
 |------|-----|
 | `-BuildMock` | Ejecuta `prototipo/build-mock.ps1` antes de servir (tras cambios en `prototipo/js/`). |
 | `-Install` | Ejecuta `npm ci` en `gestor-app/` (primera vez o tras cambiar dependencias). |
+| `-SoloMock` | Solo el prototipo en `:8765` (sin Next). Usalo si solo queres el mock. |
 
 Ejemplo:
 

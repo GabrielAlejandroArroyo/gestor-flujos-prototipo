@@ -1,7 +1,8 @@
 # Levanta prototipo (mock) y gestor-app (Next.js) en la misma terminal.
 param(
   [switch]$BuildMock,
-  [switch]$Install
+  [switch]$Install,
+  [switch]$SoloMock
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,18 +67,20 @@ Write-Host ""
 if (-not (Test-Path $PrototipoDir)) {
   Write-Error "No se encontro la carpeta prototipo en $PrototipoDir"
 }
-if (-not (Test-Path $GestorAppDir)) {
+if (-not $SoloMock -and -not (Test-Path $GestorAppDir)) {
   Write-Error "No se encontro la carpeta gestor-app en $GestorAppDir"
 }
 
 if (-not (Test-CommandExists "python") -and -not (Test-CommandExists "py")) {
   Write-Error "Falta Python. Instala Python 3 o usa el launcher py en PATH."
 }
-if (-not (Test-CommandExists "node")) {
-  Write-Error "Falta Node.js. Instala Node LTS desde https://nodejs.org/"
-}
-if (-not (Test-CommandExists "npm")) {
-  Write-Error "Falta npm (viene con Node.js)."
+if (-not $SoloMock) {
+  if (-not (Test-CommandExists "node")) {
+    Write-Error "Falta Node.js. Instala Node LTS desde https://nodejs.org/"
+  }
+  if (-not (Test-CommandExists "npm")) {
+    Write-Error "Falta npm (viene con Node.js)."
+  }
 }
 
 if ($BuildMock) {
@@ -86,6 +89,23 @@ if ($BuildMock) {
   if ($LASTEXITCODE -ne 0) {
     Write-Error "build-mock.ps1 fallo."
   }
+}
+
+if ($SoloMock) {
+  Write-Host "Modo solo mock (sin Next.js)." -ForegroundColor Cyan
+  Write-Host "Mock: $MockUrl" -ForegroundColor Green
+  Start-Process $MockUrl
+  Push-Location $PrototipoDir
+  try {
+    if (Test-CommandExists "python") {
+      python -m http.server $MockPort
+    } else {
+      py -3 -m http.server $MockPort
+    }
+  } finally {
+    Pop-Location
+  }
+  return
 }
 
 $nodeModules = Join-Path $GestorAppDir "node_modules"
@@ -121,10 +141,25 @@ Write-Host 'Opciones: -BuildMock regenera bundle.js; -Install ejecuta npm ci en 
 Write-Host ""
 
 Push-Location $GestorAppDir
-try {
-  npm run dev
-} finally {
-  Pop-Location
+npm run dev
+$nextExit = $LASTEXITCODE
+Pop-Location
+
+if ($nextExit -ne 0) {
+  Write-Host ""
+  Write-Host "Next.js no arranco (salida $nextExit). Suele pasar si ya hay otro 'next dev' en el puerto 3000." -ForegroundColor Yellow
+  Write-Host "El mock SIGUE activo: $MockUrl" -ForegroundColor Green
+  Write-Host "Usa esa URL para el catalogo BPMN. Ctrl+C aqui detiene el mock." -ForegroundColor DarkGray
+  Write-Host ""
+  try {
+    while ($true) {
+      Start-Sleep -Seconds 60
+    }
+  } finally {
+    Write-Host "Deteniendo servidor mock..." -ForegroundColor DarkGray
+    Stop-MockServer
+  }
+} else {
   Write-Host ""
   Write-Host "Deteniendo servidor mock..." -ForegroundColor DarkGray
   Stop-MockServer

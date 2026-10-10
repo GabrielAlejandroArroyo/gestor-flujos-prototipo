@@ -268,6 +268,28 @@ function bindDesignerViewportBlocked(mainEl, state, persist) {
   });
 }
 
+/**
+ * Acciones del catálogo según estado: borrador → Activar; listo → Versionar.
+ *
+ * @param {{ id: string; status?: string; name?: string }} flow
+ * @param {boolean} catalogBlocked
+ */
+function renderCatalogFlowActions(flow, catalogBlocked) {
+  const disabled = catalogBlocked ? 'disabled aria-disabled="true"' : "";
+  const openBtn = `<button type="button" class="btn btn-sm" data-open-flow="${flow.id}" ${disabled}>Abrir</button>`;
+
+  if (flow.status === "listo") {
+    return `${openBtn}
+        <button type="button" class="btn btn-sm" data-version-flow="${flow.id}" ${disabled}>Versionar</button>`;
+  }
+  if (flow.status === "borrador") {
+    return `${openBtn}
+        <button type="button" class="btn btn-sm btn-success" data-activate-flow="${flow.id}" ${disabled}>Activar</button>
+        <button type="button" class="btn btn-sm btn-danger" data-delete-flow="${flow.id}" aria-label="Eliminar flujo ${escapeHtml(flow.name ?? "")}">Eliminar</button>`;
+  }
+  return openBtn;
+}
+
 function renderCatalog(state) {
   const catalogBlocked = isCatalogActionsBlocked();
   const catalogCallout = designerCatalogCalloutHtml();
@@ -279,19 +301,7 @@ function renderCatalog(state) {
       <td>${escapeHtml(f.type)}</td>
       <td>${escapeHtml(formatFlowVersion(f))}</td>
       <td>${renderFlowStatusBadge(f)}</td>
-      <td class="catalog-actions">
-        <button type="button" class="btn btn-sm" data-open-flow="${f.id}" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Abrir</button>
-        ${
-          f.status === "listo"
-            ? `<button type="button" class="btn btn-sm" data-version-flow="${f.id}" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Versionar</button>`
-            : ""
-        }
-        ${
-          f.status === "borrador"
-            ? `<button type="button" class="btn btn-sm btn-danger" data-delete-flow="${f.id}" aria-label="Eliminar flujo ${escapeHtml(f.name)}">Eliminar</button>`
-            : ""
-        }
-      </td>
+      <td class="catalog-actions">${renderCatalogFlowActions(f, catalogBlocked)}</td>
     </tr>`,
     )
     .join("");
@@ -301,7 +311,7 @@ function renderCatalog(state) {
       ? `<div class="empty-state empty-state--rich">
           <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
           <strong>Sin flujos todavía</strong>
-          <p>Creá tu primer flujo BPMN en borrador y usá «Confirmar versión» en el lienzo para instanciarlo en Gestión.</p>
+          <p>Creá tu primer flujo BPMN en borrador y usá «Activar» en el catálogo o en el lienzo para dejarlo listo en Gestión.</p>
           <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${catalogBlocked ? "disabled" : ""}>Nuevo flujo</button>
         </div>`
       : "";
@@ -310,8 +320,7 @@ function renderCatalog(state) {
     <section class="panel panel--catalog">
       ${renderPageHeader(
         "Catálogo de flujos",
-        "Los flujos nuevos quedan en borrador hasta que confirmes la versión. Versionar un flujo listo crea un borrador; al confirmarlo se numera la versión y la anterior queda deprecada.",
-        `<button type="button" class="btn btn-primary" id="btn-new-flow" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Nuevo flujo</button>`,
+        "Borrador: usá Activar para pasar a Listo. Listo: usá Versionar para crear un borrador; al activarlo se numera la versión y la anterior queda deprecada.",
       )}
       ${catalogCallout}
       ${emptyBody}
@@ -510,7 +519,6 @@ function openNewFlowModal(mainEl, state, persist) {
 
 function bindCatalog(mainEl, state, persist) {
   const onNew = () => openNewFlowModal(mainEl, state, persist);
-  mainEl.querySelector("#btn-new-flow")?.addEventListener("click", onNew);
   mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
   mainEl.querySelector("#btn-new-flow-table")?.addEventListener("click", onNew);
 
@@ -541,6 +549,89 @@ function bindCatalog(mainEl, state, persist) {
       attemptVersionFlow(mainEl, state, persist, btn.dataset.versionFlow);
     });
   });
+
+  mainEl.querySelectorAll("[data-activate-flow]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled || isCatalogActionsBlocked()) {
+        toast(designerBlockedMessage().body);
+        return;
+      }
+      attemptActivateFlow(mainEl, state, persist, btn.dataset.activateFlow, { returnToCatalog: true });
+    });
+  });
+}
+
+/**
+ * Modal con errores de validateFlow antes de activar.
+ *
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ * @param {() => void} persist
+ * @param {{ id: string; name?: string }} flow
+ * @param {string[]} errors
+ */
+function openFlowValidationModal(mainEl, state, persist, flow, errors) {
+  const items =
+    errors.length > 0
+      ? errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")
+      : "<li>Validación fallida sin detalle.</li>";
+
+  const { close, root } = openModal(`
+    <div class="modal-header">
+      <h2>No se puede activar el flujo</h2>
+      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+    </div>
+    <div class="validation-modal-body">
+      <p class="validation-modal-intro">
+        <strong>${escapeHtml(flow.name ?? "Flujo")}</strong> está en borrador. Corregí estos problemas antes de pasar a Listo:
+      </p>
+      <ul class="validation-list validation-modal-list">${items}</ul>
+      <div class="validation-modal-actions">
+        <button type="button" class="btn btn-primary" id="btn-validation-open-flow">Abrir flujo</button>
+        <button type="button" class="btn" data-modal-close>Cerrar</button>
+      </div>
+    </div>
+  `);
+
+  root.querySelector("#btn-validation-open-flow")?.addEventListener("click", () => {
+    designerContext.selectedFlowId = flow.id;
+    designerContext.selectedNodeId = null;
+    designerContext.studioMode = "path";
+    close();
+    renderDesigner(mainEl, state, persist);
+  });
+}
+
+/**
+ * @param {{ returnToCatalog?: boolean }} [options]
+ */
+function attemptActivateFlow(mainEl, state, persist, flowId, options = {}) {
+  const flow = state.flows.find((f) => f.id === flowId);
+  if (!flow) return;
+  if (flow.status !== "borrador") {
+    toast("Solo podés activar flujos en borrador.");
+    return;
+  }
+  const v = validateFlow(flow);
+  if (!v.isValid) {
+    openFlowValidationModal(mainEl, state, persist, flow, v.errors);
+    return;
+  }
+  const result = publishFlow(state.flows, flow.id);
+  if (!result.ok) {
+    toast(result.error ?? "No se pudo activar el flujo.");
+    return;
+  }
+  persist();
+  toast(
+    `Estado Listo (${formatFlowVersion(flow)}). Podés instanciarlo en Gestión o versionarlo desde el catálogo.`,
+    3200,
+    "success",
+  );
+  if (options.returnToCatalog) {
+    enterDesignerCatalog("flows");
+  }
+  renderDesigner(mainEl, state, persist);
 }
 
 function attemptVersionFlow(mainEl, state, persist, flowId) {
@@ -714,7 +805,7 @@ function renderFlowEditor(flow) {
         <button type="button" class="btn btn-sm" id="btn-flow-meta" ${designerContext.readOnly ? "disabled aria-disabled=\"true\"" : ""}>Metadatos</button>
         ${
           flow.status === "borrador"
-            ? `<button type="button" class="btn btn-sm btn-success" id="btn-confirm-version" ${validation.isValid ? "" : "disabled"}>Confirmar versión</button>
+            ? `<button type="button" class="btn btn-sm btn-success" id="btn-confirm-version">Activar</button>
         <button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`
             : ""
         }
@@ -1825,19 +1916,7 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
   });
 
   mainEl.querySelector("#btn-confirm-version")?.addEventListener("click", () => {
-    const v = validateFlow(flow);
-    if (!v.isValid) {
-      toast("Corregí la validación antes de confirmar la versión.");
-      return;
-    }
-    const result = publishFlow(state.flows, flow.id);
-    if (!result.ok) {
-      toast(result.error ?? "No se pudo confirmar la versión.");
-      return;
-    }
-    persist();
-    toast(`Versión ${formatFlowVersion(flow)} confirmada y lista para Gestión.`, 3200, "success");
-    renderDesigner(mainEl, state, persist);
+    attemptActivateFlow(mainEl, state, persist, flow.id);
   });
 
   mainEl.querySelector("#btn-versionar")?.addEventListener("click", () => {

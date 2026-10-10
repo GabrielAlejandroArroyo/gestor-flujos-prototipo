@@ -159,6 +159,7 @@ export function publishFlow(flows, flowId) {
     flow.version = nextVersion;
     flow.status = "listo";
     flow.supersedesFlowId = null;
+    normalizeFlowMeta(flow);
     return { ok: true };
   }
 
@@ -173,5 +174,6 @@ export function publishFlow(flows, flowId) {
   flow.version = 1;
   flow.status = "listo";
   flow.supersedesFlowId = null;
+  normalizeFlowMeta(flow);
   return { ok: true };
 }
