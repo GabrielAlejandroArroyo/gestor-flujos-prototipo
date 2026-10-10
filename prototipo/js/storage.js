@@ -1,5 +1,6 @@
 import { normalizeFlowTransitions } from "./validation.js";
 import { normalizeFlowContracts } from "./contracts.js";
+import { normalizeFlowMeta } from "./flow-lifecycle.js";
 
 const STORAGE_KEY = "gestor_flujos_prototipo_v3";
 const LEGACY_STORAGE_KEY = "gestor_flujos_prototipo_v2";
@@ -12,6 +13,7 @@ const emptyState = () => ({
 function normalizeLoadedState(parsed) {
   const flows = Array.isArray(parsed.flows) ? parsed.flows : [];
   for (const flow of flows) {
+    normalizeFlowMeta(flow);
     normalizeFlowTransitions(flow);
     normalizeFlowContracts(flow);
   }

@@ -13,8 +13,8 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 
 ## Menú del mock
 
-- **Diseñador de flujo (BPMN):** catálogo (crear, abrir, **eliminar solo en borrador**), lienzo con subconjunto BPMN 2.0, parámetros en Start Event, Sequence Flow y pantallas en User Task.
-- **Gestión de actividades:** instanciar flujos listos, resolver tareas manuales (Aceptar/Rechazar) y ejecutar automáticas.
+- **Diseñador de flujo (BPMN):** catálogo (crear, abrir, **versionar** flujos listos, **eliminar solo borrador**), ciclo borrador → confirmar versión → listo; al publicar una nueva versión la anterior queda **deprecada**; lienzo BPMN 2.0, parámetros en Start Event, Sequence Flow y pantallas en User Task.
+- **Gestión de actividades:** instanciar solo flujos **listos** (versión activa), resolver tareas manuales (Aceptar/Rechazar) y ejecutar automáticas.
 - **Reporte:** avance, filtros y traza de cada instancia.
 
 ## Entidades (modelo conceptual)
@@ -22,7 +22,7 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 | Entidad | Descripción |
 |---------|-------------|
 | **TipoFlujo** | Categoría (texto libre en el mock, ej. Aprobación). |
-| **Flujo** | Tipo, nombre, descripción, estado (borrador \| listo), versión. |
+| **Flujo** | Tipo, nombre, descripción, estado (borrador \| listo \| deprecado), versión (asignada al confirmar), `lineageId` (misma familia de versiones), `supersedesFlowId` (borrador que reemplaza un listo). |
 | **ParametroEntrada** | Clave, etiqueta, tipo (texto, numero, fecha, si_no), obligatorio. |
 | **Nodo** | BPMN: Start Event (`inicio`), User Task (`manual`), Service Task (`automatica`), Exclusive Gateway (`gateway`), End Event (`fin`). |
 | **Sequence Flow** | Origen, destino, `lineType: sequence`, condición (siempre \| aceptar \| rechazar). **Ejecutable** por el motor. |

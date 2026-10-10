@@ -543,6 +543,40 @@ th {
   color: var(--success);
 }
 
+.badge-deprecado {
+  background: #334155;
+  color: var(--muted);
+}
+
+.flow-readonly-banner,
+.flow-draft-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.flow-draft-banner {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+}
+
+.split-designer.is-read-only .palette-item {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.split-designer.is-read-only .flow-node {
+  cursor: default;
+}
+
+.toolbar-flow-version {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-left: 0.35rem;
+}
+
 .badge-curso {
   background: #1e3a5f;
   color: var(--accent);

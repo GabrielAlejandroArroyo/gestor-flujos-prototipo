@@ -13,11 +13,13 @@ export function createSampleFlow() {
 
   return {
     id: flowId,
+    lineageId: flowId,
     type: "Aprobación",
     name: "Aprobación de gasto",
     description: "Ejemplo BPMN: Start → User Task → XOR Gateway → Service Task / End.",
     status: "listo",
     version: 1,
+    supersedesFlowId: null,
     notation: "bpmn",
     inputParams: [
       { id: pTitulo, key: "titulo", label: "Título del gasto", type: "texto", required: true },

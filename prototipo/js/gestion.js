@@ -10,6 +10,7 @@ import {
 } from "./motor.js";
 import { validateScreenSubmission } from "./contracts.js";
 import { escapeHtml, formatDateTime, renderPageHeader, toast } from "./ui.js";
+import { formatFlowVersion } from "./flow-lifecycle.js";
 
 let selectedInstanceId = null;
 
@@ -35,7 +36,7 @@ export function renderGestion(mainEl, state, persist) {
           <div class="form-row">
             <label>Flujo</label>
             <select name="flowId" id="select-flow" required>
-              ${readyFlows.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join("")}
+              ${readyFlows.map((f) => `<option value="${f.id}">${escapeHtml(f.name)} (${formatFlowVersion(f)})</option>`).join("")}
             </select>
           </div>
           <div id="input-fields"></div>

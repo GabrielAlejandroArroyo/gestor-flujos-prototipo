@@ -748,6 +748,115 @@
     return JSON.parse(JSON.stringify(flow));
   }
 
+  // js/flow-lifecycle.js
+  function normalizeFlowMeta(flow) {
+    if (!flow.lineageId) {
+      flow.lineageId = flow.id;
+    }
+    if (flow.status === "listo" || flow.status === "deprecado") {
+      if (flow.version == null || typeof flow.version !== "number") {
+        flow.version = 1;
+      }
+    } else if (flow.status !== "borrador") {
+      flow.status = "borrador";
+    }
+    if (flow.status === "borrador") {
+      flow.version = null;
+    }
+    if (flow.supersedesFlowId === void 0) {
+      flow.supersedesFlowId = null;
+    }
+  }
+  function statusLabel(status) {
+    if (status === "listo") return "Listo";
+    if (status === "deprecado") return "Deprecado";
+    return "Borrador";
+  }
+  function isFlowEditable(flow) {
+    return flow?.status === "borrador";
+  }
+  function findDraftInLineage(flows, lineageId) {
+    return flows.find((f) => f.lineageId === lineageId && f.status === "borrador") ?? null;
+  }
+  function findActiveListoInLineage(flows, lineageId) {
+    return flows.find((f) => f.lineageId === lineageId && f.status === "listo") ?? null;
+  }
+  function sortFlowsForCatalog(flows) {
+    return [...flows].sort((a, b) => {
+      const la = String(a.lineageId ?? a.id);
+      const lb = String(b.lineageId ?? b.id);
+      if (la !== lb) return la.localeCompare(lb);
+      if (a.status === "borrador" && b.status !== "borrador") return -1;
+      if (b.status === "borrador" && a.status !== "borrador") return 1;
+      const va = a.version ?? 0;
+      const vb = b.version ?? 0;
+      return vb - va;
+    });
+  }
+  function flowStatusBadgeClass(status) {
+    if (status === "listo") return "listo";
+    if (status === "deprecado") return "deprecado";
+    return "borrador";
+  }
+  function formatFlowVersion(flow) {
+    if (flow.status === "borrador" || flow.version == null) return "\u2014";
+    return `v${flow.version}`;
+  }
+  function createVersionDraft(flows, sourceFlowId) {
+    const source = flows.find((f) => f.id === sourceFlowId);
+    if (!source) return { error: "Flujo no encontrado." };
+    if (source.status !== "listo") {
+      return { error: "Solo pod\xE9s versionar un flujo en estado listo." };
+    }
+    const lineageId = source.lineageId ?? source.id;
+    if (findDraftInLineage(flows, lineageId)) {
+      return {
+        error: "Ya hay un borrador en este flujo. Confirmalo o elimin\xE1lo antes de versionar de nuevo."
+      };
+    }
+    const draft = cloneFlowSnapshot(source);
+    draft.id = createId("flow");
+    draft.lineageId = lineageId;
+    draft.status = "borrador";
+    draft.version = null;
+    draft.supersedesFlowId = source.id;
+    return { flow: draft };
+  }
+  function publishFlow(flows, flowId) {
+    const flow = flows.find((f) => f.id === flowId);
+    if (!flow) return { ok: false, error: "Flujo no encontrado." };
+    if (flow.status !== "borrador") {
+      return { ok: false, error: "Solo pod\xE9s confirmar un flujo en borrador." };
+    }
+    const lineageId = flow.lineageId ?? flow.id;
+    if (flow.supersedesFlowId) {
+      const parent = flows.find((f) => f.id === flow.supersedesFlowId);
+      if (!parent || parent.status !== "listo") {
+        return {
+          ok: false,
+          error: "No se encontr\xF3 la versi\xF3n publicada que este borrador debe reemplazar."
+        };
+      }
+      const nextVersion = (typeof parent.version === "number" ? parent.version : 0) + 1;
+      parent.status = "deprecado";
+      flow.version = nextVersion;
+      flow.status = "listo";
+      flow.supersedesFlowId = null;
+      return { ok: true };
+    }
+    const existingListo = findActiveListoInLineage(flows, lineageId);
+    if (existingListo && existingListo.id !== flow.id) {
+      return {
+        ok: false,
+        error: "Ya existe una versi\xF3n listo en este flujo. Us\xE1 Versionar para crear un borrador."
+      };
+    }
+    flow.version = 1;
+    flow.status = "listo";
+    flow.supersedesFlowId = null;
+    return { ok: true };
+  }
+
   // js/storage.js
   var STORAGE_KEY = "gestor_flujos_prototipo_v3";
   var LEGACY_STORAGE_KEY = "gestor_flujos_prototipo_v2";
@@ -758,6 +867,7 @@
   function normalizeLoadedState(parsed) {
     const flows = Array.isArray(parsed.flows) ? parsed.flows : [];
     for (const flow of flows) {
+      normalizeFlowMeta(flow);
       normalizeFlowTransitions(flow);
       normalizeFlowContracts(flow);
     }
@@ -817,11 +927,13 @@
     const nFinRech = createId("node");
     return {
       id: flowId,
+      lineageId: flowId,
       type: "Aprobaci\xF3n",
       name: "Aprobaci\xF3n de gasto",
       description: "Ejemplo BPMN: Start \u2192 User Task \u2192 XOR Gateway \u2192 Service Task / End.",
       status: "listo",
       version: 1,
+      supersedesFlowId: null,
       notation: "bpmn",
       inputParams: [
         { id: pTitulo, key: "titulo", label: "T\xEDtulo del gasto", type: "texto", required: true },
@@ -1349,8 +1461,22 @@
     mobilePropsOpen: false,
     copilotOpen: false,
     studioMode: "path",
-    catalogView: "flows"
+    catalogView: "flows",
+    readOnly: false
   };
+  function renderFlowStatusBadge(flow) {
+    const badgeClass = flowStatusBadgeClass(flow.status);
+    return `<span class="badge badge-${badgeClass}">${escapeHtml(statusLabel(flow.status))}</span>`;
+  }
+  function createFlowPersist(flow, persist) {
+    return () => {
+      if (!isFlowEditable(flow)) {
+        toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+        return;
+      }
+      persist();
+    };
+  }
   var ACTIVITY_NODE_KINDS = /* @__PURE__ */ new Set([
     NODE_KINDS.MANUAL,
     NODE_KINDS.AUTOMATICA,
@@ -1384,31 +1510,36 @@
       bindDesignerViewportBlocked(mainEl, state, persist);
       return;
     }
+    designerContext.readOnly = !isFlowEditable(flow);
+    const flowPersist = createFlowPersist(flow, persist);
     normalizeFlowNodes(flow);
     normalizeFlowContracts(flow);
     const selected = flow.nodes.find((n) => n.id === designerContext.selectedNodeId);
     const validation = validateFlow(flow);
+    if (designerContext.readOnly && designerContext.studioMode !== "path" && selected) {
+      designerContext.studioMode = "path";
+    }
     if (designerContext.studioMode === "screen" && selected?.kind === NODE_KINDS.MANUAL) {
       mainEl.innerHTML = renderStudioShell(flow, selected, validation, "screen");
-      bindStudioShell(mainEl, flow, selected, state, persist);
-      bindScreenStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
+      bindStudioShell(mainEl, flow, selected, state, flowPersist);
+      bindScreenStudio(mainEl, flow, selected, flowPersist, () => renderDesigner(mainEl, state, persist));
       return;
     }
     if (designerContext.studioMode === "automation" && selected?.kind === NODE_KINDS.AUTOMATICA) {
       mainEl.innerHTML = renderStudioShell(flow, selected, validation, "automation");
-      bindStudioShell(mainEl, flow, selected, state, persist);
-      bindAutomationStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
+      bindStudioShell(mainEl, flow, selected, state, flowPersist);
+      bindAutomationStudio(mainEl, flow, selected, flowPersist, () => renderDesigner(mainEl, state, persist));
       return;
     }
     if (designerContext.studioMode === "agente_ia" && selected?.kind === NODE_KINDS.AGENTE_IA) {
       mainEl.innerHTML = renderStudioShell(flow, selected, validation, "agente_ia");
-      bindStudioShell(mainEl, flow, selected, state, persist);
-      bindAgenteIAStudio(mainEl, flow, selected, persist, () => renderDesigner(mainEl, state, persist));
+      bindStudioShell(mainEl, flow, selected, state, flowPersist);
+      bindAgenteIAStudio(mainEl, flow, selected, flowPersist, () => renderDesigner(mainEl, state, persist));
       return;
     }
     designerContext.studioMode = "path";
     mainEl.innerHTML = renderFlowEditor(flow);
-    bindFlowEditor(mainEl, flow, state, persist);
+    bindFlowEditor(mainEl, flow, state, persist, flowPersist);
   }
   function renderStudioShell(flow, node, validation, mode) {
     return `
@@ -1442,6 +1573,10 @@
     `);
       root.querySelector("#form-meta")?.addEventListener("submit", (e) => {
         e.preventDefault();
+        if (!isFlowEditable(flow)) {
+          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          return;
+        }
         const fd = new FormData(e.target);
         flow.type = String(fd.get("type")).trim();
         flow.name = String(fd.get("name")).trim();
@@ -1456,6 +1591,10 @@
     mainEl.querySelectorAll("[data-studio-mode]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
+        if (designerContext.readOnly) {
+          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          return;
+        }
         designerContext.studioMode = btn.dataset.studioMode;
         renderDesigner(mainEl, state, persist);
       });
@@ -1483,16 +1622,17 @@
   function renderCatalog(state) {
     const editorBlocked = isDesignerEditorBlocked();
     const catalogCallout = designerCatalogCalloutHtml();
-    const rows = state.flows.map(
+    const rows = sortFlowsForCatalog(state.flows).map(
       (f) => `
     <tr>
       <td>${escapeHtml(f.name)}</td>
       <td>${escapeHtml(f.type)}</td>
-      <td>${escapeHtml(f.description || "\u2014")}</td>
-      <td><span class="badge badge-${f.status === "listo" ? "listo" : "borrador"}">${f.status === "listo" ? "Listo" : "Borrador"}</span></td>
+      <td>${escapeHtml(formatFlowVersion(f))}</td>
+      <td>${renderFlowStatusBadge(f)}</td>
       <td class="catalog-actions">
         <button type="button" class="btn btn-sm" data-open-flow="${f.id}" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
-        ${f.status === "listo" ? "" : `<button type="button" class="btn btn-sm btn-danger" data-delete-flow="${f.id}" aria-label="Eliminar flujo ${escapeHtml(f.name)}">Eliminar</button>`}
+        ${f.status === "listo" ? `<button type="button" class="btn btn-sm" data-version-flow="${f.id}" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Versionar</button>` : ""}
+        ${f.status === "borrador" ? `<button type="button" class="btn btn-sm btn-danger" data-delete-flow="${f.id}" aria-label="Eliminar flujo ${escapeHtml(f.name)}">Eliminar</button>` : ""}
       </td>
     </tr>`
     ).join("");
@@ -1506,7 +1646,7 @@
     <section class="panel panel--catalog">
       ${renderPageHeader(
       "Cat\xE1logo de flujos",
-      "Cre\xE1 y edit\xE1 flujos. Cuando pasen la validaci\xF3n, marcalos como listos para Gesti\xF3n de actividades.",
+      "Los flujos nuevos quedan en borrador hasta que confirmes la versi\xF3n. Versionar un flujo listo crea un borrador; al confirmarlo se numera la versi\xF3n y la anterior queda deprecada.",
       `<button type="button" class="btn btn-primary" id="btn-new-flow" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>`
     )}
       ${catalogCallout}
@@ -1514,7 +1654,7 @@
       ${rows ? `<div class="table-wrap table-wrap--modern">
         <table class="table-modern">
           <thead>
-            <tr><th>Nombre</th><th>Tipo</th><th>Descripci\xF3n</th><th>Estado</th><th>Acciones</th></tr>
+            <tr><th>Nombre</th><th>Tipo</th><th>Versi\xF3n</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
@@ -1532,6 +1672,7 @@
     const catalogCallout = designerCatalogCalloutHtml();
     const entries = [];
     for (const flow of state.flows) {
+      if (flow.status !== "listo") continue;
       for (const node of flow.nodes ?? []) {
         if (!ACTIVITY_NODE_KINDS.has(node.kind)) continue;
         entries.push({ flow, node });
@@ -1621,7 +1762,9 @@
         name: String(fd.get("name")).trim(),
         description: String(fd.get("description")).trim(),
         status: "borrador",
-        version: 1,
+        version: null,
+        lineageId: null,
+        supersedesFlowId: null,
         inputParams: [],
         nodes: [
           {
@@ -1647,6 +1790,7 @@
         screens: {},
         lanes: [{ id: createId("lane"), name: "General", height: 220 }]
       };
+      flow.lineageId = flow.id;
       ensureFlowDiagram(flow);
       const laneId = flow.lanes[0].id;
       const layout = getLaneLayout(flow);
@@ -1692,11 +1836,34 @@
         attemptDeleteFlow(mainEl, state, persist, btn.dataset.deleteFlow);
       });
     });
+    mainEl.querySelectorAll("[data-version-flow]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled || isDesignerEditorBlocked()) {
+          toast(designerBlockedMessage().body);
+          return;
+        }
+        attemptVersionFlow(mainEl, state, persist, btn.dataset.versionFlow);
+      });
+    });
+  }
+  function attemptVersionFlow(mainEl, state, persist, flowId) {
+    const { flow: draft, error } = createVersionDraft(state.flows, flowId);
+    if (error) {
+      toast(error);
+      return;
+    }
+    state.flows.push(draft);
+    persist();
+    designerContext.selectedFlowId = draft.id;
+    designerContext.selectedNodeId = null;
+    designerContext._viewFitForFlowId = null;
+    toast("Borrador creado. Edit\xE1 y confirm\xE1 la versi\xF3n cuando est\xE9 listo.", 3200, "success");
+    renderDesigner(mainEl, state, persist);
   }
   function attemptDeleteFlow(mainEl, state, persist, flowId) {
     const flow = state.flows.find((f) => f.id === flowId);
     if (!flow) return;
-    if (flow.status === "listo") {
+    if (flow.status !== "borrador") {
       toast("Solo pod\xE9s eliminar flujos en borrador.");
       return;
     }
@@ -1805,6 +1972,7 @@
     if (designerContext.mobilePaletteOpen) parts.push("is-palette-open");
     if (designerContext.mobilePropsOpen) parts.push("is-props-open");
     if (designerContext.copilotOpen) parts.push("is-copilot-open");
+    if (designerContext.readOnly) parts.push("is-read-only");
     return parts.join(" ");
   }
   function renderFlowEditor(flow) {
@@ -1821,13 +1989,13 @@
         <button type="button" class="btn btn-ghost" id="btn-back-catalog">\u2190 Cat\xE1logo</button>
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <span class="toolbar-flow-title">${escapeHtml(flow.name)} <span class="badge badge-${flow.status === "listo" ? "listo" : "borrador"}">${flow.status === "listo" ? "Listo" : "Borrador"}</span></span>
+      <span class="toolbar-flow-title">${escapeHtml(flow.name)} ${renderFlowStatusBadge(flow)} <span class="toolbar-flow-version">${escapeHtml(formatFlowVersion(flow))}</span></span>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <div class="toolbar-group">
-        <button type="button" class="btn btn-sm" id="btn-flow-meta">Metadatos</button>
-        <button type="button" class="btn btn-sm btn-success" id="btn-mark-ready" ${validation.isValid ? "" : "disabled"}>Marcar listo</button>
-        <button type="button" class="btn btn-sm" id="btn-mark-draft">Borrador</button>
-        ${flow.status === "listo" ? "" : `<button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`}
+        <button type="button" class="btn btn-sm" id="btn-flow-meta" ${designerContext.readOnly ? 'disabled aria-disabled="true"' : ""}>Metadatos</button>
+        ${flow.status === "borrador" ? `<button type="button" class="btn btn-sm btn-success" id="btn-confirm-version" ${validation.isValid ? "" : "disabled"}>Confirmar versi\xF3n</button>
+        <button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>` : ""}
+        ${flow.status === "listo" ? `<button type="button" class="btn btn-sm" id="btn-versionar">Versionar</button>` : ""}
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <div class="toolbar-group">
@@ -1835,6 +2003,7 @@
       </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
+    ${designerContext.readOnly ? `<p class="flow-readonly-banner" role="status">Vista de solo lectura. ${flow.status === "listo" ? "Us\xE1 \xABVersionar\xBB para editar en un borrador." : "Esta versi\xF3n est\xE1 deprecada."}</p>` : flow.supersedesFlowId ? `<p class="flow-draft-banner" role="status">Borrador de nueva versi\xF3n. Al confirmar, reemplazar\xE1 la versi\xF3n publicada anterior (quedar\xE1 deprecada).</p>` : ""}
     <div class="${designerSplitClassNames()}" id="designer-split">
       <aside class="panel palette designer-side-panel" id="designer-palette-panel">
         <div class="designer-panel-head">
@@ -2641,12 +2810,13 @@
       { signal }
     );
   }
-  function bindFlowEditor(mainEl, flow, state, persist) {
+  function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
     const canvas = mainEl.querySelector("#flow-canvas");
     const wrap2 = mainEl.querySelector("#canvas-wrap");
+    const saveFlow = flowPersist ?? createFlowPersist(flow, persist);
     bindDesignerSidePanels(mainEl, state, persist);
     bindStudioTabs(mainEl, state, persist);
-    syncDesignerLayoutViewport(mainEl, flow, persist);
+    syncDesignerLayoutViewport(mainEl, flow, saveFlow);
     if (designerContext._laneSyncForFlowId !== flow.id) {
       ensureFlowDiagram(flow);
       let changed = false;
@@ -2660,7 +2830,7 @@
         if (before !== after) changed = true;
       }
       designerContext._laneSyncForFlowId = flow.id;
-      if (changed) persist();
+      if (changed) saveFlow();
     }
     mainEl.querySelector("#btn-back-catalog")?.addEventListener("click", () => {
       designerContext.selectedFlowId = null;
@@ -2670,24 +2840,29 @@
     mainEl.querySelector("#btn-delete-flow")?.addEventListener("click", () => {
       attemptDeleteFlow(mainEl, state, persist, flow.id);
     });
-    mainEl.querySelector("#btn-mark-ready")?.addEventListener("click", () => {
+    mainEl.querySelector("#btn-confirm-version")?.addEventListener("click", () => {
       const v = validateFlow(flow);
       if (!v.isValid) {
-        toast("Corrija la validaci\xF3n antes de marcar listo.");
+        toast("Correg\xED la validaci\xF3n antes de confirmar la versi\xF3n.");
         return;
       }
-      flow.status = "listo";
-      flow.version += 1;
+      const result = publishFlow(state.flows, flow.id);
+      if (!result.ok) {
+        toast(result.error ?? "No se pudo confirmar la versi\xF3n.");
+        return;
+      }
       persist();
-      toast("Flujo marcado como listo.");
+      toast(`Versi\xF3n ${formatFlowVersion(flow)} confirmada y lista para Gesti\xF3n.`, 3200, "success");
       renderDesigner(mainEl, state, persist);
     });
-    mainEl.querySelector("#btn-mark-draft")?.addEventListener("click", () => {
-      flow.status = "borrador";
-      persist();
-      renderDesigner(mainEl, state, persist);
+    mainEl.querySelector("#btn-versionar")?.addEventListener("click", () => {
+      attemptVersionFlow(mainEl, state, persist, flow.id);
     });
     mainEl.querySelector("#btn-flow-meta")?.addEventListener("click", () => {
+      if (!isFlowEditable(flow)) {
+        toast("Metadatos de solo lectura. Version\xE1 el flujo para editarlos.");
+        return;
+      }
       const { close, root } = openModal(`
       <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
       <form id="form-meta" class="form-grid">
@@ -2699,18 +2874,26 @@
     `);
       root.querySelector("#form-meta").addEventListener("submit", (e) => {
         e.preventDefault();
+        if (!isFlowEditable(flow)) return;
         const fd = new FormData(e.target);
         flow.type = String(fd.get("type")).trim();
         flow.name = String(fd.get("name")).trim();
         flow.description = String(fd.get("description")).trim();
-        persist();
+        saveFlow();
         close();
         renderDesigner(mainEl, state, persist);
       });
     });
-    wrap2.addEventListener("dragover", (e) => e.preventDefault());
+    wrap2.addEventListener("dragover", (e) => {
+      if (designerContext.readOnly) return;
+      e.preventDefault();
+    });
     wrap2.addEventListener("drop", (e) => {
       e.preventDefault();
+      if (designerContext.readOnly) {
+        toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+        return;
+      }
       const kind = e.dataTransfer.getData("palette-kind");
       if (!kind) return;
       if (kind === NODE_KINDS.INICIO && flow.nodes.some((n) => n.kind === NODE_KINDS.INICIO)) {
@@ -2756,11 +2939,15 @@
         flow.screens[node.id] = { blocks: [{ id: createId("blk"), type: "comentario" }] };
       }
       designerContext.selectedNodeId = node.id;
-      persist();
+      saveFlow();
       renderDesigner(mainEl, state, persist);
     });
     mainEl.querySelectorAll(".palette-item[data-palette]").forEach((item) => {
       item.addEventListener("dragstart", (e) => {
+        if (designerContext.readOnly) {
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.setData("palette-kind", item.dataset.palette);
         if (item.dataset.gatewayType) {
           e.dataTransfer.setData("gateway-type", item.dataset.gatewayType);
@@ -2803,9 +2990,9 @@
         renderDesigner(mainEl, state, persist);
       });
     });
-    bindNodeDrag(mainEl, flow, persist, state);
-    bindLinkDrag(mainEl, flow, persist, state);
-    bindContextPad(mainEl, flow, state, persist);
+    bindNodeDrag(mainEl, flow, saveFlow, state);
+    bindLinkDrag(mainEl, flow, saveFlow, state);
+    bindContextPad(mainEl, flow, state, saveFlow);
     bindCanvasViewport(mainEl, flow, state, persist);
     bindCanvasPan(mainEl, flow, state, persist);
     drawConnections(mainEl, flow);
@@ -2820,8 +3007,8 @@
       });
     }
     const selected = flow.nodes.find((n) => n.id === designerContext.selectedNodeId);
-    if (selected) bindNodeProps(mainEl, flow, selected, state, persist);
-    else bindFlowDiagramProps(mainEl, flow, state, persist);
+    if (selected) bindNodeProps(mainEl, flow, selected, state, saveFlow);
+    else bindFlowDiagramProps(mainEl, flow, state, saveFlow);
   }
   function bindCanvasViewport(mainEl, flow, state, persist) {
     const wrap2 = mainEl.querySelector("#canvas-wrap");
@@ -2999,6 +3186,10 @@
           if (designerContext.tool !== "select") {
             e.preventDefault();
             e.stopPropagation();
+            if (designerContext.readOnly) {
+              toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+              return;
+            }
             const lineType = designerContext.activeLineType;
             if (designerContext.connectClickFrom?.fromId === nodeId) {
               designerContext.connectClickFrom = null;
@@ -3037,6 +3228,10 @@
             propsPanel.innerHTML = renderPropsPanelShell(flow, selected);
             bindNodeProps(mainEl, flow, selected, state, persist);
             applyDesignerSidePanelState(mainEl);
+          }
+          if (designerContext.readOnly) {
+            e.preventDefault();
+            return;
           }
           const pt = clientToCanvas(mainEl, e.clientX, e.clientY);
           offsetX = pt.x - dragNode.x;
@@ -3218,6 +3413,10 @@
         if (!port) return;
         e.stopPropagation();
         e.preventDefault();
+        if (designerContext.readOnly) {
+          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          return;
+        }
         const nodeEl = port.closest(".flow-node");
         const fromId = nodeEl?.dataset.nodeId;
         if (!fromId) return;
@@ -3720,7 +3919,7 @@
     const pct = totalSteps === 0 ? 100 : Math.min(100, Math.round(done / totalSteps * 100));
     return { done, totalSteps, pct };
   }
-  function statusLabel(status) {
+  function statusLabel2(status) {
     const map = {
       en_curso: "En curso",
       completada: "Completada",
@@ -3752,7 +3951,7 @@
           <div class="form-row">
             <label>Flujo</label>
             <select name="flowId" id="select-flow" required>
-              ${readyFlows.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join("")}
+              ${readyFlows.map((f) => `<option value="${f.id}">${escapeHtml(f.name)} (${formatFlowVersion(f)})</option>`).join("")}
             </select>
           </div>
           <div id="input-fields"></div>
@@ -3837,7 +4036,7 @@
   function renderResolver(instance, state) {
     const node = getCurrentNode(instance);
     if (!node) {
-      return `<p>Instancia finalizada: <span class="badge badge-${instance.status === "completada" ? "completada" : "rechazada"}">${statusLabel(instance.status)}</span></p>`;
+      return `<p>Instancia finalizada: <span class="badge badge-${instance.status === "completada" ? "completada" : "rechazada"}">${statusLabel2(instance.status)}</span></p>`;
     }
     if (node.kind === NODE_KINDS.AUTOMATICA) {
       const adapter = node.integration?.adapter ?? "simulation";
@@ -4013,7 +4212,7 @@
       const node = getCurrentNode(i);
       return `<tr data-report-inst="${i.id}" class="table-row-selectable ${i.id === selectedReportInstanceId ? "is-selected" : ""}">
                   <td>${escapeHtml(i.flowName)}</td>
-                  <td><span class="badge badge-${badgeForStatus(i.status)}">${statusLabel(i.status)}</span></td>
+                  <td><span class="badge badge-${badgeForStatus(i.status)}">${statusLabel2(i.status)}</span></td>
                   <td>${prog.pct}% \xB7 ${escapeHtml(node?.name ?? "Finalizado")}</td>
                   <td>${formatDateTime(i.startedAt)}</td>
                 </tr>`;
@@ -4062,7 +4261,7 @@
     ).join("");
     return `
     <h3 class="report-detail-title">${escapeHtml(instance.flowName)}</h3>
-    <p><span class="badge badge-${badgeForStatus(instance.status)}">${statusLabel(instance.status)}</span></p>
+    <p><span class="badge badge-${badgeForStatus(instance.status)}">${statusLabel2(instance.status)}</span></p>
     <div class="progress-bar"><span style="width:${prog.pct}%"></span></div>
     <p class="form-hint">${prog.done} actividades registradas \xB7 Paso actual: ${escapeHtml(node?.name ?? "\u2014")}</p>
     <h4>Datos de entrada</h4>
