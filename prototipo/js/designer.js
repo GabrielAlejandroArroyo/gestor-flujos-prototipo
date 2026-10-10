@@ -53,7 +53,23 @@ let designerContext = {
   mobilePropsOpen: false,
   copilotOpen: false,
   studioMode: "path",
+  catalogView: "flows",
 };
+
+const ACTIVITY_NODE_KINDS = new Set([
+  NODE_KINDS.MANUAL,
+  NODE_KINDS.AUTOMATICA,
+  NODE_KINDS.AGENTE_IA,
+]);
+
+/**
+ * @param {"flows"|"activities"} view
+ */
+export function setDesignerCatalogView(view) {
+  if (view === "flows" || view === "activities") {
+    designerContext.catalogView = view;
+  }
+}
 
 let activeLinkDrag = null;
 let activeCanvasViewport = null;
@@ -67,8 +83,13 @@ export function renderDesigner(mainEl, state, persist) {
   const flow = state.flows.find((f) => f.id === designerContext.selectedFlowId);
 
   if (!flow) {
-    mainEl.innerHTML = renderCatalog(state);
-    bindCatalog(mainEl, state, persist);
+    if (designerContext.catalogView === "activities") {
+      mainEl.innerHTML = renderActivityCatalog(state);
+      bindActivityCatalog(mainEl, state, persist);
+    } else {
+      mainEl.innerHTML = renderCatalog(state);
+      bindCatalog(mainEl, state, persist);
+    }
     return;
   }
 
@@ -243,6 +264,91 @@ function renderCatalog(state) {
           : ""
       }
     </section>`;
+}
+
+function activityKindLabel(kind) {
+  if (kind === NODE_KINDS.MANUAL) return "User Task";
+  if (kind === NODE_KINDS.AUTOMATICA) return "Service Task";
+  if (kind === NODE_KINDS.AGENTE_IA) return "Agente IA";
+  return kind;
+}
+
+function renderActivityCatalog(state) {
+  const editorBlocked = isDesignerEditorBlocked();
+  const catalogCallout = designerCatalogCalloutHtml();
+  const entries = [];
+
+  for (const flow of state.flows) {
+    for (const node of flow.nodes ?? []) {
+      if (!ACTIVITY_NODE_KINDS.has(node.kind)) continue;
+      entries.push({ flow, node });
+    }
+  }
+
+  const rows = entries
+    .map(
+      ({ flow, node }) => `
+    <tr>
+      <td>${escapeHtml(flow.name)}</td>
+      <td>${escapeHtml(node.name)}</td>
+      <td><span class="badge badge-listo">${escapeHtml(activityKindLabel(node.kind))}</span></td>
+      <td>${escapeHtml(node.description || "—")}</td>
+      <td class="catalog-actions">
+        <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${editorBlocked ? "disabled aria-disabled=\"true\"" : ""}>Abrir</button>
+      </td>
+    </tr>`,
+    )
+    .join("");
+
+  const emptyBody =
+    rows === ""
+      ? `<div class="empty-state empty-state--rich">
+          <strong>Sin actividades</strong>
+          <p>Agregá User Task, Service Task o Agente IA en tus flujos para verlas acá.</p>
+          <button type="button" class="btn btn-sm" id="btn-goto-flow-catalog">Ir al catálogo de flujos</button>
+        </div>`
+      : "";
+
+  return `
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+        "Catálogo de actividades",
+        "Todas las actividades definidas en tus flujos. Abrí una para editarla en el lienzo.",
+      )}
+      ${catalogCallout}
+      ${emptyBody}
+      ${
+        rows
+          ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead>
+            <tr><th>Flujo</th><th>Actividad</th><th>Tipo</th><th>Descripción</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`
+          : ""
+      }
+    </section>`;
+}
+
+function bindActivityCatalog(mainEl, state, persist) {
+  mainEl.querySelector("#btn-goto-flow-catalog")?.addEventListener("click", () => {
+    designerContext.catalogView = "flows";
+    document.querySelector('[data-nav-group="designer"] [data-catalog="flows"]')?.click();
+  });
+
+  mainEl.querySelectorAll("[data-open-activity]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled || isDesignerEditorBlocked()) {
+        toast(designerBlockedMessage().body);
+        return;
+      }
+      designerContext.selectedFlowId = btn.dataset.openActivity;
+      designerContext.selectedNodeId = btn.dataset.nodeId;
+      renderDesigner(mainEl, state, persist);
+    });
+  });
 }
 
 function openNewFlowModal(mainEl, state, persist) {

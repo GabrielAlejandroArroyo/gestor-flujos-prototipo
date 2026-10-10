@@ -1348,8 +1348,19 @@
     mobilePaletteOpen: false,
     mobilePropsOpen: false,
     copilotOpen: false,
-    studioMode: "path"
+    studioMode: "path",
+    catalogView: "flows"
   };
+  var ACTIVITY_NODE_KINDS = /* @__PURE__ */ new Set([
+    NODE_KINDS.MANUAL,
+    NODE_KINDS.AUTOMATICA,
+    NODE_KINDS.AGENTE_IA
+  ]);
+  function setDesignerCatalogView(view) {
+    if (view === "flows" || view === "activities") {
+      designerContext.catalogView = view;
+    }
+  }
   var activeLinkDrag = null;
   var activeCanvasViewport = null;
   var activeDesignerSideBind = null;
@@ -1359,8 +1370,13 @@
     }
     const flow = state.flows.find((f) => f.id === designerContext.selectedFlowId);
     if (!flow) {
-      mainEl.innerHTML = renderCatalog(state);
-      bindCatalog(mainEl, state, persist);
+      if (designerContext.catalogView === "activities") {
+        mainEl.innerHTML = renderActivityCatalog(state);
+        bindActivityCatalog(mainEl, state, persist);
+      } else {
+        mainEl.innerHTML = renderCatalog(state);
+        bindCatalog(mainEl, state, persist);
+      }
       return;
     }
     if (isDesignerEditorBlocked()) {
@@ -1504,6 +1520,74 @@
         </table>
       </div>` : ""}
     </section>`;
+  }
+  function activityKindLabel(kind) {
+    if (kind === NODE_KINDS.MANUAL) return "User Task";
+    if (kind === NODE_KINDS.AUTOMATICA) return "Service Task";
+    if (kind === NODE_KINDS.AGENTE_IA) return "Agente IA";
+    return kind;
+  }
+  function renderActivityCatalog(state) {
+    const editorBlocked = isDesignerEditorBlocked();
+    const catalogCallout = designerCatalogCalloutHtml();
+    const entries = [];
+    for (const flow of state.flows) {
+      for (const node of flow.nodes ?? []) {
+        if (!ACTIVITY_NODE_KINDS.has(node.kind)) continue;
+        entries.push({ flow, node });
+      }
+    }
+    const rows = entries.map(
+      ({ flow, node }) => `
+    <tr>
+      <td>${escapeHtml(flow.name)}</td>
+      <td>${escapeHtml(node.name)}</td>
+      <td><span class="badge badge-listo">${escapeHtml(activityKindLabel(node.kind))}</span></td>
+      <td>${escapeHtml(node.description || "\u2014")}</td>
+      <td class="catalog-actions">
+        <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
+      </td>
+    </tr>`
+    ).join("");
+    const emptyBody = rows === "" ? `<div class="empty-state empty-state--rich">
+          <strong>Sin actividades</strong>
+          <p>Agreg\xE1 User Task, Service Task o Agente IA en tus flujos para verlas ac\xE1.</p>
+          <button type="button" class="btn btn-sm" id="btn-goto-flow-catalog">Ir al cat\xE1logo de flujos</button>
+        </div>` : "";
+    return `
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+      "Cat\xE1logo de actividades",
+      "Todas las actividades definidas en tus flujos. Abr\xED una para editarla en el lienzo."
+    )}
+      ${catalogCallout}
+      ${emptyBody}
+      ${rows ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead>
+            <tr><th>Flujo</th><th>Actividad</th><th>Tipo</th><th>Descripci\xF3n</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>` : ""}
+    </section>`;
+  }
+  function bindActivityCatalog(mainEl, state, persist) {
+    mainEl.querySelector("#btn-goto-flow-catalog")?.addEventListener("click", () => {
+      designerContext.catalogView = "flows";
+      document.querySelector('[data-nav-group="designer"] [data-catalog="flows"]')?.click();
+    });
+    mainEl.querySelectorAll("[data-open-activity]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled || isDesignerEditorBlocked()) {
+          toast(designerBlockedMessage().body);
+          return;
+        }
+        designerContext.selectedFlowId = btn.dataset.openActivity;
+        designerContext.selectedNodeId = btn.dataset.nodeId;
+        renderDesigner(mainEl, state, persist);
+      });
+    });
   }
   function openNewFlowModal(mainEl, state, persist) {
     if (isDesignerEditorBlocked()) {
@@ -4039,11 +4123,25 @@
       const openNow = isNavOpen(drawer, shell);
       setOpen(openNow);
     });
-    document.querySelectorAll(".nav-btn").forEach((btn) => {
+    function setNavActive(view, catalog) {
+      const designerGroup = document.querySelector('[data-nav-group="designer"]');
+      document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.remove("is-active"));
+      if (view === "designer") {
+        const cat = catalog === "activities" ? "activities" : "flows";
+        designerGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+        designerGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+          b.classList.toggle("is-active", b.dataset.catalog === cat);
+        });
+      } else {
+        document.querySelector(`.nav-btn[data-view="${view}"]:not([data-catalog])`)?.classList.add("is-active");
+      }
+    }
+    document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("is-active"));
-        btn.classList.add("is-active");
-        onNavigate(btn.dataset.view);
+        const view = btn.dataset.view;
+        const catalog = btn.dataset.catalog ?? "flows";
+        setNavActive(view, catalog);
+        onNavigate(view, view === "designer" ? catalog : null);
         if (!isDockedNav()) close();
       });
     });
@@ -4082,8 +4180,11 @@
         if (currentView === "designer") render();
       }, 150);
     });
-    bindNavDrawer((view) => {
+    bindNavDrawer((view, catalog) => {
       currentView = view;
+      if (view === "designer" && catalog) {
+        setDesignerCatalogView(catalog);
+      }
       render();
     });
     document.getElementById("btn-ai-config")?.addEventListener("click", () => {

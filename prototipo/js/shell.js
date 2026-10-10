@@ -61,11 +61,27 @@ export function bindNavDrawer(onNavigate) {
     setOpen(openNow);
   });
 
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
+  function setNavActive(view, catalog) {
+    const designerGroup = document.querySelector('[data-nav-group="designer"]');
+    document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.remove("is-active"));
+
+    if (view === "designer") {
+      const cat = catalog === "activities" ? "activities" : "flows";
+      designerGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+      designerGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+        b.classList.toggle("is-active", b.dataset.catalog === cat);
+      });
+    } else {
+      document.querySelector(`.nav-btn[data-view="${view}"]:not([data-catalog])`)?.classList.add("is-active");
+    }
+  }
+
+  document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("is-active"));
-      btn.classList.add("is-active");
-      onNavigate(btn.dataset.view);
+      const view = btn.dataset.view;
+      const catalog = btn.dataset.catalog ?? "flows";
+      setNavActive(view, catalog);
+      onNavigate(view, view === "designer" ? catalog : null);
       if (!isDockedNav()) close();
     });
   });

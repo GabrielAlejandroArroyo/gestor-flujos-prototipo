@@ -32,8 +32,29 @@ Ver [`PLATINO.md`](PLATINO.md): prohibido push, deploy o Supabase en entornos Ac
 
 ## Desarrollo local
 
+**Mock + Next.js (recomendado):**
+
+```powershell
+cd "d:\gestor_flujos supabase"
+.\scripts\start-dev.ps1          # primera vez: .\scripts\start-dev.ps1 -Install
+```
+
+Detalle: [`scripts/README.md`](scripts/README.md).
+
+**Catálogos del diseñador:** los submenús «Catálogo de flujos» y «Catálogo de actividades» están completos en el **mock** (Pages o `:8765`). En **gestor-app** (`:3000`) el sidebar replica la misma navegación; las pantallas Next son placeholders hasta portar React Flow.
+
+**Solo prototipo (mock):**
+
 ```powershell
 cd prototipo
 .\build-mock.ps1   # tras cambios en js/
-.\abrir-mock.ps1   # o abrir index.html
+.\abrir-mock.ps1   # http://127.0.0.1:8765/index.html
+```
+
+**Solo gestor-app (Next.js):**
+
+```powershell
+cd gestor-app
+npm ci
+npm run dev      # http://localhost:3000
 ```

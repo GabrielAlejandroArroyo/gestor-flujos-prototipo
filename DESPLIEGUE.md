@@ -18,6 +18,18 @@ No hay Supabase en este despliegue: los flujos e instancias se guardan en **`loc
 
 La carpeta **`gestor-app/`** no se publica en Pages. Desplegala en **Vercel** (u otro host Node). Guía: [`gestor-app/DEPLOY.md`](gestor-app/DEPLOY.md).
 
+### Desarrollo local (mock + Next)
+
+Desde la raíz del repo:
+
+```powershell
+.\scripts\start-dev.ps1
+```
+
+Primera vez: `.\scripts\start-dev.ps1 -Install`. Ver [`scripts/README.md`](scripts/README.md).
+
+El script abre **dos** URLs: el mock (`:8765`) incluye los catálogos del diseñador en el menú lateral; Next (`:3000`) muestra los mismos submenús con vistas stub. Para probar catálogos con datos (`localStorage`), usá el mock o GitHub Pages.
+
 ---
 
 ## Qué se publica

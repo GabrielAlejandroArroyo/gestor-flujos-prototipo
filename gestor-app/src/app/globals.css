@@ -333,6 +333,34 @@ body.nav-open {
   display: none;
 }
 
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.15rem;
+}
+
+.nav-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-left: 0.55rem;
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--border);
+}
+
+.nav-sub .nav-btn,
+.nav-sub-btn {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.42rem 0.65rem;
+  text-decoration: none;
+}
+
+.nav-group-toggle.is-active + .nav-sub .nav-sub-btn.is-active {
+  border-color: var(--accent-muted, var(--border));
+}
+
 .nav-btn {
   display: flex;
   align-items: center;

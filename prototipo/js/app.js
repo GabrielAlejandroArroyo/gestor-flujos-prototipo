@@ -1,6 +1,6 @@
 import { loadState, saveState, loadAiConfig, saveAiConfig } from "./storage.js";
 import { ensureSeed } from "./seed.js";
-import { renderDesigner } from "./designer.js";
+import { renderDesigner, setDesignerCatalogView } from "./designer.js";
 import { renderGestion } from "./gestion.js";
 import { renderReporte } from "./reporte.js";
 import { bindNavDrawer } from "./shell.js";
@@ -44,8 +44,11 @@ try {
     }, 150);
   });
 
-  bindNavDrawer((view) => {
+  bindNavDrawer((view, catalog) => {
     currentView = view;
+    if (view === "designer" && catalog) {
+      setDesignerCatalogView(catalog);
+    }
     render();
   });
 
