@@ -46,6 +46,30 @@ export function isFlowEditable(flow) {
 }
 
 /**
+ * @param {{ status?: string } | null | undefined} flow
+ * @returns {boolean}
+ */
+export function isFlowDeprecated(flow) {
+  return flow?.status === "deprecado";
+}
+
+/**
+ * Mensaje de solo lectura según estado del flujo.
+ *
+ * @param {{ status?: string } | null | undefined} flow
+ * @returns {string}
+ */
+export function designerReadOnlyMessage(flow) {
+  if (isFlowDeprecated(flow)) {
+    return "Esta versión está deprecada. Solo podés consultar el diagrama; no se puede editar.";
+  }
+  if (flow?.status === "listo") {
+    return "Flujo en estado Listo. Usá «Versionar» en el catálogo para crear un borrador editable.";
+  }
+  return "Este flujo no es editable.";
+}
+
+/**
  * @param {Array<{ lineageId?: string; status?: string }>} flows
  * @param {string} lineageId
  */
@@ -79,6 +103,43 @@ export function sortFlowsForCatalog(flows) {
     const vb = b.version ?? 0;
     return vb - va;
   });
+}
+
+/**
+ * Agrupa flujos por linaje para el catálogo (listo, borrador, deprecados).
+ *
+ * @param {Array<Record<string, unknown>>} flows
+ * @returns {Array<{ lineageId: string; listo: Record<string, unknown> | null; borrador: Record<string, unknown> | null; deprecados: Record<string, unknown>[]; displayName: string }>}
+ */
+export function buildCatalogLineageGroups(flows) {
+  /** @type {Map<string, Record<string, unknown>[]>} */
+  const byLineage = new Map();
+  for (const flow of flows ?? []) {
+    const lineageId = String(flow.lineageId ?? flow.id);
+    if (!byLineage.has(lineageId)) byLineage.set(lineageId, []);
+    byLineage.get(lineageId).push(flow);
+  }
+
+  /** @type {ReturnType<typeof buildCatalogLineageGroups>} */
+  const groups = [];
+  for (const [lineageId, members] of byLineage) {
+    const listo = members.find((f) => f.status === "listo") ?? null;
+    const borrador = members.find((f) => f.status === "borrador") ?? null;
+    const deprecados = members
+      .filter((f) => f.status === "deprecado")
+      .sort((a, b) => (Number(b.version) || 0) - (Number(a.version) || 0));
+    const anchor = listo ?? borrador ?? members[0];
+    groups.push({
+      lineageId,
+      listo,
+      borrador,
+      deprecados,
+      displayName: String(anchor?.name ?? "Flujo"),
+    });
+  }
+
+  groups.sort((a, b) => a.displayName.localeCompare(b.displayName, "es"));
+  return groups;
 }
 
 /**

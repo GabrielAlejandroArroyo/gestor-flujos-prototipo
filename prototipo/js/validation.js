@@ -111,6 +111,45 @@ function transitionsTo(flow, nodeId) {
   return sequenceTransitions(flow).filter((t) => t.toId === nodeId);
 }
 
+/** Destinos válidos para Sequence Flow «siempre» desde actividades (sin obligar gateway). */
+const SIEMPRE_CONTINUATION_KINDS = new Set([
+  NODE_KINDS.MANUAL,
+  NODE_KINDS.AUTOMATICA,
+  NODE_KINDS.AGENTE_IA,
+  NODE_KINDS.GATEWAY,
+  NODE_KINDS.FIN,
+]);
+
+/**
+ * Valida salidas «siempre» de User/Service Task: una sola salida, sin ramas A/R, destino permitido.
+ *
+ * @param {object} flow
+ * @param {object} node
+ * @param {string} taskLabel - Etiqueta para mensajes (User Task / Service Task)
+ * @param {string[]} errors
+ */
+function validateActivitySequenceOut(flow, node, taskLabel, errors) {
+  const outs = transitionsFrom(flow, node.id);
+  const siempre = transitionsFrom(flow, node.id, "siempre");
+  if (siempre.length !== 1) {
+    errors.push(`${taskLabel} "${node.name}": debe tener exactamente una salida «siempre».`);
+  }
+  const bad = outs.filter((t) => t.condition !== "siempre");
+  if (bad.length) {
+    errors.push(
+      `${taskLabel} "${node.name}": Aceptar/Rechazar se modelan en el Exclusive Gateway, no en la actividad.`,
+    );
+  }
+  if (siempre.length === 1) {
+    const target = flow.nodes.find((n) => n.id === siempre[0].toId);
+    if (!target || !SIEMPRE_CONTINUATION_KINDS.has(target.kind)) {
+      errors.push(
+        `${taskLabel} "${node.name}": la salida «siempre» debe ir a otra actividad, un gateway o un End Event.`,
+      );
+    }
+  }
+}
+
 export function validateFlow(flow) {
   normalizeFlowNodes(flow);
   const errors = [];
@@ -151,21 +190,7 @@ export function validateFlow(flow) {
     }
 
     if (node.kind === NODE_KINDS.MANUAL) {
-      const outs = transitionsFrom(flow, node.id);
-      const siempre = transitionsFrom(flow, node.id, "siempre");
-      if (siempre.length !== 1) {
-        errors.push(`User Task "${node.name}": debe tener exactamente una salida «siempre» hacia el gateway.`);
-      }
-      const bad = outs.filter((t) => t.condition !== "siempre");
-      if (bad.length) {
-        errors.push(`User Task "${node.name}": Aceptar/Rechazar se modelan en el Exclusive Gateway, no aquí.`);
-      }
-      if (siempre.length === 1) {
-        const target = flow.nodes.find((n) => n.id === siempre[0].toId);
-        if (target?.kind !== NODE_KINDS.GATEWAY) {
-          errors.push(`User Task "${node.name}": la salida «siempre» debe ir a un Exclusive Gateway.`);
-        }
-      }
+      validateActivitySequenceOut(flow, node, "User Task", errors);
       const screen = flow.screens?.[node.id];
       if (!screen?.blocks?.length) {
         errors.push(`User Task "${node.name}" debe tener una pantalla diseñada.`);
@@ -182,9 +207,7 @@ export function validateFlow(flow) {
     }
 
     if (node.kind === NODE_KINDS.AUTOMATICA) {
-      if (transitionsFrom(flow, node.id, "siempre").length === 0) {
-        errors.push(`Service Task "${node.name}" debe tener Sequence Flow de continuación.`);
-      }
+      validateActivitySequenceOut(flow, node, "Service Task", errors);
     }
 
     if (node.kind === NODE_KINDS.AGENTE_IA) {

@@ -38,8 +38,9 @@ import {
   createVersionDraft,
   publishFlow,
   isFlowEditable,
+  designerReadOnlyMessage,
   statusLabel,
-  sortFlowsForCatalog,
+  buildCatalogLineageGroups,
   flowStatusBadgeClass,
   formatFlowVersion,
 } from "./flow-lifecycle.js";
@@ -64,6 +65,7 @@ let designerContext = {
   copilotOpen: false,
   studioMode: "path",
   catalogView: "flows",
+  catalogExpandedLineages: new Set(),
   readOnly: false,
 };
 
@@ -75,11 +77,16 @@ function renderFlowStatusBadge(flow) {
 function createFlowPersist(flow, persist) {
   return () => {
     if (!isFlowEditable(flow)) {
-      toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
+      toast(designerReadOnlyMessage(flow));
       return;
     }
     persist();
   };
+}
+
+/** Atributos HTML para campos cuando el diseñador está en solo lectura. */
+function propsReadonlyAttrs() {
+  return designerContext.readOnly ? ' disabled readonly aria-disabled="true"' : "";
 }
 
 const ACTIVITY_NODE_KINDS = new Set([
@@ -149,27 +156,35 @@ export function renderDesigner(mainEl, state, persist) {
   const selected = flow.nodes.find((n) => n.id === designerContext.selectedNodeId);
   const validation = validateFlow(flow);
 
-  if (
-    designerContext.readOnly &&
-    designerContext.studioMode !== "path" &&
-    selected
-  ) {
+  if (designerContext.readOnly && designerContext.studioMode !== "path") {
     designerContext.studioMode = "path";
   }
 
-  if (designerContext.studioMode === "screen" && selected?.kind === NODE_KINDS.MANUAL) {
+  if (
+    !designerContext.readOnly &&
+    designerContext.studioMode === "screen" &&
+    selected?.kind === NODE_KINDS.MANUAL
+  ) {
     mainEl.innerHTML = renderStudioShell(flow, selected, validation, "screen");
     bindStudioShell(mainEl, flow, selected, state, flowPersist);
     bindScreenStudio(mainEl, flow, selected, flowPersist, () => renderDesigner(mainEl, state, persist));
     return;
   }
-  if (designerContext.studioMode === "automation" && selected?.kind === NODE_KINDS.AUTOMATICA) {
+  if (
+    !designerContext.readOnly &&
+    designerContext.studioMode === "automation" &&
+    selected?.kind === NODE_KINDS.AUTOMATICA
+  ) {
     mainEl.innerHTML = renderStudioShell(flow, selected, validation, "automation");
     bindStudioShell(mainEl, flow, selected, state, flowPersist);
     bindAutomationStudio(mainEl, flow, selected, flowPersist, () => renderDesigner(mainEl, state, persist));
     return;
   }
-  if (designerContext.studioMode === "agente_ia" && selected?.kind === NODE_KINDS.AGENTE_IA) {
+  if (
+    !designerContext.readOnly &&
+    designerContext.studioMode === "agente_ia" &&
+    selected?.kind === NODE_KINDS.AGENTE_IA
+  ) {
     mainEl.innerHTML = renderStudioShell(flow, selected, validation, "agente_ia");
     bindStudioShell(mainEl, flow, selected, state, flowPersist);
     bindAgenteIAStudio(mainEl, flow, selected, flowPersist, () => renderDesigner(mainEl, state, persist));
@@ -290,29 +305,162 @@ function renderCatalogFlowActions(flow, catalogBlocked) {
   return openBtn;
 }
 
+/**
+ * Fila de tabla del catálogo de flujos.
+ *
+ * @param {object} f
+ * @param {boolean} catalogBlocked
+ * @param {{ rowClass?: string; namePrefix?: string; lineageId?: string }} [opts]
+ */
+function renderCatalogTreeToggle(lineageId, expanded, childCount) {
+  const label =
+    childCount === 1 ? "1 versión anterior" : `${childCount} versiones anteriores`;
+  return `<button type="button" class="catalog-tree-toggle ${expanded ? "is-expanded" : ""}" data-toggle-deprecados="${escapeHtml(lineageId)}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? `Contraer ${label}` : `Expandir ${label}`}" title="${expanded ? "Ocultar versiones anteriores" : "Ver versiones deprecadas"}">
+      <svg class="catalog-tree-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 4l4 4-4 4V4z"/></svg>
+    </button>`;
+}
+
+function renderCatalogFlowTableRow(f, catalogBlocked, opts = {}) {
+  const { rowClass = "", lineageId = "", isChild = false } = opts;
+  const lineageAttr = lineageId ? ` data-lineage-child="${lineageId}"` : "";
+  const nameCell = isChild
+    ? `<td class="catalog-name-cell catalog-name-cell--child">
+        <span class="catalog-tree-node">
+          <span class="catalog-tree-rail" aria-hidden="true"></span>
+          <span class="catalog-flow-name">${escapeHtml(f.name)}</span>
+        </span>
+      </td>`
+    : `<td class="catalog-name-cell"><div class="catalog-name-cell-inner"><span class="catalog-flow-name">${escapeHtml(f.name)}</span></div></td>`;
+  return `
+    <tr class="${rowClass}"${lineageAttr}>
+      ${nameCell}
+      <td>${escapeHtml(f.type)}</td>
+      <td><span class="catalog-version">${escapeHtml(formatFlowVersion(f))}</span></td>
+      <td>${renderFlowStatusBadge(f)}</td>
+      <td class="catalog-actions">${renderCatalogFlowActions(f, catalogBlocked)}</td>
+    </tr>`;
+}
+
 function renderCatalog(state) {
   const catalogBlocked = isCatalogActionsBlocked();
   const catalogCallout = designerCatalogCalloutHtml();
-  const rows = sortFlowsForCatalog(state.flows)
-    .map(
-      (f) => `
-    <tr>
-      <td>${escapeHtml(f.name)}</td>
+  const groups = buildCatalogLineageGroups(state.flows);
+  const listoGroups = groups.filter((g) => g.listo);
+  const draftOnlyGroups = groups.filter((g) => !g.listo && g.borrador);
+
+  const lineageGroupsHtml = listoGroups
+    .map((group) => {
+      const f = group.listo;
+      if (!f) return "";
+      const hasTree =
+        group.deprecados.length > 0 || (group.borrador && group.listo && group.borrador.id !== group.listo.id);
+      const expanded = designerContext.catalogExpandedLineages.has(group.lineageId);
+      const childCount =
+        group.deprecados.length + (group.borrador && group.borrador.id !== group.listo?.id ? 1 : 0);
+      const toggle = hasTree
+        ? renderCatalogTreeToggle(group.lineageId, expanded, childCount)
+        : `<span class="catalog-tree-toggle catalog-tree-toggle--spacer" aria-hidden="true"></span>`;
+      const countChip =
+        hasTree && !expanded
+          ? `<span class="catalog-tree-count" title="Versiones anteriores ocultas">${childCount} ${childCount === 1 ? "anterior" : "anteriores"}</span>`
+          : "";
+      const groupState = expanded ? "is-expanded" : "is-collapsed";
+      const parentRow = `
+    <tr class="catalog-row catalog-row--parent ${hasTree ? "catalog-row--has-children" : ""} ${expanded ? "catalog-row--expanded" : "catalog-row--collapsed"}" data-lineage-parent="${escapeHtml(group.lineageId)}">
+      <td class="catalog-name-cell">
+        <div class="catalog-name-cell-inner">
+          ${toggle}
+          <span class="catalog-flow-name">${escapeHtml(f.name)}</span>
+          ${countChip}
+        </div>
+      </td>
       <td>${escapeHtml(f.type)}</td>
-      <td>${escapeHtml(formatFlowVersion(f))}</td>
+      <td><span class="catalog-version catalog-version--current">${escapeHtml(formatFlowVersion(f))}</span></td>
       <td>${renderFlowStatusBadge(f)}</td>
       <td class="catalog-actions">${renderCatalogFlowActions(f, catalogBlocked)}</td>
-    </tr>`,
+    </tr>`;
+
+      let childRowsHtml = "";
+      if (expanded && hasTree) {
+        const parts = [];
+        for (const dep of group.deprecados) {
+          parts.push(
+            renderCatalogFlowTableRow(dep, catalogBlocked, {
+              rowClass: "catalog-row catalog-row--child catalog-row--deprecated",
+              lineageId: group.lineageId,
+              isChild: true,
+            }),
+          );
+        }
+        if (group.borrador && group.borrador.id !== group.listo?.id) {
+          parts.push(
+            renderCatalogFlowTableRow(group.borrador, catalogBlocked, {
+              rowClass: "catalog-row catalog-row--child catalog-row--draft",
+              lineageId: group.lineageId,
+              isChild: true,
+            }),
+          );
+        }
+        childRowsHtml = parts.join("");
+      }
+
+      return `<tbody class="catalog-lineage-group ${groupState} ${hasTree ? "has-children" : ""}" data-lineage-group="${escapeHtml(group.lineageId)}">
+      ${parentRow}
+      ${childRowsHtml}
+    </tbody>`;
+    })
+    .join("");
+
+  const draftRows = draftOnlyGroups
+    .map((group) =>
+      renderCatalogFlowTableRow(group.borrador, catalogBlocked, {
+        rowClass: "catalog-row catalog-row--draft-only",
+      }),
     )
     .join("");
 
+  const hasAnyFlow = state.flows.length > 0;
+  const hasListo = listoGroups.length > 0;
+
   const emptyBody =
-    rows === ""
+    !hasAnyFlow
       ? `<div class="empty-state empty-state--rich">
           <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
           <strong>Sin flujos todavía</strong>
-          <p>Creá tu primer flujo BPMN en borrador y usá «Activar» en el catálogo o en el lienzo para dejarlo listo en Gestión.</p>
+          <p>Creá tu primer flujo BPMN en borrador y usá «Activar» para publicarlo como Listo en Gestión.</p>
           <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${catalogBlocked ? "disabled" : ""}>Nuevo flujo</button>
+        </div>`
+      : !hasListo
+        ? `<div class="empty-state empty-state--compact">
+          <strong>Sin flujos listos</strong>
+          <p>Activá un borrador pendiente para verlo acá como versión publicada.</p>
+        </div>`
+        : "";
+
+  const listoTable = hasListo
+    ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern catalog-flow-tree">
+          <thead>
+            <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
+          </thead>
+          ${lineageGroupsHtml}
+        </table>
+      </div>`
+    : "";
+
+  const draftSection =
+    draftRows.length > 0
+      ? `<div class="catalog-section catalog-section--drafts">
+          <h3 class="catalog-section-title">Borradores pendientes</h3>
+          <p class="catalog-section-hint">Aún no publicados. Usá «Activar» para pasarlos a Listo.</p>
+          <div class="table-wrap table-wrap--modern">
+            <table class="table-modern">
+              <thead>
+                <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
+              </thead>
+              <tbody>${draftRows}</tbody>
+            </table>
+          </div>
         </div>`
       : "";
 
@@ -320,26 +468,16 @@ function renderCatalog(state) {
     <section class="panel panel--catalog">
       ${renderPageHeader(
         "Catálogo de flujos",
-        "Borrador: usá Activar para pasar a Listo. Listo: usá Versionar para crear un borrador; al activarlo se numera la versión y la anterior queda deprecada.",
+        "Se listan los flujos en estado Listo. Desplegá ▸ para ver versiones deprecadas del mismo linaje. Los borradores sin publicar aparecen abajo.",
       )}
       ${catalogCallout}
-      ${emptyBody}
-      ${
-        rows
-          ? `<div class="catalog-toolbar-secondary">
-          <p class="catalog-toolbar-secondary__hint">Creá un flujo nuevo o abrí uno existente para editar (borrador) o versionar (listo).</p>
+      ${hasAnyFlow ? `<div class="catalog-toolbar-secondary">
+          <p class="catalog-toolbar-secondary__hint">Flujos listos para Gestión. Versioná para editar; las versiones anteriores quedan deprecadas bajo el árbol.</p>
           <button type="button" class="btn btn-primary" id="btn-new-flow-table" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Nuevo flujo</button>
-        </div>
-        <div class="table-wrap table-wrap--modern">
-        <table class="table-modern">
-          <thead>
-            <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`
-          : ""
-      }
+        </div>` : ""}
+      ${emptyBody}
+      ${listoTable}
+      ${draftSection}
     </section>`;
 }
 
@@ -557,6 +695,21 @@ function bindCatalog(mainEl, state, persist) {
         return;
       }
       attemptActivateFlow(mainEl, state, persist, btn.dataset.activateFlow, { returnToCatalog: true });
+    });
+  });
+
+  mainEl.querySelectorAll("[data-toggle-deprecados]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const lineageId = btn.dataset.toggleDeprecados;
+      if (!lineageId) return;
+      if (designerContext.catalogExpandedLineages.has(lineageId)) {
+        designerContext.catalogExpandedLineages.delete(lineageId);
+      } else {
+        designerContext.catalogExpandedLineages.add(lineageId);
+      }
+      renderDesigner(mainEl, state, persist);
     });
   });
 }
@@ -823,11 +976,7 @@ function renderFlowEditor(flow) {
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
     ${
       designerContext.readOnly
-        ? `<p class="flow-readonly-banner" role="status">Vista de solo lectura. ${
-            flow.status === "listo"
-              ? "Usá «Versionar» para editar en un borrador."
-              : "Esta versión está deprecada."
-          }</p>`
+        ? `<p class="flow-readonly-banner" role="status">Vista de solo lectura. ${escapeHtml(designerReadOnlyMessage(flow))}</p>`
         : flow.supersedesFlowId
           ? `<p class="flow-draft-banner" role="status">Borrador de nueva versión. Al confirmar, reemplazará la versión publicada anterior (quedará deprecada).</p>`
           : ""
@@ -841,7 +990,7 @@ function renderFlowEditor(flow) {
         <div class="palette-panel-scroll">
           ${renderUiCollapse("palette-activities", "Eventos y actividades", renderPaletteActivitiesBody(), false, "palette-section-collapse")}
           ${renderUiCollapse("palette-lines", "Líneas", renderPaletteLinesBody(), false, "palette-section-collapse")}
-          <p class="palette-hint">Expandí cada sección para ver elementos. Context pad: Task ▾ y Gateway ▾.</p>
+          <p class="palette-hint">Expandí cada sección para ver elementos. Conectá con el punto del borde derecho (arrastrar) o «Conectar» en el menú del nodo.</p>
         </div>
       </aside>
       <div class="canvas-wrap" id="canvas-wrap">
@@ -990,10 +1139,11 @@ function renderPaletteGatewaySubmenu() {
 
 function renderGatewayTypePickerHtml(selectedTypeId) {
   const current = selectedTypeId ?? DEFAULT_GATEWAY_TYPE;
+  const lock = designerContext.readOnly ? " disabled" : "";
   const rows = GATEWAY_TYPE_CATALOG.map(
     (entry) => `
     <label class="gateway-type-option ${entry.enabled ? "" : "gateway-type-option-future"}">
-      <input type="radio" name="gatewayType" value="${entry.id}" ${entry.id === current ? "checked" : ""} ${entry.enabled ? "" : "disabled"} />
+      <input type="radio" name="gatewayType" value="${entry.id}" ${entry.id === current ? "checked" : ""} ${entry.enabled && !designerContext.readOnly ? "" : "disabled"}${lock} />
       ${renderGatewayTypeIcon(entry.id)}
       <span>${escapeHtml(entry.label)}</span>
       ${entry.enabled ? "" : `<span class="future-badge">Futuro</span>`}
@@ -1116,13 +1266,40 @@ function clampFlowEventNode(flow, node) {
   }
 }
 
+function removeLaneFromFlow(flow, laneId) {
+  if (flow.lanes.length <= 1) {
+    toast("Debe quedar al menos un lane.");
+    return false;
+  }
+  const fallback = flow.lanes.find((l) => l.id !== laneId)?.id;
+  flow.lanes = flow.lanes.filter((l) => l.id !== laneId);
+  for (const node of flow.nodes) {
+    if (node.laneId === laneId) node.laneId = fallback;
+  }
+  return true;
+}
+
+function deleteFlowTransitionById(flow, transitionId) {
+  const len = flow.transitions.length;
+  flow.transitions = flow.transitions.filter((t) => t.id !== transitionId);
+  return flow.transitions.length < len;
+}
+
 function renderFlowPoolMarkup(flow) {
   const layout = getLaneLayout(flow);
+  const canRemoveLane = !designerContext.readOnly && flow.lanes.length > 1;
   const lanesHtml = layout.lanes
     .map(
       (lane) => `
     <div class="flow-lane" data-lane-id="${lane.id}" style="height:${lane.height}px">
-      <div class="flow-lane-title" title="Rol, grupo o perfil">${escapeHtml(lane.name)}</div>
+      <div class="flow-lane-title" title="Rol, grupo o perfil">
+        ${
+          canRemoveLane
+            ? `<button type="button" class="flow-lane-remove" data-remove-lane-canvas="${lane.id}" aria-label="Eliminar lane" title="Eliminar lane">×</button>`
+            : ""
+        }
+        <span class="flow-lane-title-text">${escapeHtml(lane.name)}</span>
+      </div>
       <div class="flow-lane-content" aria-hidden="true"></div>
     </div>`,
     )
@@ -1197,22 +1374,24 @@ function fitCanvasToView(mainEl, flow) {
 
 function renderFlowDiagramProps(flow) {
   ensureFlowDiagram(flow);
+  const ro = propsReadonlyAttrs();
   const lanesHtml = flow.lanes
     .map(
       (lane) => `
     <div class="lane-editor-row" data-lane-row="${lane.id}">
-      <input type="text" class="lane-name-input" data-lane-id="${lane.id}" value="${escapeHtml(lane.name)}" placeholder="Rol, grupo o perfil" aria-label="Nombre de lane" />
-      ${flow.lanes.length > 1 ? `<button type="button" class="btn btn-sm btn-danger" data-remove-lane="${lane.id}" aria-label="Quitar lane">×</button>` : ""}
+      <input type="text" class="lane-name-input" data-lane-id="${lane.id}" value="${escapeHtml(lane.name)}" placeholder="Rol, grupo o perfil" aria-label="Nombre de lane"${ro} />
+      ${!designerContext.readOnly && flow.lanes.length > 1 ? `<button type="button" class="btn btn-sm btn-danger" data-remove-lane="${lane.id}" aria-label="Quitar lane">×</button>` : ""}
     </div>`,
     )
     .join("");
   const body = `
     <p class="props-intro">El <strong>pool</strong> muestra el nombre del flujo. Cada <strong>lane</strong> representa un rol, grupo o perfil.</p>
+    ${designerContext.readOnly ? `<p class="props-intro props-intro--readonly">${escapeHtml(designerReadOnlyMessage(flow))}</p>` : ""}
     <div class="form-row"><label>Pool (nombre del flujo)</label><input id="flow-pool-name" value="${escapeHtml(flow.name)}" readonly title="Editá el nombre en Metadatos" /></div>
     <h4 class="props-subtitle">Lanes</h4>
     ${lanesHtml}
-    <button type="button" class="btn btn-sm" id="btn-add-lane" style="margin-top:0.5rem">+ Agregar lane</button>`;
-  return `<div class="flow-diagram-props">${renderPropsCollapse("pool-lanes", "Pool y lanes", body, false)}</div>`;
+    ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-sm" id="btn-add-lane" style="margin-top:0.5rem">+ Agregar lane</button>`}`;
+  return `<div class="flow-diagram-props">${renderPropsCollapse("pool-lanes", "Pool y lanes", body, true)}</div>`;
 }
 
 function contextPadTaskMenuKey(nodeId, condition) {
@@ -1251,6 +1430,12 @@ function getContextPadAppendActions(node) {
       return [
         taskMenu("siempre"),
         gatewayMenu("siempre"),
+        append(NODE_KINDS.FIN, "siempre", "icon-end", "End Event"),
+      ];
+    case NODE_KINDS.AGENTE_IA:
+      return [
+        gatewayMenu("siempre"),
+        taskMenu("siempre"),
         append(NODE_KINDS.FIN, "siempre", "icon-end", "End Event"),
       ];
     case NODE_KINDS.GATEWAY:
@@ -1417,12 +1602,61 @@ function deleteFlowNode(flow, nodeId) {
   return true;
 }
 
+function renderFlowPorts(node, isSelected) {
+  if (!isSelected || designerContext.readOnly || node.kind === NODE_KINDS.FIN) return "";
+
+  if (node.kind === NODE_KINDS.GATEWAY) {
+    return `
+      <button type="button" class="flow-port flow-port-accept" data-condition="aceptar" style="top:30%" title="Arrastrá para conectar (aceptar)" aria-label="Conectar rama aceptar"></button>
+      <button type="button" class="flow-port flow-port-reject" data-condition="rechazar" style="top:70%" title="Arrastrá para conectar (rechazar)" aria-label="Conectar rama rechazar"></button>`;
+  }
+
+  return `<button type="button" class="flow-port" data-condition="siempre" title="Arrastrá para conectar" aria-label="Conectar"></button>`;
+}
+
+function renderContextPadConnectButtons(node) {
+  if (designerContext.readOnly || node.kind === NODE_KINDS.FIN) return "";
+
+  if (node.kind === NODE_KINDS.GATEWAY) {
+    return `
+      <button type="button" class="context-pad-btn context-pad-connect" data-context-connect data-connect-condition="aceptar" title="Conectar con elemento existente (aceptar)">
+        ${contextPadLabel("Conectar A")}
+      </button>
+      <button type="button" class="context-pad-btn context-pad-connect" data-context-connect data-connect-condition="rechazar" title="Conectar con elemento existente (rechazar)">
+        ${contextPadLabel("Conectar R")}
+      </button>`;
+  }
+
+  return `
+      <button type="button" class="context-pad-btn context-pad-connect" data-context-connect data-connect-condition="siempre" title="Conectar con un elemento existente en el lienzo">
+        ${contextPadLabel("Conectar")}
+      </button>`;
+}
+
+function renderNodeInteractionChrome(node, isSelected) {
+  if (!isSelected) return "";
+  return `${renderFlowPorts(node, isSelected)}${renderContextPad(node, isSelected)}`;
+}
+
 function renderContextPad(node, isSelected) {
   if (!isSelected) return "";
+
+  const selectionHandles = `
+    <div class="selection-handles" aria-hidden="true">
+      <span class="selection-handle selection-handle-nw"></span>
+      <span class="selection-handle selection-handle-ne"></span>
+      <span class="selection-handle selection-handle-sw"></span>
+      <span class="selection-handle selection-handle-se"></span>
+    </div>`;
+
+  if (designerContext.readOnly) {
+    return selectionHandles;
+  }
 
   const isEnd = node.kind === NODE_KINDS.FIN;
   const actions = isEnd ? [] : getContextPadAppendActions(node);
   const appendBtns = actions.map((entry) => renderContextPadAppendEntry(node, entry)).join("");
+  const connectBtns = renderContextPadConnectButtons(node);
 
   const deleteBtn =
     node.kind === NODE_KINDS.INICIO
@@ -1433,14 +1667,10 @@ function renderContextPad(node, isSelected) {
     </button>`;
 
   return `
-    <div class="selection-handles" aria-hidden="true">
-      <span class="selection-handle selection-handle-nw"></span>
-      <span class="selection-handle selection-handle-ne"></span>
-      <span class="selection-handle selection-handle-sw"></span>
-      <span class="selection-handle selection-handle-se"></span>
-    </div>
+    ${selectionHandles}
     <div class="context-pad" role="toolbar" aria-label="Acciones rápidas BPMN">
       ${appendBtns}
+      ${connectBtns}
       ${deleteBtn}
     </div>`;
 }
@@ -1548,7 +1778,7 @@ function renderNode(node, isSelected) {
          title="${escapeHtml(gwTitle)}"
          style="left:${node.x}px;top:${node.y}px">
       ${nodeBody}
-      ${renderContextPad(node, isSelected)}
+      ${renderNodeInteractionChrome(node, isSelected)}
     </div>`;
 }
 
@@ -1606,17 +1836,20 @@ function tryAddTransition(flow, fromId, toId, lineType, condition) {
 }
 
 function renderNodeProps(flow, node) {
+  const ro = propsReadonlyAttrs();
+  const roCheck = designerContext.readOnly || node.kind === "inicio" ? " disabled" : "";
   const paramsHtml = flow.inputParams
     .map(
       (p) => `
       <label style="display:flex;gap:0.35rem;align-items:center;font-size:0.85rem;margin-bottom:0.35rem">
-        <input type="checkbox" data-used-param="${p.id}" ${(node.usedParamIds ?? []).includes(p.id) ? "checked" : ""} ${node.kind === "inicio" ? "disabled" : ""} />
+        <input type="checkbox" data-used-param="${p.id}" ${(node.usedParamIds ?? []).includes(p.id) ? "checked" : ""}${roCheck} />
         ${escapeHtml(p.label)} (${escapeHtml(p.key)})
       </label>`,
     )
     .join("") || "<p style='font-size:0.8rem;color:var(--muted)'>Sin parámetros. Defínalos en el nodo Inicio.</p>";
 
   const transitions = flow.transitions.filter((t) => t.fromId === node.id);
+  const incomingTransitions = flow.transitions.filter((t) => t.toId === node.id);
   const targets = flow.nodes.filter((n) => n.id !== node.id);
 
   let connectConditions = "";
@@ -1631,15 +1864,15 @@ function renderNodeProps(flow, node) {
   }
 
   const screenBtn =
-    node.kind === NODE_KINDS.MANUAL
+    node.kind === NODE_KINDS.MANUAL && !designerContext.readOnly
       ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-screen" style="width:100%;margin-top:0.5rem">Diseñar pantalla (estudio)</button>`
       : "";
   const automationBtn =
-    node.kind === NODE_KINDS.AUTOMATICA
+    node.kind === NODE_KINDS.AUTOMATICA && !designerContext.readOnly
       ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-automation" style="width:100%;margin-top:0.5rem">Diseñar automatización</button>`
       : "";
   const agenteIABtn =
-    node.kind === NODE_KINDS.AGENTE_IA
+    node.kind === NODE_KINDS.AGENTE_IA && !designerContext.readOnly
       ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-agente-ia" style="width:100%;margin-top:0.5rem">Configurar Agente IA</button>`
       : "";
 
@@ -1657,9 +1890,10 @@ function renderNodeProps(flow, node) {
       : "";
 
   const generalBody = `
-      <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(node.name)}" required /></div>
-      <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(node.description || "")}</textarea></div>
-      <div class="form-row"><label>Lane (rol / perfil)</label><select name="laneId">${laneOptions}</select></div>
+      ${designerContext.readOnly ? `<p class="props-intro props-intro--readonly">${escapeHtml(designerReadOnlyMessage(flow))}</p>` : ""}
+      <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(node.name)}" required${ro} /></div>
+      <div class="form-row"><label>Descripción</label><textarea name="description"${ro}>${escapeHtml(node.description || "")}</textarea></div>
+      <div class="form-row"><label>Lane (rol / perfil)</label><select name="laneId"${ro}>${laneOptions}</select></div>
       ${eventPoolHint}
       ${screenBtn}
       ${automationBtn}
@@ -1678,26 +1912,38 @@ function renderNodeProps(flow, node) {
           "flow-params",
           "Parámetros de entrada del flujo",
           `<div id="input-params-list">${renderInputParamsList(flow)}</div>
-      <button type="button" class="btn btn-sm" id="btn-add-param">+ Parámetro</button>`,
+      ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-sm" id="btn-add-param">+ Parámetro</button>`}`,
           false,
         )
       : "";
 
+  const connectionListItem = (t, peerId, arrow) => {
+    const peer = flow.nodes.find((n) => n.id === peerId);
+    const lt = t.lineType ?? LINE_TYPES.SEQUENCE;
+    const badge = lineTypeLabel(lt);
+    const cond = t.condition ? ` · ${t.condition}` : "";
+    const delBtn = designerContext.readOnly
+      ? ""
+      : ` <button type="button" class="btn btn-sm btn-danger" data-del-tr="${t.id}">×</button>`;
+    return `<li><span class="line-badge line-badge-${lt}">${badge}</span>${cond} ${arrow} ${escapeHtml(peer?.name ?? peerId)}${delBtn}</li>`;
+  };
+
   const connectionsList = `
         <ul class="props-connection-list">
           ${transitions
-            .map((t) => {
-              const to = flow.nodes.find((n) => n.id === t.toId);
-              const lt = t.lineType ?? LINE_TYPES.SEQUENCE;
-              const badge = lineTypeLabel(lt);
-              const cond = t.condition ? ` · ${t.condition}` : "";
-              return `<li><span class="line-badge line-badge-${lt}">${badge}</span>${cond} → ${escapeHtml(to?.name ?? t.toId)} <button type="button" class="btn btn-sm btn-danger" data-del-tr="${t.id}">×</button></li>`;
-            })
+            .map((t) => connectionListItem(t, t.toId, "→"))
+            .join("") || "<li class='props-empty'>Ninguna</li>"}
+        </ul>`;
+
+  const incomingList = `
+        <ul class="props-connection-list">
+          ${incomingTransitions
+            .map((t) => connectionListItem(t, t.fromId, "←"))
             .join("") || "<li class='props-empty'>Ninguna</li>"}
         </ul>`;
 
   const connectionsForm =
-    node.kind === NODE_KINDS.FIN
+    node.kind === NODE_KINDS.FIN || designerContext.readOnly
       ? ""
       : `
         <div class="form-row" style="margin-top:0.5rem">
@@ -1728,6 +1974,13 @@ function renderNodeProps(flow, node) {
     false,
   );
 
+  const incomingSection = renderPropsCollapse(
+    "connections-in",
+    "Conexiones entrantes",
+    incomingList,
+    incomingTransitions.length > 0,
+  );
+
   return `
     <form id="node-props-form" class="form-grid props-form">
       ${renderPropsCollapse("general", "General", generalBody, false)}
@@ -1743,8 +1996,9 @@ function renderNodeProps(flow, node) {
       }
       ${inputDataSection}
       ${flowParamsSection}
+      ${incomingSection}
       ${connectionsSection}
-      <button type="button" class="btn btn-danger btn-sm props-delete-node" id="btn-delete-node">Eliminar nodo</button>
+      ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-danger btn-sm props-delete-node" id="btn-delete-node">Eliminar nodo</button>`}
     </form>`;
 }
 
@@ -1754,7 +2008,7 @@ function renderInputParamsList(flow) {
       (p) => `
     <div class="chip-list" style="margin-bottom:0.5rem">
       <span class="chip">${escapeHtml(p.label)} · ${escapeHtml(p.type)} ${p.required ? "*" : ""}
-        <button type="button" data-del-param="${p.id}" title="Eliminar">×</button>
+        ${designerContext.readOnly ? "" : `<button type="button" data-del-param="${p.id}" title="Eliminar">×</button>`}
       </span>
     </div>`,
     )
@@ -2055,6 +2309,10 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
 
   mainEl.querySelectorAll("[data-tool]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (designerContext.readOnly && btn.dataset.tool !== "select") {
+        toast(designerReadOnlyMessage(flow));
+        return;
+      }
       designerContext.tool = btn.dataset.tool;
       designerContext.connectClickFrom = null;
       if (btn.dataset.tool === "select") {
@@ -2072,6 +2330,8 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
   bindCanvasViewport(mainEl, flow, state, persist);
   bindCanvasPan(mainEl, flow, state, persist);
   drawConnections(mainEl, flow);
+  bindConnectionInteractions(mainEl, flow, state, saveFlow);
+  bindLaneChrome(mainEl, flow, state, saveFlow);
   applyCanvasViewTransform(mainEl);
 
   if (designerContext._viewFitForFlowId !== flow.id) {
@@ -2183,7 +2443,14 @@ function bindCanvasPan(mainEl, flow, state, persist) {
   canvas.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     if (designerContext.tool !== "select") return;
-    if (e.target.closest(".flow-node") || e.target.closest(".context-pad")) return;
+    if (
+      e.target.closest(".flow-node") ||
+      e.target.closest(".context-pad") ||
+      e.target.closest(".flow-connection-hit") ||
+      e.target.closest(".flow-lane-remove")
+    ) {
+      return;
+    }
 
     e.preventDefault();
     const startX = e.clientX;
@@ -2206,6 +2473,7 @@ function bindCanvasPan(mainEl, flow, state, persist) {
       window.removeEventListener("mouseup", onUp);
       if (!moved) {
         designerContext.selectedNodeId = null;
+        designerContext.connectClickFrom = null;
         designerContext.contextPadOpenTaskMenu = null;
         designerContext.contextPadOpenGatewayMenu = null;
         renderDesigner(mainEl, state, persist);
@@ -2218,7 +2486,13 @@ function bindCanvasPan(mainEl, flow, state, persist) {
 }
 
 function bindFlowDiagramProps(mainEl, flow, state, persist) {
+  if (designerContext.readOnly) return;
+
   mainEl.querySelector("#btn-add-lane")?.addEventListener("click", () => {
+    if (designerContext.readOnly) {
+      toast("Este flujo no es editable.");
+      return;
+    }
     const lane = { id: createId("lane"), name: "Nuevo rol", height: 180 };
     flow.lanes.push(lane);
     persist();
@@ -2237,16 +2511,56 @@ function bindFlowDiagramProps(mainEl, flow, state, persist) {
 
   mainEl.querySelectorAll("[data-remove-lane]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const laneId = btn.dataset.removeLane;
-      if (flow.lanes.length <= 1) return;
-      const fallback = flow.lanes.find((l) => l.id !== laneId)?.id;
-      flow.lanes = flow.lanes.filter((l) => l.id !== laneId);
-      for (const node of flow.nodes) {
-        if (node.laneId === laneId) node.laneId = fallback;
+      if (designerContext.readOnly) {
+        toast("Este flujo no es editable.");
+        return;
       }
+      const laneId = btn.dataset.removeLane;
+      if (!removeLaneFromFlow(flow, laneId)) return;
       persist();
       renderDesigner(mainEl, state, persist);
     });
+  });
+}
+
+function bindLaneChrome(mainEl, flow, state, persist) {
+  mainEl.querySelectorAll("[data-remove-lane-canvas]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (designerContext.readOnly) {
+        toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
+        return;
+      }
+      const laneId = btn.dataset.removeLaneCanvas;
+      if (!laneId) return;
+      if (!removeLaneFromFlow(flow, laneId)) return;
+      persist();
+      renderDesigner(mainEl, state, persist);
+      toast("Lane eliminado.");
+    });
+  });
+}
+
+function bindConnectionInteractions(mainEl, flow, state, persist) {
+  const canvas = mainEl.querySelector("#flow-canvas");
+  if (!canvas) return;
+
+  canvas.addEventListener("click", (e) => {
+    const hit = e.target.closest(".flow-connection-hit");
+    if (!hit) return;
+    if (designerContext.tool !== "select") return;
+    e.stopPropagation();
+    if (designerContext.readOnly) {
+      toast("Este flujo no es editable.");
+      return;
+    }
+    const group = hit.closest(".flow-connection-group");
+    const transitionId = group?.dataset.transitionId;
+    if (!transitionId) return;
+    if (!deleteFlowTransitionById(flow, transitionId)) return;
+    persist();
+    renderDesigner(mainEl, state, persist);
+    toast("Conexión eliminada.");
   });
 }
 
@@ -2283,6 +2597,23 @@ function bindNodeDrag(mainEl, flow, persist, state) {
         if (e.target.closest(".flow-port") || e.target.closest(".context-pad")) return;
         const nodeId = el.dataset.nodeId;
 
+        if (designerContext.connectClickFrom && designerContext.connectClickFrom.fromId !== nodeId) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (designerContext.readOnly) {
+            toast("Este flujo no es editable.");
+            return;
+          }
+          const { fromId, condition } = designerContext.connectClickFrom;
+          const lineType = designerContext.activeLineType ?? LINE_TYPES.SEQUENCE;
+          if (tryAddTransition(flow, fromId, nodeId, lineType, condition ?? null)) {
+            persist();
+            designerContext.connectClickFrom = null;
+            renderDesigner(mainEl, state, persist);
+          }
+          return;
+        }
+
         if (designerContext.tool !== "select") {
           e.preventDefault();
           e.stopPropagation();
@@ -2304,7 +2635,16 @@ function bindNodeDrag(mainEl, flow, persist, state) {
               renderDesigner(mainEl, state, persist);
             }
           } else {
-            designerContext.connectClickFrom = { fromId: nodeId, condition: null };
+            const fromNode = flow.nodes.find((n) => n.id === nodeId);
+            if (
+              fromNode?.kind === NODE_KINDS.GATEWAY &&
+              lineType === LINE_TYPES.SEQUENCE
+            ) {
+              toast("Desde el gateway usá los puertos A/R o «Conectar A / R» en el menú.");
+              return;
+            }
+            const cond = lineType === LINE_TYPES.SEQUENCE ? "siempre" : null;
+            designerContext.connectClickFrom = { fromId: nodeId, condition: cond };
             designerContext.selectedNodeId = nodeId;
             toast("Seleccioná el nodo destino.");
             renderDesigner(mainEl, state, persist);
@@ -2381,11 +2721,11 @@ function bindNodeDrag(mainEl, flow, persist, state) {
 
 function refreshNodeChrome(canvas, el, node) {
   if (!canvas) return;
-  canvas.querySelectorAll(".context-pad, .selection-handles").forEach((p) => p.remove());
+  canvas.querySelectorAll(".context-pad, .selection-handles, .flow-port").forEach((p) => p.remove());
   canvas.querySelectorAll(".flow-node").forEach((n) => n.classList.remove("is-selected"));
   if (!el || !node) return;
   el.classList.add("is-selected");
-  const html = renderContextPad(node, true);
+  const html = renderNodeInteractionChrome(node, true);
   if (html) el.insertAdjacentHTML("beforeend", html);
 }
 
@@ -2431,6 +2771,33 @@ function bindContextPad(mainEl, flow, state, persist) {
       designerContext.contextPadOpenGatewayMenu = null;
       syncContextPadTaskMenuDom(canvas);
       syncContextPadGatewayMenuDom(canvas);
+      return;
+    }
+
+    const connectBtn = e.target.closest("[data-context-connect]");
+    if (connectBtn) {
+      e.stopPropagation();
+      e.preventDefault();
+      if (designerContext.readOnly) {
+        toast("Este flujo no es editable.");
+        return;
+      }
+      const nodeEl = connectBtn.closest(".flow-node");
+      const fromId = nodeEl?.dataset.nodeId;
+      if (!fromId) return;
+      const fromNode = flow.nodes.find((n) => n.id === fromId);
+      if (!fromNode || fromNode.kind === NODE_KINDS.FIN) return;
+      const branch = connectBtn.dataset.connectCondition || "siempre";
+      const lineType = designerContext.activeLineType;
+      let condition = null;
+      if (lineType === LINE_TYPES.SEQUENCE) {
+        condition = branch === "siempre" ? "siempre" : branch;
+      }
+      designerContext.connectClickFrom = { fromId, condition };
+      designerContext.selectedNodeId = fromId;
+      closeContextPadSubmenus(canvas);
+      toast("Seleccioná el nodo destino en el lienzo.");
+      renderDesigner(mainEl, state, persist);
       return;
     }
 
@@ -2551,7 +2918,7 @@ function bindLinkDrag(mainEl, flow, persist, state) {
     if (!drag) return;
     const svg = mainEl.querySelector("#connections-svg");
     const from = flow.nodes.find((n) => n.id === drag.fromId);
-    if (!from || !svg || !wrap) return;
+    if (!from || !svg) return;
     const a = nodePortOut(from, drag.condition);
     const pt = clientToCanvas(mainEl, e.clientX, e.clientY);
     const x2 = pt.x;
@@ -2578,9 +2945,8 @@ function bindLinkDrag(mainEl, flow, persist, state) {
   window.addEventListener("mouseup", onUp, { signal });
 }
 
-function buildLineSvg(x1, y1, x2, y2, lineType, isPreview) {
+function connectionLineStyle(lineType) {
   const lt = lineType ?? LINE_TYPES.SEQUENCE;
-  const idAttr = isPreview ? ' id="link-preview"' : "";
   let stroke = "#38bdf8";
   let dash = "";
   let markerStart = "";
@@ -2595,8 +2961,27 @@ function buildLineSvg(x1, y1, x2, y2, lineType, isPreview) {
     dash = ' stroke-dasharray="4 3"';
     markerEnd = "url(#arrow-assoc)";
   }
+  return { stroke, dash, markerStart, markerEnd };
+}
+
+function buildLineSvg(x1, y1, x2, y2, lineType, isPreview) {
+  const { stroke, dash, markerStart, markerEnd } = connectionLineStyle(lineType);
+  const idAttr = isPreview ? ' id="link-preview"' : "";
   const op = isPreview ? ' opacity="0.9"' : "";
   return `<line${idAttr} x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="2"${dash}${markerStart} marker-end="${markerEnd}"${op} />`;
+}
+
+function buildConnectionSvgGroup(x1, y1, x2, y2, lineType, transitionId) {
+  const { stroke, dash, markerStart, markerEnd } = connectionLineStyle(lineType);
+  const hit =
+    !designerContext.readOnly && transitionId
+      ? `<line class="flow-connection-hit" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="14" pointer-events="stroke" />`
+      : "";
+  const title =
+    !designerContext.readOnly && transitionId
+      ? `<title>Clic para eliminar conexión</title>`
+      : "";
+  return `<g class="flow-connection-group" data-transition-id="${transitionId}">${title}${hit}<line class="flow-connection-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="2"${dash}${markerStart} marker-end="${markerEnd}" pointer-events="none" /></g>`;
 }
 
 function drawConnections(mainEl, flow) {
@@ -2619,7 +3004,7 @@ function drawConnections(mainEl, flow) {
         const color = t.condition === "aceptar" ? "#4ade80" : "#f87171";
         label = `<text x="${mx}" y="${my - 6}" fill="${color}" font-size="11" text-anchor="middle">${escapeHtml(t.condition)}</text>`;
       }
-      return `${buildLineSvg(a.x, a.y, b.x, b.y, lt, false)}${label}`;
+      return `${buildConnectionSvgGroup(a.x, a.y, b.x, b.y, lt, t.id)}${label}`;
     })
     .join("");
 
@@ -2642,6 +3027,8 @@ function drawConnections(mainEl, flow) {
 }
 
 function bindNodeProps(mainEl, flow, node, state, persist) {
+  if (designerContext.readOnly) return;
+
   const form = mainEl.querySelector("#node-props-form");
   form?.querySelector('[name="name"]')?.addEventListener("change", (e) => {
     node.name = e.target.value;
@@ -2727,7 +3114,11 @@ function bindNodeProps(mainEl, flow, node, state, persist) {
 
   mainEl.querySelectorAll("[data-del-tr]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      flow.transitions = flow.transitions.filter((t) => t.id !== btn.dataset.delTr);
+      if (designerContext.readOnly) {
+        toast("Este flujo no es editable.");
+        return;
+      }
+      if (!deleteFlowTransitionById(flow, btn.dataset.delTr)) return;
       persist();
       renderDesigner(mainEl, state, persist);
     });
