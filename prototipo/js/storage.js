@@ -1,5 +1,5 @@
 import { normalizeFlowTransitions } from "./validation.js";
-import { normalizeFlowContracts } from "./contracts.js";
+import { migrateLegacyFlowInputToStart, normalizeFlowContracts } from "./contracts.js";
 import { normalizeFlowMeta } from "./flow-lifecycle.js";
 
 const STORAGE_KEY = "gestor_flujos_prototipo_v3";
@@ -15,6 +15,7 @@ function normalizeLoadedState(parsed) {
   for (const flow of flows) {
     normalizeFlowMeta(flow);
     normalizeFlowTransitions(flow);
+    migrateLegacyFlowInputToStart(flow);
     normalizeFlowContracts(flow);
   }
   const instances = Array.isArray(parsed.instances) ? parsed.instances : [];
@@ -22,6 +23,7 @@ function normalizeLoadedState(parsed) {
     if (!inst.context) inst.context = {};
     if (inst.flowSnapshot) {
       normalizeFlowTransitions(inst.flowSnapshot);
+      migrateLegacyFlowInputToStart(inst.flowSnapshot);
       normalizeFlowContracts(inst.flowSnapshot);
     }
   }

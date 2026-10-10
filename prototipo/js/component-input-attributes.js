@@ -60,6 +60,10 @@ export function normalizeComponentAttribute(attr) {
           required: !!o?.required,
         }))
       : [];
+  const orderRaw = attr.order;
+  const order =
+    typeof orderRaw === "number" && Number.isFinite(orderRaw) ? Math.floor(orderRaw) : undefined;
+
   return {
     id: attr.id ?? createId("attr"),
     key: String(attr.key ?? "").trim(),
@@ -68,7 +72,31 @@ export function normalizeComponentAttribute(attr) {
     cardinality,
     required: !!attr.required,
     listOptions,
+    order,
   };
+}
+
+/**
+ * @param {object[]} list
+ */
+export function reindexAttributeOrders(list) {
+  if (!Array.isArray(list)) return;
+  list.forEach((attr, index) => {
+    attr.order = index;
+  });
+}
+
+/**
+ * @param {object[]} list
+ * @returns {object[]}
+ */
+export function sortAttributesByOrder(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const ao = typeof a.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
+    const bo = typeof b.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
+    return ao - bo;
+  });
 }
 
 /**
@@ -77,7 +105,14 @@ export function normalizeComponentAttribute(attr) {
  */
 export function normalizeAttributeList(list) {
   if (!Array.isArray(list)) return [];
-  return list.map((a) => normalizeComponentAttribute(a));
+  const normalized = list.map((a, index) => {
+    const item = normalizeComponentAttribute(a);
+    if (item.order === undefined) item.order = index;
+    return item;
+  });
+  const sorted = sortAttributesByOrder(normalized);
+  reindexAttributeOrders(sorted);
+  return sorted;
 }
 
 /**
@@ -181,5 +216,6 @@ export function summarizeAttributes(attrs) {
     required: a.required,
     dataType: a.dataType,
     optionCount: a.listOptions.length,
+    order: a.order,
   }));
 }

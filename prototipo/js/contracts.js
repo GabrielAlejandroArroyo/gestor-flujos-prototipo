@@ -4,6 +4,7 @@
 
 import { createId } from "./ids.js";
 import {
+  cloneAttributeList,
   ensureNodeComponentAttributes,
   normalizeComponentAttribute,
   validateNodeComponentAttributes,
@@ -28,6 +29,86 @@ export const MAPPING_SOURCES = {
 const RESERVED_CONTEXT_KEYS = new Set(["__proto__", "constructor"]);
 
 /**
+ * Evita arrays `inputAttributes` / `outputAttributes` compartidos entre nodos (datos legacy).
+ *
+ * @param {object} flow
+ */
+export function ensureFlowNodeAttributes(flow) {
+  if (!flow?.nodes) return;
+  const seenInput = new Set();
+  const seenOutput = new Set();
+  for (const node of flow.nodes) {
+    if (Array.isArray(node.inputAttributes)) {
+      if (seenInput.has(node.inputAttributes)) {
+        node.inputAttributes = cloneAttributeList(node.inputAttributes);
+      } else {
+        seenInput.add(node.inputAttributes);
+      }
+    }
+    if (Array.isArray(node.outputAttributes)) {
+      if (seenOutput.has(node.outputAttributes)) {
+        node.outputAttributes = cloneAttributeList(node.outputAttributes);
+      } else {
+        seenOutput.add(node.outputAttributes);
+      }
+    }
+    ensureNodeComponentAttributes(node);
+  }
+}
+
+/**
+ * Migra parámetros legacy del flujo al Start si este no tiene atributos (solo al cargar persistencia).
+ *
+ * @param {object} flow
+ */
+export function migrateLegacyFlowInputToStart(flow) {
+  if (!flow?.nodes) return;
+  if (!Array.isArray(flow.inputParams)) flow.inputParams = [];
+  if (!flow.dataDefinitions) {
+    flow.dataDefinitions = flow.inputParams.map((p) => ({
+      id: p.id,
+      key: p.key,
+      label: p.label,
+      type: p.type ?? DATA_TYPES.TEXTO,
+      required: !!p.required,
+      scope: "flow_input",
+      cardinality: p.cardinality ?? INPUT_CARDINALITY.UNICO,
+      listOptions: Array.isArray(p.listOptions) ? p.listOptions : [],
+    }));
+  }
+  const startNode = flow.nodes.find((n) => n.kind === "inicio");
+  if (!startNode) return;
+  ensureNodeComponentAttributes(startNode);
+  if (!startNode.inputAttributes.length && (flow.dataDefinitions?.length ?? 0) > 0) {
+    startNode.inputAttributes = flow.dataDefinitions.map((d) =>
+      normalizeComponentAttribute({
+        id: d.id,
+        key: d.key,
+        label: d.label,
+        dataType: d.type,
+        cardinality: d.cardinality ?? INPUT_CARDINALITY.UNICO,
+        required: d.required,
+        listOptions: d.listOptions ?? [],
+      }),
+    );
+  }
+}
+
+/**
+ * Sincroniza contrato de instancia (dataDefinitions / inputParams) desde el Start Event.
+ *
+ * @param {object} flow
+ */
+export function syncFlowInputContractFromStart(flow) {
+  if (!flow?.nodes) return;
+  const startNode = flow.nodes.find((n) => n.kind === "inicio");
+  if (!startNode) return;
+  ensureNodeComponentAttributes(startNode);
+  flow.dataDefinitions = startNode.inputAttributes.map((attr) => attributeToFlowDefinition(attr));
+  syncInputParamsFromDefinitions(flow);
+}
+
+/**
  * @param {object} flow
  */
 export function normalizeFlowContracts(flow) {
@@ -46,30 +127,9 @@ export function normalizeFlowContracts(flow) {
     }));
   }
 
-  if (flow.nodes) {
-    for (const node of flow.nodes) {
-      ensureNodeComponentAttributes(node);
-    }
-    const startNode = flow.nodes.find((n) => n.kind === "inicio");
-    if (startNode) {
-      if (!startNode.inputAttributes.length && (flow.dataDefinitions?.length ?? 0) > 0) {
-        startNode.inputAttributes = flow.dataDefinitions.map((d) =>
-          normalizeComponentAttribute({
-            id: d.id,
-            key: d.key,
-            label: d.label,
-            dataType: d.type,
-            cardinality: d.cardinality ?? INPUT_CARDINALITY.UNICO,
-            required: d.required,
-            listOptions: d.listOptions ?? [],
-          }),
-        );
-      }
-      flow.dataDefinitions = startNode.inputAttributes.map((attr) => attributeToFlowDefinition(attr));
-    }
-  }
+  ensureFlowNodeAttributes(flow);
+  syncFlowInputContractFromStart(flow);
 
-  syncInputParamsFromDefinitions(flow);
   if (!flow.nodes) return;
   for (const node of flow.nodes) {
     if (!node.inputMappings && (node.usedParamIds?.length ?? 0) > 0) {

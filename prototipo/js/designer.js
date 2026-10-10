@@ -27,7 +27,7 @@ import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 import { normalizeFlowContracts } from "./contracts.js";
 import { COMPONENTS_WITH_INPUT_ATTRIBUTES } from "./component-input-attributes.js";
 import {
-  openComponentAttributesModal,
+  mountComponentAttributesEditor,
   renderComponentAttributeChipsHtml,
 } from "./component-attributes-modal.js";
 import {
@@ -73,7 +73,56 @@ let designerContext = {
   catalogExpandedLineages: new Set(),
   catalogExpandedActivityFlows: new Set(),
   readOnly: false,
+  /** @type {{ flowId: string; nodeId: string; initialTab: string } | null} */
+  componentAttrsEditor: null,
 };
+
+export function exitComponentAttributesEditor() {
+  designerContext.componentAttrsEditor = null;
+}
+
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ * @param {() => void} persist
+ * @param {{ flowId: string; nodeId: string; initialTab?: string }} opts
+ */
+function enterComponentAttributesEditor(mainEl, state, persist, opts) {
+  designerContext.componentAttrsEditor = {
+    flowId: opts.flowId,
+    nodeId: opts.nodeId,
+    initialTab: opts.initialTab ?? "input",
+  };
+  renderDesigner(mainEl, state, persist);
+}
+
+function renderComponentAttributesHero(mainEl, state, persist) {
+  const ed = designerContext.componentAttrsEditor;
+  if (!ed) return false;
+  const flow = state.flows.find((f) => f.id === ed.flowId);
+  const node = flow?.nodes?.find((n) => n.id === ed.nodeId);
+  if (!flow || !node || !COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) {
+    exitComponentAttributesEditor();
+    return false;
+  }
+
+  const readOnly = !isFlowEditable(flow);
+  mountComponentAttributesEditor(mainEl, {
+    flow,
+    node,
+    kindLabel: componentKindLabel(node.kind),
+    readOnly,
+    initialTab: ed.initialTab,
+    onSaved: () => {
+      persist();
+    },
+    onClose: () => {
+      exitComponentAttributesEditor();
+      renderDesigner(mainEl, state, persist);
+    },
+  });
+  return true;
+}
 
 function renderFlowStatusBadge(flow) {
   const badgeClass = flowStatusBadgeClass(flow.status);
@@ -125,6 +174,7 @@ export function setDesignerCatalogView(view) {
  * @param {"flows"|"activities"} catalog
  */
 export function enterDesignerCatalog(catalog) {
+  exitComponentAttributesEditor();
   setDesignerCatalogView(catalog);
   designerContext.selectedFlowId = null;
   designerContext.selectedNodeId = null;
@@ -140,6 +190,10 @@ let activeCanvasViewport = null;
 let activeDesignerSideBind = null;
 
 export function renderDesigner(mainEl, state, persist) {
+  if (designerContext.componentAttrsEditor && renderComponentAttributesHero(mainEl, state, persist)) {
+    return;
+  }
+
   if (!designerContext.selectedFlowId && state.flows[0]) {
     designerContext.selectedFlowId = null;
   }
@@ -791,22 +845,9 @@ function bindActivityCatalog(mainEl, state, persist) {
         renderDesigner(mainEl, state, persist);
         return;
       }
-      const readOnly = !isFlowEditable(flow);
-      const openCanvas = () => {
-        designerContext.selectedFlowId = flowId;
-        designerContext.selectedNodeId = nodeId;
-        renderDesigner(mainEl, state, persist);
-      };
-      openComponentAttributesModal({
-        flow,
-        node,
-        kindLabel: componentKindLabel(node.kind),
-        readOnly,
-        onSaved: () => {
-          persist();
-          renderDesigner(mainEl, state, persist);
-        },
-        onOpenCanvas: openCanvas,
+      enterComponentAttributesEditor(mainEl, state, persist, {
+        flowId,
+        nodeId,
       });
     });
   });
@@ -2608,16 +2649,10 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
 function bindComponentAttributesEditor(mainEl, flow, node, state, persist) {
   if (!COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind)) return;
   const openEditor = (initialTab) => {
-    openComponentAttributesModal({
-      flow,
-      node,
-      kindLabel: componentKindLabel(node.kind),
-      readOnly: designerContext.readOnly,
+    enterComponentAttributesEditor(mainEl, state, persist, {
+      flowId: flow.id,
+      nodeId: node.id,
       initialTab,
-      onSaved: () => {
-        persist();
-        renderDesigner(mainEl, state, persist);
-      },
     });
   };
   mainEl.querySelector("#btn-edit-component-attrs")?.addEventListener("click", () => {
