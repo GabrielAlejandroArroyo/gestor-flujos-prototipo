@@ -41,7 +41,7 @@ cd "d:\gestor_flujos supabase"
 
 Detalle: [`scripts/README.md`](scripts/README.md).
 
-**Catálogos del diseñador:** los submenús «Catálogo de flujos» y «Catálogo de actividades» están completos en el **mock** (Pages o `:8765`). En **gestor-app** (`:3000`) el sidebar replica la misma navegación; las pantallas Next son placeholders hasta portar React Flow.
+**Catálogos del diseñador:** crear, editar y versionar flujos solo en el **mock** (Pages o `http://127.0.0.1:8765/index.html`). En **gestor-app** (`:3000`) el menú es igual pero las pantallas son placeholders hasta portar React Flow.
 
 **Solo prototipo (mock):**
 

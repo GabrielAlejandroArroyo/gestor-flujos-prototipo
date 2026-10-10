@@ -29,6 +29,11 @@ export function isDesignerEditorBlocked() {
   return isMobileDesignerContext() || isDesignerViewportTooSmall();
 }
 
+/** Catálogo (crear, listar, versionar): solo bloqueado en móvil, no por regla 800×600. */
+export function isCatalogActionsBlocked() {
+  return isMobileDesignerContext();
+}
+
 /** @returns {boolean} */
 export function isTabletDesignerContext() {
   if (typeof window === "undefined") return false;
@@ -82,10 +87,13 @@ export function designerTabletWarnMessage() {
 
 /** @returns {string} */
 export function designerCatalogCalloutHtml() {
-  const tier = getDesignerViewportTier();
-  if (tier === "blocked") {
+  if (isCatalogActionsBlocked()) {
     const { body } = designerBlockedMessage();
     return `<div class="catalog-viewport-warning catalog-viewport-warning--blocked" role="alert">${body}</div>`;
+  }
+  const tier = getDesignerViewportTier();
+  if (tier === "blocked") {
+    return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">Podés crear y gestionar flujos desde acá. El lienzo BPMN requiere una ventana mayor a 800×600 píxeles.</div>`;
   }
   if (tier === "critical") {
     return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">${designerCriticalMessage()}</div>`;

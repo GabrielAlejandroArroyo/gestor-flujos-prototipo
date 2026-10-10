@@ -1034,6 +1034,9 @@
   function isDesignerEditorBlocked() {
     return isMobileDesignerContext() || isDesignerViewportTooSmall();
   }
+  function isCatalogActionsBlocked() {
+    return isMobileDesignerContext();
+  }
   function isTabletDesignerContext() {
     if (typeof window === "undefined") return false;
     if (isMobileDesignerContext()) return false;
@@ -1069,10 +1072,13 @@
     return "Est\xE1s en tablet (o pantalla t\xE1ctil grande): pod\xE9s dise\xF1ar, pero es probable que tengas problemas de dise\xF1o y visualizaci\xF3n en el lienzo, los paneles y el zoom.";
   }
   function designerCatalogCalloutHtml() {
-    const tier = getDesignerViewportTier();
-    if (tier === "blocked") {
+    if (isCatalogActionsBlocked()) {
       const { body } = designerBlockedMessage();
       return `<div class="catalog-viewport-warning catalog-viewport-warning--blocked" role="alert">${body}</div>`;
+    }
+    const tier = getDesignerViewportTier();
+    if (tier === "blocked") {
+      return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">Pod\xE9s crear y gestionar flujos desde ac\xE1. El lienzo BPMN requiere una ventana mayor a 800\xD7600 p\xEDxeles.</div>`;
     }
     if (tier === "critical") {
       return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">${designerCriticalMessage()}</div>`;
@@ -1487,6 +1493,16 @@
       designerContext.catalogView = view;
     }
   }
+  function enterDesignerCatalog(catalog) {
+    setDesignerCatalogView(catalog);
+    designerContext.selectedFlowId = null;
+    designerContext.selectedNodeId = null;
+    designerContext.studioMode = "path";
+    designerContext.connectClickFrom = null;
+    designerContext.contextPadOpenTaskMenu = null;
+    designerContext.contextPadOpenGatewayMenu = null;
+    designerContext.readOnly = false;
+  }
   var activeLinkDrag = null;
   var activeCanvasViewport = null;
   var activeDesignerSideBind = null;
@@ -1556,9 +1572,7 @@
   function bindStudioShell(mainEl, flow, node, state, persist) {
     bindStudioTabs(mainEl, state, persist);
     mainEl.querySelector("#btn-back-catalog")?.addEventListener("click", () => {
-      designerContext.selectedFlowId = null;
-      designerContext.selectedNodeId = null;
-      designerContext.studioMode = "path";
+      enterDesignerCatalog("flows");
       renderDesigner(mainEl, state, persist);
     });
     mainEl.querySelector("#btn-flow-meta")?.addEventListener("click", () => {
@@ -1620,7 +1634,7 @@
     });
   }
   function renderCatalog(state) {
-    const editorBlocked = isDesignerEditorBlocked();
+    const catalogBlocked = isCatalogActionsBlocked();
     const catalogCallout = designerCatalogCalloutHtml();
     const rows = sortFlowsForCatalog(state.flows).map(
       (f) => `
@@ -1630,8 +1644,8 @@
       <td>${escapeHtml(formatFlowVersion(f))}</td>
       <td>${renderFlowStatusBadge(f)}</td>
       <td class="catalog-actions">
-        <button type="button" class="btn btn-sm" data-open-flow="${f.id}" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
-        ${f.status === "listo" ? `<button type="button" class="btn btn-sm" data-version-flow="${f.id}" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Versionar</button>` : ""}
+        <button type="button" class="btn btn-sm" data-open-flow="${f.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
+        ${f.status === "listo" ? `<button type="button" class="btn btn-sm" data-version-flow="${f.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Versionar</button>` : ""}
         ${f.status === "borrador" ? `<button type="button" class="btn btn-sm btn-danger" data-delete-flow="${f.id}" aria-label="Eliminar flujo ${escapeHtml(f.name)}">Eliminar</button>` : ""}
       </td>
     </tr>`
@@ -1639,19 +1653,23 @@
     const emptyBody = rows === "" ? `<div class="empty-state empty-state--rich">
           <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
           <strong>Sin flujos todav\xEDa</strong>
-          <p>Cre\xE1 tu primer flujo BPMN y marc\xE1lo como listo para instanciarlo en Gesti\xF3n.</p>
-          <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${editorBlocked ? "disabled" : ""}>Nuevo flujo</button>
+          <p>Cre\xE1 tu primer flujo BPMN en borrador y us\xE1 \xABConfirmar versi\xF3n\xBB en el lienzo para instanciarlo en Gesti\xF3n.</p>
+          <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${catalogBlocked ? "disabled" : ""}>Nuevo flujo</button>
         </div>` : "";
     return `
     <section class="panel panel--catalog">
       ${renderPageHeader(
       "Cat\xE1logo de flujos",
       "Los flujos nuevos quedan en borrador hasta que confirmes la versi\xF3n. Versionar un flujo listo crea un borrador; al confirmarlo se numera la versi\xF3n y la anterior queda deprecada.",
-      `<button type="button" class="btn btn-primary" id="btn-new-flow" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>`
+      `<button type="button" class="btn btn-primary" id="btn-new-flow" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>`
     )}
       ${catalogCallout}
       ${emptyBody}
-      ${rows ? `<div class="table-wrap table-wrap--modern">
+      ${rows ? `<div class="catalog-toolbar-secondary">
+          <p class="catalog-toolbar-secondary__hint">Cre\xE1 un flujo nuevo o abr\xED uno existente para editar (borrador) o versionar (listo).</p>
+          <button type="button" class="btn btn-primary" id="btn-new-flow-table" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>
+        </div>
+        <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
           <thead>
             <tr><th>Nombre</th><th>Tipo</th><th>Versi\xF3n</th><th>Estado</th><th>Acciones</th></tr>
@@ -1668,7 +1686,7 @@
     return kind;
   }
   function renderActivityCatalog(state) {
-    const editorBlocked = isDesignerEditorBlocked();
+    const catalogBlocked = isCatalogActionsBlocked();
     const catalogCallout = designerCatalogCalloutHtml();
     const entries = [];
     for (const flow of state.flows) {
@@ -1686,7 +1704,7 @@
       <td><span class="badge badge-listo">${escapeHtml(activityKindLabel(node.kind))}</span></td>
       <td>${escapeHtml(node.description || "\u2014")}</td>
       <td class="catalog-actions">
-        <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${editorBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
+        <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
       </td>
     </tr>`
     ).join("");
@@ -1720,7 +1738,7 @@
     });
     mainEl.querySelectorAll("[data-open-activity]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (btn.disabled || isDesignerEditorBlocked()) {
+        if (btn.disabled || isCatalogActionsBlocked()) {
           toast(designerBlockedMessage().body);
           return;
         }
@@ -1731,7 +1749,7 @@
     });
   }
   function openNewFlowModal(mainEl, state, persist) {
-    if (isDesignerEditorBlocked()) {
+    if (isCatalogActionsBlocked()) {
       toast(designerBlockedMessage().body);
       return;
     }
@@ -1749,7 +1767,7 @@
     `);
     root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
       e.preventDefault();
-      if (isDesignerEditorBlocked()) {
+      if (isCatalogActionsBlocked()) {
         toast(designerBlockedMessage().body);
         return;
       }
@@ -1820,9 +1838,10 @@
     const onNew = () => openNewFlowModal(mainEl, state, persist);
     mainEl.querySelector("#btn-new-flow")?.addEventListener("click", onNew);
     mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
+    mainEl.querySelector("#btn-new-flow-table")?.addEventListener("click", onNew);
     mainEl.querySelectorAll("[data-open-flow]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (btn.disabled || isDesignerEditorBlocked()) {
+        if (btn.disabled || isCatalogActionsBlocked()) {
           toast(designerBlockedMessage().body);
           return;
         }
@@ -1838,7 +1857,7 @@
     });
     mainEl.querySelectorAll("[data-version-flow]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (btn.disabled || isDesignerEditorBlocked()) {
+        if (btn.disabled || isCatalogActionsBlocked()) {
           toast(designerBlockedMessage().body);
           return;
         }
@@ -4382,7 +4401,7 @@
     bindNavDrawer((view, catalog) => {
       currentView = view;
       if (view === "designer" && catalog) {
-        setDesignerCatalogView(catalog);
+        enterDesignerCatalog(catalog);
       }
       render();
     });
