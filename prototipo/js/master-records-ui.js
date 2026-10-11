@@ -38,6 +38,7 @@ import {
   parseMasterRecordImportFile,
   validateMasterRecordImport,
 } from "./master-records-import.js";
+import { renderActionButton, renderModalCloseButton } from "./action-icons.js";
 import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 
 /** @type {{ mode: "create"; definitionId?: string } | { mode: "edit"; recordId: string } | null} */
@@ -240,7 +241,7 @@ function openMasterRecordHistoryModal(state, record) {
               <td><strong>v${entry.version}</strong></td>
               <td>${escapeHtml(when)}</td>
               <td>${escapeHtml(summary)}</td>
-              <td><button type="button" class="btn btn-sm" data-view-history-version="${entry.version}">Ver datos</button></td>
+              <td>${renderActionButton({ icon: "view", label: "Ver datos de la versión", data: { "view-history-version": entry.version } })}</td>
             </tr>`;
           })
           .join("");
@@ -248,7 +249,7 @@ function openMasterRecordHistoryModal(state, record) {
   const { close, root } = openModal(`
     <div class="modal-header">
       <h2>Historial de revisiones</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
     <p class="form-hint"><strong>${escapeHtml(def?.name ?? "Maestro")}</strong> · vigente v${record.version ?? 1} · <code>${escapeHtml(record.id)}</code></p>
     <div class="table-wrap table-wrap--modern">
@@ -284,7 +285,12 @@ function renderMasterRecordRowsForDefinition(state, definitionId) {
       const revCount = (r.history ?? []).length;
       const historyBtn =
         revCount > 0
-          ? `<button type="button" class="btn btn-sm" data-history-master-record="${escapeHtml(r.id)}">Historial (${revCount})</button>`
+          ? renderActionButton({
+              icon: "history",
+              label: `Historial (${revCount})`,
+              badge: revCount,
+              data: { "history-master-record": r.id },
+            })
           : `<span class="catalog-muted">—</span>`;
       return `<tr>
         <td><code class="form-hint">${escapeHtml(r.id)}</code></td>
@@ -292,10 +298,10 @@ function renderMasterRecordRowsForDefinition(state, definitionId) {
         <td><span class="catalog-tree-count">v${r.version ?? 1}</span></td>
         <td>${escapeHtml(summarizeMasterRecordForList(state, r))}</td>
         <td>${escapeHtml(new Date(r.updatedAt).toLocaleString("es-AR"))}</td>
-        <td class="catalog-actions">
-          <button type="button" class="btn btn-sm" data-edit-master-record="${escapeHtml(r.id)}">Editar</button>
+        <td class="catalog-actions action-icon-group">
+          ${renderActionButton({ icon: "edit", label: "Editar registro", data: { "edit-master-record": r.id } })}
           ${historyBtn}
-          <button type="button" class="btn btn-sm btn-danger" data-rm-master-record="${escapeHtml(r.id)}">Eliminar</button>
+          ${renderActionButton({ icon: "delete", label: "Eliminar registro", variant: "danger", data: { "rm-master-record": r.id } })}
         </td>
       </tr>`;
     })
@@ -375,7 +381,7 @@ export function renderMasterRecordsHub(mainEl, state, persist) {
       ? `<section class="master-abm-definitions-panel panel">
           <h3 class="entity-meta-title">Maestros detectados</h3>
           <p class="gestion-empty">No hay definiciones con entidades. Creá una en <strong>Definición de maestros</strong>; acá aparecerá un ABM independiente por cada una.</p>
-          <button type="button" class="btn btn-sm btn-primary" id="btn-goto-master-definitions">Ir a Definición de maestros</button>
+          ${renderActionButton({ icon: "arrowRight", label: "Ir a Definición de maestros", variant: "primary", id: "btn-goto-master-definitions" })}
         </section>`
       : "";
 
@@ -394,7 +400,7 @@ export function renderMasterRecordsHub(mainEl, state, persist) {
                 <p class="form-hint"><strong>Entidades:</strong> ${escapeHtml(entities)}</p>
                 <p class="catalog-tree-count">${count} ${count === 1 ? "registro" : "registros"}</p>
                 <div class="master-abm-definition-card__actions">
-                  <button type="button" class="btn btn-primary btn-sm" data-open-master-abm="${escapeHtml(d.id)}">Abrir ABM</button>
+                  ${renderActionButton({ icon: "open", label: "Abrir ABM", variant: "primary", data: { "open-master-abm": d.id } })}
                 </div>
               </article>`;
             })
@@ -456,8 +462,10 @@ export function renderMasterRecordsForDefinition(mainEl, state, persist, definit
       ${renderPageHeader(
         `Maestro: ${escapeHtml(definition.name)}`,
         `${escapeHtml(definition.description || "Sin descripción")} · Entidades: ${escapeHtml(entities)} · <code>${escapeHtml(definition.id)}</code>`,
-        `<button type="button" class="btn btn-sm" data-open-import="${escapeHtml(definition.id)}">Importar CSV/Excel</button>
-         <button type="button" class="btn btn-primary btn-sm" data-new-for-def="${escapeHtml(definition.id)}">+ Nuevo registro</button>`,
+        `<div class="action-icon-group">
+          ${renderActionButton({ icon: "import", label: "Importar CSV/Excel", data: { "open-import": definition.id } })}
+          ${renderActionButton({ icon: "add", label: "Nuevo registro", variant: "primary", data: { "new-for-def": definition.id } })}
+        </div>`,
       )}
       <p class="catalog-tree-count master-records-abm-count">${count} ${count === 1 ? "registro" : "registros"}</p>
       <div class="table-wrap table-wrap--modern">
@@ -564,7 +572,7 @@ export function renderMasterRecordImportHero(mainEl, state, persist) {
   mainEl.innerHTML = `
     <section class="gestion-hero master-import-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-import-back>Volver al ABM</button>
+        ${renderActionButton({ icon: "back", label: "Volver al ABM", className: "gestion-hero-back", extraAttrs: "data-import-back" })}
         <div class="gestion-hero-heading">
           <h2>Importar registros — ${escapeHtml(definition.name)}</h2>
           <p class="gestion-hero-subtitle">CSV o Excel (.xlsx). Validamos columnas, tipos y referencias. Las filas inválidas no se importan.</p>
@@ -574,7 +582,7 @@ export function renderMasterRecordImportHero(mainEl, state, persist) {
         <section class="entity-meta-panel">
           <h3 class="entity-meta-title">1. Plantilla</h3>
           <p class="form-hint">Columnas esperadas: <code>Entidad.atributo</code> (punto entre nombre de entidad y clave). Separador <strong>;</strong> o <strong>,</strong>.</p>
-          <button type="button" class="btn btn-sm" id="btn-download-import-template">Descargar plantilla CSV</button>
+          ${renderActionButton({ icon: "download", label: "Descargar plantilla CSV", id: "btn-download-import-template" })}
         </section>
         <section class="entity-meta-panel">
           <h3 class="entity-meta-title">2. Archivo</h3>
@@ -605,8 +613,10 @@ export function renderMasterRecordImportHero(mainEl, state, persist) {
         </section>
       </div>
       <footer class="component-attr-hero-footer">
-        <button type="button" class="btn btn-sm" data-import-back>Cancelar</button>
-        <button type="button" class="btn btn-primary" id="btn-commit-import" ${report ? "" : "disabled"}>Importar filas válidas</button>
+        <div class="action-icon-group">
+          ${renderActionButton({ icon: "cancel", label: "Cancelar importación", extraAttrs: "data-import-back" })}
+          ${renderActionButton({ icon: "import", label: "Importar filas válidas", variant: "primary", id: "btn-commit-import", disabled: !report })}
+        </div>
       </footer>
     </section>`;
 
@@ -779,7 +789,7 @@ export function renderMasterRecordEditorHero(mainEl, state, persist) {
     mainEl.innerHTML = `
       <section class="gestion-hero master-record-editor-hero panel">
         <header class="gestion-hero-header">
-          <button type="button" class="btn btn-sm gestion-hero-back" data-master-record-editor-back>Volver al listado</button>
+          ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-master-record-editor-back" })}
           <div class="gestion-hero-heading">
             <h2>${title}</h2>
             <p class="gestion-hero-subtitle">Al crear queda <strong>vigente</strong>. Al guardar cambios se archiva la revisión anterior y podés ver el historial desde el listado.</p>
@@ -795,8 +805,15 @@ export function renderMasterRecordEditorHero(mainEl, state, persist) {
           ${entitySections}
         </div>
         <footer class="component-attr-hero-footer">
-          <button type="button" class="btn btn-sm" data-master-record-editor-back>Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-save-master-record">${session.mode === "edit" ? "Guardar" : "Crear registro"}</button>
+          <div class="action-icon-group">
+            ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-master-record-editor-back" })}
+            ${renderActionButton({
+              icon: "save",
+              label: session.mode === "edit" ? "Guardar registro" : "Crear registro",
+              variant: "primary",
+              id: "btn-save-master-record",
+            })}
+          </div>
         </footer>
       </section>`;
 

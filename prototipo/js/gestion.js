@@ -10,6 +10,7 @@ import {
   resolveAIHITL,
 } from "./motor.js";
 import { validateScreenSubmission } from "./contracts.js";
+import { renderActionButton, renderModalCloseButton } from "./action-icons.js";
 import { escapeHtml, formatDateTime, openModal, renderPageHeader, toast } from "./ui.js";
 import {
   bindNativeDateFields,
@@ -24,7 +25,6 @@ import {
 import {
   getFirstStartAttributeDisplay,
   instanceStatusBadgeClass,
-  isInstanceFinalized,
 } from "./gestion-instance-helpers.js";
 import {
   applyComponentAttrPatch,
@@ -35,6 +35,16 @@ import { bindFlowPreviewPage, renderFlowPreviewPageHtml } from "./gestion-flow-p
 
 /** @type {{ mode: "list" | "manage" | "preview"; instanceId: string | null }} */
 let gestionScreen = { mode: "list", instanceId: null };
+
+/** @type {"en_curso" | "completada" | "cerrada_rechazo"} */
+let gestionHubTab = "en_curso";
+
+/** @readonly */
+const GESTION_HUB_TABS = [
+  { id: "en_curso", label: "En curso" },
+  { id: "completada", label: "Completadas" },
+  { id: "cerrada_rechazo", label: "Cerradas por rechazo" },
+];
 
 export function enterGestionHub() {
   gestionScreen = { mode: "list", instanceId: null };
@@ -100,9 +110,9 @@ function renderActiveInstancesTable(instances) {
         <span class="gestion-step-label">${escapeHtml(node?.name ?? "—")}</span>
         ${stepKindBadge(node)}
       </td>
-      <td class="gestion-instance-actions">
-        <button type="button" class="btn btn-sm btn-primary" data-manage-inst="${inst.id}">Gestionar</button>
-        <button type="button" class="btn btn-sm" data-view-inst="${inst.id}">Visualizar</button>
+      <td class="gestion-instance-actions action-icon-group">
+        ${renderActionButton({ icon: "manage", label: "Gestionar instancia", variant: "primary", data: { "manage-inst": inst.id } })}
+        ${renderActionButton({ icon: "view", label: "Visualizar instancia", data: { "view-inst": inst.id } })}
       </td>
     </tr>`;
     })
@@ -127,7 +137,7 @@ function renderActiveInstancesTable(instances) {
 
 function renderFinalizedInstancesTable(instances) {
   if (!instances.length) {
-    return `<p class="gestion-empty">No hay instancias finalizadas.</p>`;
+    return `<p class="gestion-empty">No hay instancias en este estado.</p>`;
   }
   const rows = instances
     .map((inst) => {
@@ -142,8 +152,8 @@ function renderFinalizedInstancesTable(instances) {
       <td class="gestion-cell-muted">${escapeHtml(startAttr)}</td>
       <td>${renderInstanceStatusBadge(inst.status)}</td>
       <td class="gestion-cell-muted">${finished}</td>
-      <td class="gestion-instance-actions">
-        <button type="button" class="btn btn-sm" data-view-inst="${inst.id}">Visualizar</button>
+      <td class="gestion-instance-actions action-icon-group">
+        ${renderActionButton({ icon: "view", label: "Visualizar instancia", data: { "view-inst": inst.id } })}
       </td>
     </tr>`;
     })
@@ -195,8 +205,10 @@ function renderNewInstanceFormFields(readyFlows, types) {
       </div>
       <div id="input-fields"></div>
       <div class="modal-footer" style="margin-top:0;padding-top:0;border:0">
-        <button type="button" class="btn btn-sm" data-modal-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary">Iniciar instancia</button>
+        <div class="action-icon-group">
+          ${renderModalCloseButton("Cancelar")}
+          ${renderActionButton({ icon: "start", label: "Iniciar instancia", variant: "primary", type: "submit" })}
+        </div>
       </div>
     </form>`;
 }
@@ -232,7 +244,7 @@ function renderGestionManage(mainEl, state, persist, instanceId) {
   mainEl.innerHTML = `
     <section class="gestion-hero gestion-hero--manage panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-gestion-back>Volver al listado</button>
+        ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-gestion-back" })}
         <div class="gestion-hero-heading">
           <h2>Gestionar flujo</h2>
           <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} · Paso actual: <strong>${escapeHtml(node.name)}</strong> ${stepKindBadge(node)}</p>
@@ -292,44 +304,101 @@ function openPreviewInstanceScreen(mainEl, state, persist, instanceId) {
   renderGestion(mainEl, state, persist);
 }
 
+/**
+ * @param {Record<string, number>} counts
+ */
+function renderGestionHubTabs(counts) {
+  return `<div class="gestion-hub-tabs component-attr-tabs" role="tablist" aria-label="Instancias por estado">
+    ${GESTION_HUB_TABS.map((tab) => {
+      const n = counts[tab.id] ?? 0;
+      const active = gestionHubTab === tab.id ? " is-active" : "";
+      return `<button type="button" class="component-attr-tab${active}" data-gestion-tab="${tab.id}" role="tab" aria-selected="${gestionHubTab === tab.id ? "true" : "false"}">${escapeHtml(tab.label)} <span class="gestion-tab-count">${n}</span></button>`;
+    }).join("")}
+  </div>`;
+}
+
 function renderGestionHub(mainEl, state, persist) {
   const readyFlows = state.flows.filter((f) => f.status === "listo");
   const byType = getReadyFlowsByType(state.flows);
   const types = listReadyFlowTypes(byType);
   const activeInstances = sortInstancesByStarted(state.instances.filter((i) => i.status === "en_curso"));
-  const finalizedInstances = sortInstancesByFinished(
-    state.instances.filter((i) => isInstanceFinalized(i.status)),
+  const completedInstances = sortInstancesByFinished(
+    state.instances.filter((i) => i.status === "completada"),
   );
+  const rejectedInstances = sortInstancesByFinished(
+    state.instances.filter((i) => i.status === "cerrada_rechazo"),
+  );
+  const counts = {
+    en_curso: activeInstances.length,
+    completada: completedInstances.length,
+    cerrada_rechazo: rejectedInstances.length,
+  };
+
+  const enCursoPanel = `
+    ${renderActiveInstancesTable(activeInstances)}
+    <div class="gestion-start-actions">
+      ${
+        readyFlows.length
+          ? renderActionButton({ icon: "start", label: "Iniciar instancia", variant: "primary", id: "btn-open-start-modal" })
+          : `<p class="gestion-empty gestion-empty--inline">No hay flujos listos para instanciar.</p>`
+      }
+    </div>`;
 
   mainEl.innerHTML = `
     ${renderPageHeader(
       "Gestión de actividades",
-      "Instancias en curso y finalizadas: gestioná el paso actual, visualizá el diagrama o revisá instancias cerradas.",
+      "Filtrá instancias por estado. Por defecto se muestran las en curso; completadas y cerradas por rechazo están en las otras pestañas.",
     )}
     <div class="kpi-row">
       <span class="stat-chip">Flujos listos <strong>${readyFlows.length}</strong></span>
-      <span class="stat-chip">En curso <strong>${activeInstances.length}</strong></span>
-      <span class="stat-chip">Finalizados <strong>${finalizedInstances.length}</strong></span>
+      <span class="stat-chip">En curso <strong>${counts.en_curso}</strong></span>
+      <span class="stat-chip">Completadas <strong>${counts.completada}</strong></span>
+      <span class="stat-chip">Cerradas <strong>${counts.cerrada_rechazo}</strong></span>
     </div>
     <div class="gestion-layout gestion-layout--hub">
-      <section class="panel gestion-panel-list">
-        <h2 class="panel-title">Instancias en curso</h2>
-        ${renderActiveInstancesTable(activeInstances)}
-        <div class="gestion-start-actions">
-          ${
-            readyFlows.length
-              ? `<button type="button" class="btn btn-primary" id="btn-open-start-modal">Iniciar instancia</button>`
-              : `<p class="gestion-empty gestion-empty--inline">No hay flujos listos para instanciar.</p>`
-          }
+      <section class="panel gestion-panel-list gestion-panel-hub">
+        ${renderGestionHubTabs(counts)}
+        <div class="gestion-hub-panels">
+          <div class="gestion-hub-panel" data-gestion-panel="en_curso" ${gestionHubTab === "en_curso" ? "" : "hidden"}>
+            ${enCursoPanel}
+          </div>
+          <div class="gestion-hub-panel" data-gestion-panel="completada" ${gestionHubTab === "completada" ? "" : "hidden"}>
+            ${renderFinalizedInstancesTable(completedInstances)}
+          </div>
+          <div class="gestion-hub-panel" data-gestion-panel="cerrada_rechazo" ${gestionHubTab === "cerrada_rechazo" ? "" : "hidden"}>
+            ${renderFinalizedInstancesTable(rejectedInstances)}
+          </div>
         </div>
-      </section>
-      <section class="panel gestion-panel-list gestion-panel-finished">
-        <h2 class="panel-title">Instancias finalizadas</h2>
-        ${renderFinalizedInstancesTable(finalizedInstances)}
       </section>
     </div>`;
 
+  bindGestionHubTabs(mainEl);
   bindGestion(mainEl, state, persist, byType, types, readyFlows);
+}
+
+/**
+ * @param {HTMLElement} mainEl
+ */
+function bindGestionHubTabs(mainEl) {
+  mainEl.querySelectorAll("[data-gestion-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-gestion-tab");
+      if (!tab || tab === gestionHubTab) return;
+      if (!GESTION_HUB_TABS.some((t) => t.id === tab)) return;
+      gestionHubTab = /** @type {typeof gestionHubTab} */ (tab);
+      mainEl.querySelectorAll("[data-gestion-tab]").forEach((el) => {
+        const id = el.getAttribute("data-gestion-tab");
+        const isActive = id === gestionHubTab;
+        el.classList.toggle("is-active", isActive);
+        el.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      mainEl.querySelectorAll("[data-gestion-panel]").forEach((panel) => {
+        const show = panel.getAttribute("data-gestion-panel") === gestionHubTab;
+        if (show) panel.removeAttribute("hidden");
+        else panel.setAttribute("hidden", "");
+      });
+    });
+  });
 }
 
 export function renderGestion(mainEl, state, persist) {
@@ -500,8 +569,8 @@ function renderResolver(instance) {
         <h3 class="gestion-manage-section-title">Acción del paso</h3>
         <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "Elegí la rama del flujo.")}</p>
         <div class="preview-actions">
-          <button type="button" class="btn btn-success" id="btn-gateway-aceptar">Aceptar</button>
-          <button type="button" class="btn btn-danger" id="btn-gateway-rechazar">Rechazar</button>
+          ${renderActionButton({ icon: "accept", label: "Aceptar", variant: "success", id: "btn-gateway-aceptar" })}
+          ${renderActionButton({ icon: "reject", label: "Rechazar", variant: "danger", id: "btn-gateway-rechazar" })}
         </div>
       </section>`;
   }
@@ -513,7 +582,7 @@ function renderResolver(instance) {
         <h3 class="gestion-manage-section-title">Acción del paso</h3>
         <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
         <p style="font-size:0.8rem;color:var(--muted)">Adaptador: ${escapeHtml(adapter)}</p>
-        <button type="button" class="btn btn-primary" id="btn-run-auto">Ejecutar y continuar</button>
+        ${renderActionButton({ icon: "play", label: "Ejecutar y continuar", variant: "primary", id: "btn-run-auto" })}
       </section>`;
   }
 
@@ -591,7 +660,7 @@ function renderScreenForInstance(instance, screen) {
       html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}" ${b.required ? "required" : ""}><option value="">—</option><option value="si">Sí</option><option value="no">No</option></select></div>`;
     }
   }
-  html += `<div class="preview-actions preview-actions--sticky"><button type="button" class="btn btn-success" data-decision="aceptar">Aceptar</button><button type="button" class="btn btn-danger" data-decision="rechazar">Rechazar</button></div>`;
+  html += `<div class="preview-actions preview-actions--sticky action-icon-group">${renderActionButton({ icon: "accept", label: "Aceptar", variant: "success", data: { decision: "aceptar" } })}${renderActionButton({ icon: "reject", label: "Rechazar", variant: "danger", data: { decision: "rechazar" } })}</div>`;
   return html;
 }
 
@@ -679,5 +748,6 @@ function bindInstanceResolver(root, instance, node, persist, onDone) {
 }
 
 export function resetGestionSelection() {
+  gestionHubTab = "en_curso";
   enterGestionHub();
 }

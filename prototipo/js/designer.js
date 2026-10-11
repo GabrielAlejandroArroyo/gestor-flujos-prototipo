@@ -23,6 +23,7 @@ import {
   designerCatalogCalloutHtml,
   renderDesignerViewportBannerHtml,
 } from "./designer-viewport.js";
+import { renderActionButton, renderModalCloseButton } from "./action-icons.js";
 import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 import { normalizeFlowContracts } from "./contracts.js";
 import {
@@ -342,12 +343,12 @@ function bindStudioShell(mainEl, flow, node, state, persist) {
   });
   mainEl.querySelector("#btn-flow-meta")?.addEventListener("click", () => {
     const { close, root } = openModal(`
-      <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
+      <div class="modal-header"><h2>Metadatos del flujo</h2>${renderModalCloseButton()}</div>
       <form id="form-meta" class="form-grid">
         ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
         <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
+        ${renderActionButton({ icon: "save", label: "Guardar metadatos", variant: "primary", type: "submit", disabled: !(state.flowTypes ?? []).length })}
       </form>
     `);
     bindFlowTypeGotoButton(root, close);
@@ -388,7 +389,7 @@ function renderDesignerViewportBlocked() {
       <p>${escapeHtml(body)}</p>
       <p class="designer-viewport-blocked-meta">Viewport actual: ${typeof window !== "undefined" ? `${window.innerWidth}×${window.innerHeight}` : "—"} px</p>
       <div class="toolbar" style="margin-top:1rem">
-        <button type="button" class="btn btn-primary" id="btn-viewport-back-catalog">Volver al catálogo</button>
+        ${renderActionButton({ icon: "back", label: "Volver al catálogo", variant: "primary", id: "btn-viewport-back-catalog" })}
       </div>
     </section>`;
 }
@@ -408,17 +409,36 @@ function bindDesignerViewportBlocked(mainEl, state, persist) {
  * @param {boolean} catalogBlocked
  */
 function renderCatalogFlowActions(flow, catalogBlocked) {
-  const disabled = catalogBlocked ? 'disabled aria-disabled="true"' : "";
-  const openBtn = `<button type="button" class="btn btn-sm" data-open-flow="${flow.id}" ${disabled}>Abrir</button>`;
+  const disabled = catalogBlocked;
+  const openBtn = renderActionButton({
+    icon: "open",
+    label: "Abrir flujo",
+    disabled,
+    data: { "open-flow": flow.id },
+  });
 
   if (flow.status === "listo") {
-    return `${openBtn}
-        <button type="button" class="btn btn-sm" data-version-flow="${flow.id}" ${disabled}>Versionar</button>`;
+    return `<span class="action-icon-group">${openBtn}${renderActionButton({
+      icon: "version",
+      label: "Versionar flujo",
+      disabled,
+      data: { "version-flow": flow.id },
+    })}</span>`;
   }
   if (flow.status === "borrador") {
-    return `${openBtn}
-        <button type="button" class="btn btn-sm btn-success" data-activate-flow="${flow.id}" ${disabled}>Activar</button>
-        <button type="button" class="btn btn-sm btn-danger" data-delete-flow="${flow.id}" aria-label="Eliminar flujo ${escapeHtml(flow.name ?? "")}">Eliminar</button>`;
+    return `<span class="action-icon-group">${openBtn}${renderActionButton({
+      icon: "activate",
+      label: "Activar flujo",
+      variant: "success",
+      disabled,
+      data: { "activate-flow": flow.id },
+    })}${renderActionButton({
+      icon: "delete",
+      label: `Eliminar flujo ${flow.name ?? ""}`,
+      variant: "danger",
+      disabled,
+      data: { "delete-flow": flow.id },
+    })}</span>`;
   }
   return openBtn;
 }
@@ -546,7 +566,7 @@ function renderCatalog(state) {
           <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
           <strong>Sin flujos todavía</strong>
           <p>Creá tu primer flujo BPMN en borrador y usá «Activar» para publicarlo como Listo en Gestión.</p>
-          <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${catalogBlocked ? "disabled" : ""}>Nuevo flujo</button>
+          ${renderActionButton({ icon: "add", label: "Nuevo flujo", variant: "primary", id: "btn-new-flow-empty", disabled: catalogBlocked })}
         </div>`
       : !hasListo
         ? `<div class="empty-state empty-state--compact">
@@ -591,7 +611,7 @@ function renderCatalog(state) {
       ${catalogCallout}
       ${hasAnyFlow ? `<div class="catalog-toolbar-secondary">
           <p class="catalog-toolbar-secondary__hint">Flujos listos para Gestión. Versioná para editar; las versiones anteriores quedan deprecadas bajo el árbol.</p>
-          <button type="button" class="btn btn-primary" id="btn-new-flow-table" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Nuevo flujo</button>
+          ${renderActionButton({ icon: "add", label: "Nuevo flujo", variant: "primary", id: "btn-new-flow-table", disabled: catalogBlocked })}
         </div>` : ""}
       ${emptyBody}
       ${listoTable}
@@ -744,7 +764,7 @@ function renderActivityComponentRow(node, flow, catalogBlocked) {
       <td><span class="badge badge-${badgeClass}">${escapeHtml(kindLabel)}</span></td>
       <td>${escapeHtml(node.description || "—")}</td>
       <td class="catalog-actions">
-        <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Abrir</button>
+        ${renderActionButton({ icon: "open", label: "Abrir actividad", disabled: catalogBlocked, data: { "open-activity": flow.id, "node-id": node.id } })}
       </td>
     </tr>`;
 }
@@ -768,7 +788,12 @@ function renderActivityCatalog(state) {
           ? `<span class="catalog-tree-count" title="Componentes del diagrama">${childCount} ${childCount === 1 ? "componente" : "componentes"}</span>`
           : ""
         : `<span class="catalog-tree-count catalog-tree-count--muted" title="Agente IA no se lista en este catálogo">Sin componentes listados</span>`;
-      const openFlowBtn = `<button type="button" class="btn btn-sm" data-open-flow-only="${flow.id}" ${catalogBlocked ? "disabled aria-disabled=\"true\"" : ""}>Abrir flujo</button>`;
+      const openFlowBtn = renderActionButton({
+        icon: "open",
+        label: "Abrir flujo",
+        disabled: catalogBlocked,
+        data: { "open-flow-only": flow.id },
+      });
 
       const parentRow = `
     <tr class="catalog-row catalog-row--parent catalog-row--activity-flow ${hasChildren ? "catalog-row--has-children" : ""} ${expanded ? "catalog-row--expanded" : "catalog-row--collapsed"}" data-activity-flow-parent="${escapeHtml(flow.id)}">
@@ -983,7 +1008,7 @@ function renderNewFlowHero(mainEl, state, persist) {
   mainEl.innerHTML = `
     <section class="gestion-hero new-flow-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-new-flow-back>Volver al catálogo</button>
+        ${renderActionButton({ icon: "back", label: "Volver al catálogo", className: "gestion-hero-back", extraAttrs: "data-new-flow-back" })}
         <div class="gestion-hero-heading">
           <h2>Nuevo flujo</h2>
           <p class="gestion-hero-subtitle">Definí tipo, nombre y descripción. Al crear se abre el lienzo en borrador con Start y End.</p>
@@ -997,8 +1022,10 @@ function renderNewFlowHero(mainEl, state, persist) {
         </form>
       </div>
       <footer class="component-attr-hero-footer">
-        <button type="button" class="btn btn-sm" data-new-flow-back>Cancelar</button>
-        <button type="submit" form="form-new-flow" class="btn btn-primary" ${hasTypes ? "" : "disabled"}>Crear flujo</button>
+        <div class="action-icon-group">
+          ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-new-flow-back" })}
+          ${renderActionButton({ icon: "add", label: "Crear flujo", variant: "primary", type: "submit", extraAttrs: 'form="form-new-flow"', disabled: !hasTypes })}
+        </div>
       </footer>
     </section>`;
 
@@ -1114,7 +1141,7 @@ function openFlowValidationModal(mainEl, state, persist, flow, errors) {
   const { close, root } = openModal(`
     <div class="modal-header">
       <h2>No se puede activar el flujo</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
     <div class="validation-modal-body">
       <p class="validation-modal-intro">
@@ -1122,8 +1149,10 @@ function openFlowValidationModal(mainEl, state, persist, flow, errors) {
       </p>
       <ul class="validation-list validation-modal-list">${items}</ul>
       <div class="validation-modal-actions">
-        <button type="button" class="btn btn-primary" id="btn-validation-open-flow">Abrir flujo</button>
-        <button type="button" class="btn" data-modal-close>Cerrar</button>
+        <div class="action-icon-group">
+          ${renderActionButton({ icon: "open", label: "Abrir flujo", variant: "primary", id: "btn-validation-open-flow" })}
+          ${renderModalCloseButton()}
+        </div>
       </div>
     </div>
   `);
@@ -1330,29 +1359,28 @@ function renderFlowEditor(flow) {
     ${renderDesignerViewportBannerHtml()}
     ${selected ? renderStudioToolbar(flow.name, selected, "path") : ""}
     <div class="toolbar toolbar--designer">
-      <div class="toolbar-group">
-        <button type="button" class="btn btn-ghost" id="btn-back-catalog">← Catálogo</button>
+      <div class="toolbar-group action-icon-group">
+        ${renderActionButton({ icon: "back", label: "Volver al catálogo", id: "btn-back-catalog", className: "action-icon-btn--ghost" })}
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <span class="toolbar-flow-title">${escapeHtml(flow.name)} ${renderFlowStatusBadge(flow)} <span class="toolbar-flow-version">${escapeHtml(formatFlowVersion(flow))}</span></span>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <div class="toolbar-group">
-        <button type="button" class="btn btn-sm" id="btn-flow-meta" ${designerContext.readOnly ? "disabled aria-disabled=\"true\"" : ""}>Metadatos</button>
+      <div class="toolbar-group action-icon-group">
+        ${renderActionButton({ icon: "meta", label: "Metadatos del flujo", id: "btn-flow-meta", disabled: designerContext.readOnly })}
         ${
           flow.status === "borrador"
-            ? `<button type="button" class="btn btn-sm btn-success" id="btn-confirm-version">Activar</button>
-        <button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>`
+            ? `${renderActionButton({ icon: "activate", label: "Activar flujo", variant: "success", id: "btn-confirm-version" })}${renderActionButton({ icon: "delete", label: "Eliminar flujo", variant: "danger", id: "btn-delete-flow" })}`
             : ""
         }
         ${
           flow.status === "listo"
-            ? `<button type="button" class="btn btn-sm" id="btn-versionar">Versionar</button>`
+            ? renderActionButton({ icon: "version", label: "Versionar flujo", id: "btn-versionar" })
             : ""
         }
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <div class="toolbar-group">
-        <button type="button" class="btn btn-sm" id="btn-toggle-copilot">✨ Copilot</button>
+      <div class="toolbar-group action-icon-group">
+        ${renderActionButton({ icon: "sparkles", label: "Copilot IA", id: "btn-toggle-copilot" })}
       </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
@@ -2401,7 +2429,7 @@ function renderNodeProps(flow, node) {
       ${componentOutputSection}
       ${incomingSection}
       ${connectionsSection}
-      ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-danger btn-sm props-delete-node" id="btn-delete-node">Eliminar nodo</button>`}
+      ${designerContext.readOnly ? "" : renderActionButton({ icon: "delete", label: "Eliminar nodo", variant: "danger", id: "btn-delete-node", className: "props-delete-node" })}
     </form>`;
 }
 
@@ -2573,12 +2601,12 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
       return;
     }
     const { close, root } = openModal(`
-      <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
+      <div class="modal-header"><h2>Metadatos del flujo</h2>${renderModalCloseButton()}</div>
       <form id="form-meta" class="form-grid">
         ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
         <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
+        ${renderActionButton({ icon: "save", label: "Guardar metadatos", variant: "primary", type: "submit", disabled: !(state.flowTypes ?? []).length })}
       </form>
     `);
     bindFlowTypeGotoButton(root, close);
@@ -3574,7 +3602,7 @@ function openScreenDesigner(flow, node, onSave) {
   const { close, root } = openModal(`
     <div class="modal-header">
       <h2>Pantalla: ${escapeHtml(node.name)}</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
     <div class="screen-designer">
       <div>
@@ -3586,7 +3614,7 @@ function openScreenDesigner(flow, node, onSave) {
           <button type="button" class="btn btn-sm" data-add="comentario">+ Comentario</button>
         </div>
         <div class="screen-blocks" id="screen-blocks">${renderBlocks()}</div>
-        <button type="button" class="btn btn-primary" id="btn-save-screen" style="margin-top:0.75rem">Guardar pantalla</button>
+        ${renderActionButton({ icon: "save", label: "Guardar pantalla", variant: "primary", id: "btn-save-screen", className: "screen-save-action" })}
       </div>
       <div class="screen-preview" id="screen-preview">${renderPreview()}</div>
     </div>

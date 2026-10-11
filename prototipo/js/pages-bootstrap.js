@@ -5,6 +5,7 @@ import {
   applyPortableStorageBundle,
   parsePortableImportFile,
 } from "./state-portability.js";
+import { actionIconSvg } from "./action-icons.js";
 import {
   getActiveDeployEnvironment,
   isGitHubPagesHost,
@@ -118,8 +119,10 @@ export function renderDeployEnvironmentBadge() {
 
   const reset = document.createElement("button");
   reset.type = "button";
-  reset.className = "btn btn-ghost btn-sm deploy-env-reset";
-  reset.textContent = "Recargar datos testing";
+  reset.className = "action-icon-btn action-icon-btn--ghost deploy-env-reset";
+  reset.title = "Recargar datos testing";
+  reset.setAttribute("aria-label", "Recargar datos testing");
+  reset.innerHTML = actionIconSvg("refresh");
   reset.addEventListener("click", async () => {
     const url = new URL(location.href);
     url.searchParams.set("env", "testing");

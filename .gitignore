@@ -1,5 +1,7 @@
 # Cursor / IDE local (no subir reglas org)
 .cursor/
+!.cursor/rules/
+!.cursor/rules/*.mdc
 
 # Dependencias y secretos
 node_modules/

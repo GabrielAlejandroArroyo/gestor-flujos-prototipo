@@ -17,6 +17,7 @@ import {
   loadAuthUsers,
   logout,
 } from "./auth.js";
+import { renderActionButton } from "./action-icons.js";
 import { escapeHtml, renderPageHeader, toast } from "./ui.js";
 
 /**
@@ -124,7 +125,7 @@ function renderUserDetailShell(mainEl, user, config) {
   mainEl.innerHTML = `
     <section class="gestion-hero user-profile-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-user-detail-back>Volver</button>
+        ${renderActionButton({ icon: "back", label: "Volver", className: "gestion-hero-back", extraAttrs: "data-user-detail-back" })}
         <div class="gestion-hero-heading">
           <h2>${escapeHtml(config.title)}</h2>
           <p class="gestion-hero-subtitle">${escapeHtml(config.subtitle)}</p>
@@ -165,7 +166,7 @@ export function renderLoginScreen(mainEl, onSuccess) {
       <form class="auth-user-card__form" data-auth-form="${escapeHtml(u.username)}">
         <label class="auth-user-card__label">Clave</label>
         <input type="password" name="password" class="auth-user-card__input" autocomplete="current-password" placeholder="Clave" required />
-        <button type="submit" class="btn btn-primary btn-sm auth-user-card__submit">Entrar</button>
+        ${renderActionButton({ icon: "arrowRight", label: "Entrar", variant: "primary", type: "submit", className: "auth-user-card__submit" })}
       </form>
     </article>`,
     )
@@ -215,7 +216,7 @@ export function renderAuthUsersAdmin(mainEl, opts = {}) {
         <td>${u.active ? `<span class="badge badge-listo">Activo</span>` : `<span class="badge badge-borrador">Inactivo</span>`}${isSystemAuthUser(u) ? ` <span class="badge badge-borrador">Sistema</span>` : ""}</td>
         <td><span class="catalog-muted">${escapeHtml(AUTH_PROVIDER_LOCAL)} (mock)</span>${canUserLogin(u) ? "" : `<div class="form-hint">Sin login</div>`}</td>
         <td class="auth-user-row__actions">
-          <button type="button" class="btn btn-sm" data-auth-user-detail="${escapeHtml(u.id)}">Ver detalle</button>
+          ${renderActionButton({ icon: "view", label: "Ver detalle de usuario", data: { "auth-user-detail": u.id } })}
         </td>
       </tr>`,
     )
@@ -258,7 +259,7 @@ export function renderAuthUserDetailPage(mainEl, userId, onBack) {
     mainEl.innerHTML = `
       <section class="panel">
         <p class="empty-state">No se encontró el usuario.</p>
-        <button type="button" class="btn btn-sm" data-user-detail-back>Volver al listado</button>
+        ${renderActionButton({ icon: "back", label: "Volver al listado", extraAttrs: "data-user-detail-back" })}
       </section>`;
     mainEl.querySelector("[data-user-detail-back]")?.addEventListener("click", onBack);
     return;
@@ -299,8 +300,8 @@ export function renderAuthHeaderChip(host, opts = {}) {
         <span class="auth-header-chip__name">${escapeHtml(session.displayName)}</span>
         <span class="auth-header-chip__user">@${escapeHtml(session.username)}</span>
       </div>
-      <button type="button" class="btn btn-sm" id="btn-auth-profile">Ver perfil</button>
-      <button type="button" class="btn btn-sm btn-ghost" id="btn-auth-logout">Salir</button>
+      ${renderActionButton({ icon: "user", label: "Ver perfil", id: "btn-auth-profile" })}
+      ${renderActionButton({ icon: "logout", label: "Salir", className: "action-icon-btn--ghost", id: "btn-auth-logout" })}
     </div>`;
   host.querySelector("#btn-auth-profile")?.addEventListener("click", () => {
     opts.onOpenProfile?.();

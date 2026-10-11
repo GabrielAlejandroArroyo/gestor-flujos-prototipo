@@ -4,6 +4,7 @@
  */
 
 import { createId } from "./ids.js";
+import { renderActionButton, renderModalCloseButton } from "./action-icons.js";
 import { escapeHtml, toast } from "./ui.js";
 import { ensureFlowNodeAttributes, syncFlowInputContractFromStart } from "./contracts.js";
 import { formatFlowVersion } from "./flow-lifecycle.js";
@@ -132,16 +133,15 @@ function renderAttributeDetailForm(attr, index, scope, readOnly) {
       <div class="component-attr-options" data-options-block style="${isLista ? "" : "display:none"}">
         <div class="component-attr-options-head">
           <span>Opciones (lista)</span>
-          ${readOnly ? "" : `<button type="button" class="btn btn-sm" data-add-opt>+ Opción</button>`}
+          ${readOnly ? "" : renderActionButton({ icon: "add", label: "Agregar opción", data: { "add-opt": "" }, extraAttrs: "data-add-opt" })}
         </div>
         <div class="component-attr-options-list">${optionsHtml || `<p class="component-attr-empty">Agregá al menos una opción.</p>`}</div>
       </div>
       <div class="component-attr-detail-footer">
         ${
           readOnly
-            ? `<button type="button" class="btn btn-sm" data-close-attr-detail data-close-scope="${scope}">Cerrar</button>`
-            : `<button type="button" class="btn btn-sm" data-cancel-attr-detail data-cancel-scope="${scope}">Cancelar</button>
-               <button type="button" class="btn btn-sm btn-primary" data-save-attr-detail data-save-scope="${scope}" disabled>Guardar</button>`
+            ? renderActionButton({ icon: "close", label: "Cerrar", data: { "close-attr-detail": "", "close-scope": scope } })
+            : `<div class="action-icon-group">${renderActionButton({ icon: "cancel", label: "Cancelar", data: { "cancel-attr-detail": "", "cancel-scope": scope } })}${renderActionButton({ icon: "save", label: "Guardar atributo", variant: "primary", disabled: true, data: { "save-attr-detail": "", "save-scope": scope } })}</div>`
         }
       </div>
     </div>`;
@@ -443,7 +443,7 @@ export function mountComponentAttributesEditor(mainEl, {
   mainEl.innerHTML = `
     <section class="gestion-hero component-attr-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-component-attrs-back>Volver</button>
+        ${renderActionButton({ icon: "back", label: "Volver", className: "gestion-hero-back", extraAttrs: "data-component-attrs-back" })}
         <div class="gestion-hero-heading">
           <h2>Atributos del componente</h2>
           <p class="gestion-hero-subtitle">${titleKind} · ${escapeHtml(initialNode.name)} · ${escapeHtml(flow.name ?? "")} · ${flowVersionLabel}</p>
@@ -456,7 +456,7 @@ export function mountComponentAttributesEditor(mainEl, {
         <div class="component-attr-panels">${bodyHtml}</div>
       </div>
       <footer class="component-attr-hero-footer">
-        ${readOnly ? "" : `<button type="button" class="btn btn-primary" data-save-attrs>Guardar</button>`}
+        ${readOnly ? "" : renderActionButton({ icon: "save", label: "Guardar atributos", variant: "primary", extraAttrs: "data-save-attrs" })}
       </footer>
     </section>`;
 

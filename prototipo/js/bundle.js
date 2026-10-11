@@ -240,23 +240,23 @@
   function validateAttributeList(attrs, scopeLabel, nodeName) {
     const errors = [];
     const keys = /* @__PURE__ */ new Set();
-    const who = nodeName ? `\xAB${nodeName}\xBB` : "componente";
+    const who = nodeName ? `«${nodeName}»` : "componente";
     for (const attr of attrs ?? []) {
       const a = normalizeComponentAttribute(attr);
       if (!a.key) errors.push(`${who} (${scopeLabel}): hay un atributo sin clave.`);
       else if (!/^[a-z0-9_]+$/.test(a.key)) {
-        errors.push(`${who} (${scopeLabel}): clave \xAB${a.key}\xBB inv\xE1lida (use a-z, 0-9, _).`);
+        errors.push(`${who} (${scopeLabel}): clave «${a.key}» inválida (use a-z, 0-9, _).`);
       } else if (keys.has(a.key)) {
-        errors.push(`${who} (${scopeLabel}): clave duplicada \xAB${a.key}\xBB.`);
+        errors.push(`${who} (${scopeLabel}): clave duplicada «${a.key}».`);
       } else keys.add(a.key);
-      if (!a.label) errors.push(`${who} (${scopeLabel}): atributo \xAB${a.key || "?"}\xBB sin etiqueta.`);
+      if (!a.label) errors.push(`${who} (${scopeLabel}): atributo «${a.key || "?"}» sin etiqueta.`);
       if (a.cardinality === INPUT_CARDINALITY.LISTA) {
         if (!a.listOptions.length) {
-          errors.push(`${who} (${scopeLabel}): \xAB${a.key || "?"}\xBB es lista y debe tener al menos una opci\xF3n.`);
+          errors.push(`${who} (${scopeLabel}): «${a.key || "?"}» es lista y debe tener al menos una opción.`);
         }
         for (const opt of a.listOptions) {
           if (!String(opt.label ?? "").trim()) {
-            errors.push(`${who} (${scopeLabel}): \xAB${a.key}\xBB tiene una opci\xF3n sin etiqueta.`);
+            errors.push(`${who} (${scopeLabel}): «${a.key}» tiene una opción sin etiqueta.`);
           }
         }
       }
@@ -488,20 +488,20 @@
     normalizeFlowContracts(flow);
     const keys = /* @__PURE__ */ new Set();
     for (const d of flow.dataDefinitions ?? []) {
-      if (!d.key?.trim()) errors.push("Contrato: hay una definici\xF3n sin clave.");
-      if (keys.has(d.key)) errors.push(`Contrato: clave duplicada \xAB${d.key}\xBB.`);
+      if (!d.key?.trim()) errors.push("Contrato: hay una definición sin clave.");
+      if (keys.has(d.key)) errors.push(`Contrato: clave duplicada «${d.key}».`);
       keys.add(d.key);
     }
     for (const node of flow.nodes ?? []) {
       for (const m of node.outputMappings ?? []) {
         const t = m.contextKey ?? m.targetKey;
         if (t && RESERVED_CONTEXT_KEYS.has(t)) {
-          errors.push(`\xAB${node.name}\xBB: clave de contexto reservada \xAB${t}\xBB.`);
+          errors.push(`«${node.name}»: clave de contexto reservada «${t}».`);
         }
       }
       if (node.kind === "automatica" && node.integration?.adapter !== "simulation") {
         if (!node.integration?.adapter) {
-          errors.push(`Service Task \xAB${node.name}\xBB: falta adaptador de integraci\xF3n.`);
+          errors.push(`Service Task «${node.name}»: falta adaptador de integración.`);
         }
       }
       errors.push(...validateNodeComponentAttributes(node));
@@ -552,7 +552,7 @@
     CONNECTOR: "connector"
   };
   var ADAPTER_CATALOG = [
-    { id: ADAPTER_KINDS.SIMULATION, label: "Simulaci\xF3n (sin API)", execution: "mock" },
+    { id: ADAPTER_KINDS.SIMULATION, label: "Simulación (sin API)", execution: "mock" },
     { id: ADAPTER_KINDS.REST_JSON, label: "REST / JSON", execution: "mock_or_live" },
     { id: ADAPTER_KINDS.SOAP_XML, label: "SOAP / XML", execution: "mock" },
     { id: ADAPTER_KINDS.GRAPHQL, label: "GraphQL", execution: "mock" },
@@ -762,7 +762,7 @@
     const i = node.integration;
     if (!i || i.adapter === ADAPTER_KINDS.SIMULATION) return errors;
     if (i.adapter === ADAPTER_KINDS.REST_JSON && !i.urlTemplate?.trim()) {
-      errors.push(`Service Task \xAB${node.name}\xBB: URL REST requerida.`);
+      errors.push(`Service Task «${node.name}»: URL REST requerida.`);
     }
     return errors;
   }
@@ -863,7 +863,7 @@
     const outs = transitionsFrom(flow, node.id);
     const siempre = transitionsFrom(flow, node.id, "siempre");
     if (siempre.length !== 1) {
-      errors.push(`${taskLabel} "${node.name}": debe tener exactamente una salida \xABsiempre\xBB.`);
+      errors.push(`${taskLabel} "${node.name}": debe tener exactamente una salida «siempre».`);
     }
     const bad = outs.filter((t) => t.condition !== "siempre");
     if (bad.length) {
@@ -875,7 +875,7 @@
       const target = flow.nodes.find((n) => n.id === siempre[0].toId);
       if (!target || !SIEMPRE_CONTINUATION_KINDS.has(target.kind)) {
         errors.push(
-          `${taskLabel} "${node.name}": la salida \xABsiempre\xBB debe ir a otra actividad, un gateway o un End Event.`
+          `${taskLabel} "${node.name}": la salida «siempre» debe ir a otra actividad, un gateway o un End Event.`
         );
       }
     }
@@ -899,7 +899,7 @@
       }
       for (const pid of node.usedParamIds ?? []) {
         if (!paramIds.has(pid)) {
-          errors.push(`"${node.name}" usa un par\xE1metro de entrada inexistente.`);
+          errors.push(`"${node.name}" usa un parámetro de entrada inexistente.`);
         }
       }
       if (node.kind === NODE_KINDS.INICIO) {
@@ -911,17 +911,17 @@
           errors.push("El Start Event debe tener un Sequence Flow de salida.");
         }
         const bad = transitionsFrom(flow, node.id).filter((t) => t.condition !== "siempre");
-        if (bad.length) errors.push("Desde el Start Event solo salen Sequence Flow \xABsiempre\xBB.");
+        if (bad.length) errors.push("Desde el Start Event solo salen Sequence Flow «siempre».");
       }
       if (node.kind === NODE_KINDS.MANUAL) {
         validateActivitySequenceOut(flow, node, "User Task", errors);
         const screen = flow.screens?.[node.id];
         if (!screen?.blocks?.length) {
-          errors.push(`User Task "${node.name}" debe tener una pantalla dise\xF1ada.`);
+          errors.push(`User Task "${node.name}" debe tener una pantalla diseñada.`);
         } else {
           for (const block of screen.blocks) {
             if (block.type === "dato" && block.paramId && !paramIds.has(block.paramId)) {
-              errors.push(`Pantalla de "${node.name}": dato de entrada inv\xE1lido.`);
+              errors.push(`Pantalla de "${node.name}": dato de entrada inválido.`);
             }
             if (block.type === "dato" && block.paramId && !(node.usedParamIds ?? []).includes(block.paramId)) {
               errors.push(`Pantalla de "${node.name}": el dato mostrado debe estar en "datos que usa".`);
@@ -934,7 +934,7 @@
       }
       if (node.kind === NODE_KINDS.AGENTE_IA) {
         if (transitionsFrom(flow, node.id, "siempre").length === 0) {
-          errors.push(`Agente IA "${node.name}" debe tener Sequence Flow de continuaci\xF3n.`);
+          errors.push(`Agente IA "${node.name}" debe tener Sequence Flow de continuación.`);
         }
         if (!node.aiPrompt || !node.aiPrompt.trim()) {
           errors.push(`Agente IA "${node.name}" debe tener un prompt configurado.`);
@@ -944,22 +944,22 @@
         const gwType = node.gatewayType ?? DEFAULT_GATEWAY_TYPE;
         if (gwType !== GATEWAY_TYPES.EXCLUSIVE) {
           errors.push(
-            `Gateway "${node.name}": tipo \xAB${gwType}\xBB no soportado en el mock (solo Compuerta Exclusiva).`
+            `Gateway "${node.name}": tipo «${gwType}» no soportado en el mock (solo Compuerta Exclusiva).`
           );
         }
         if (transitionsTo(flow, node.id).length < 1) {
           errors.push(`Exclusive Gateway "${node.name}" debe tener al menos una entrada.`);
         }
         if (transitionsFrom(flow, node.id, "aceptar").length !== 1) {
-          errors.push(`Gateway "${node.name}": falta Sequence Flow \xABaceptar\xBB.`);
+          errors.push(`Gateway "${node.name}": falta Sequence Flow «aceptar».`);
         }
         if (transitionsFrom(flow, node.id, "rechazar").length !== 1) {
-          errors.push(`Gateway "${node.name}": falta Sequence Flow \xABrechazar\xBB.`);
+          errors.push(`Gateway "${node.name}": falta Sequence Flow «rechazar».`);
         }
         const outs = transitionsFrom(flow, node.id);
         const invalid = outs.filter((t) => t.condition !== "aceptar" && t.condition !== "rechazar");
         if (invalid.length) {
-          errors.push(`Gateway "${node.name}": solo salidas \xABaceptar\xBB y \xABrechazar\xBB.`);
+          errors.push(`Gateway "${node.name}": solo salidas «aceptar» y «rechazar».`);
         }
       }
       if (node.kind === NODE_KINDS.FIN) {
@@ -1021,7 +1021,7 @@
   function renderFlowTypeSelectOptions(state, selectedId) {
     const types = state.flowTypes ?? [];
     if (!types.length) {
-      return `<option value="">\u2014 Sin tipos definidos \u2014</option>`;
+      return `<option value="">— Sin tipos definidos —</option>`;
     }
     return types.map((t) => {
       const sel = t.id === selectedId ? " selected" : "";
@@ -1077,8 +1077,8 @@
   var cachedSession = null;
   var DEMO_USERS = [
     { username: "luna", displayName: "Luna Rivera", avatarSeed: "luna-aurora" },
-    { username: "mateo", displayName: "Mateo D\xEDaz", avatarSeed: "mateo-bosque" },
-    { username: "sofia", displayName: "Sof\xEDa Luna", avatarSeed: "sofia-brillo" },
+    { username: "mateo", displayName: "Mateo Díaz", avatarSeed: "mateo-bosque" },
+    { username: "sofia", displayName: "Sofía Luna", avatarSeed: "sofia-brillo" },
     { username: "bruno", displayName: "Bruno Paz", avatarSeed: "bruno-roca" },
     { username: "clara", displayName: "Clara Mora", avatarSeed: "clara-marea" }
   ];
@@ -1089,7 +1089,7 @@
     return {
       id: SYSTEM_MIGRATION_USER_ID,
       username: SYSTEM_MIGRATION_USERNAME,
-      displayName: "Usuario gen\xE9rico de migraci\xF3n",
+      displayName: "Usuario genérico de migración",
       password: "",
       active: true,
       avatarSeed: "system-prueabaomigracion",
@@ -1263,7 +1263,7 @@
     const username = String(credentials.username ?? "").trim().toLowerCase();
     const password = String(credentials.password ?? "");
     if (!username || !password) {
-      return { ok: false, message: "Ingres\xE1 usuario y clave." };
+      return { ok: false, message: "Ingresá usuario y clave." };
     }
     const users = loadAuthUsers();
     const user = users.find((u) => u.username === username && u.active);
@@ -1305,9 +1305,9 @@
   ]);
   var ENTITY_DATA_TYPES = [
     { value: "texto", label: "Texto" },
-    { value: "numero", label: "N\xFAmero" },
+    { value: "numero", label: "Número" },
     { value: "fecha", label: "Fecha" },
-    { value: "si_no", label: "S\xED / No" },
+    { value: "si_no", label: "Sí / No" },
     { value: "texto_largo", label: "Texto largo" },
     { value: ENTITY_UUID_TYPE, label: "UUID (autogenerada)" },
     { value: ENTITY_DATE_EXECUTION_TYPE, label: "Date execution (GETUTCDATE / UTC)" },
@@ -1443,9 +1443,9 @@
   function renderEntityBaseSelectOptions(state, excludeEntityId, selectedId) {
     const bases = (state.entities ?? []).filter((e) => e.isBase && e.id !== excludeEntityId);
     if (!bases.length) {
-      return `<option value="">\u2014 Sin entidades base \u2014</option>`;
+      return `<option value="">— Sin entidades base —</option>`;
     }
-    const opts = [`<option value="">\u2014 Ninguna (independiente) \u2014</option>`];
+    const opts = [`<option value="">— Ninguna (independiente) —</option>`];
     for (const e of bases) {
       const sel = e.id === selectedId ? " selected" : "";
       opts.push(`<option value="${escapeAttr(e.id)}"${sel}>${escapeText(e.name)}</option>`);
@@ -1463,7 +1463,7 @@
     }
     if (!extendsId) return { ok: true };
     if (entityId && extendsId === entityId) {
-      return { ok: false, message: "Una entidad no puede extenderse a s\xED misma." };
+      return { ok: false, message: "Una entidad no puede extenderse a sí misma." };
     }
     const base = getEntityById(state, extendsId);
     if (!base) {
@@ -1472,7 +1472,7 @@
     if (!base.isBase) {
       return {
         ok: false,
-        message: `Solo pod\xE9s extender entidades marcadas como base. \xAB${base.name}\xBB no es base.`
+        message: `Solo podés extender entidades marcadas como base. «${base.name}» no es base.`
       };
     }
     return { ok: true };
@@ -1484,7 +1484,7 @@
       const entity = getEntityById(state, entityId);
       return {
         ok: false,
-        message: `No pod\xE9s quitar \xABbase\xBB de \xAB${entity?.name ?? "entidad"}\xBB: ${extenders} ${extenders === 1 ? "entidad la extiende" : "entidades la extienden"}.`
+        message: `No podés quitar «base» de «${entity?.name ?? "entidad"}»: ${extenders} ${extenders === 1 ? "entidad la extiende" : "entidades la extienden"}.`
       };
     }
     return { ok: true };
@@ -1496,7 +1496,7 @@
     }
     if (entity.extendsBaseEntityId) {
       const baseName = getEntityById(state, entity.extendsBaseEntityId)?.name ?? "?";
-      return `<span class="catalog-muted">Extiende \xAB${escapeText(baseName)}\xBB</span>`;
+      return `<span class="catalog-muted">Extiende «${escapeText(baseName)}»</span>`;
     }
     return `<span class="catalog-muted">Independiente</span>`;
   }
@@ -1509,9 +1509,9 @@
   function renderEntityRefSelectOptions(state, excludeEntityId, selectedId) {
     const candidates = (state.entities ?? []).filter((e) => e.id !== excludeEntityId);
     if (!candidates.length) {
-      return `<option value="">\u2014 Sin otras entidades \u2014</option>`;
+      return `<option value="">— Sin otras entidades —</option>`;
     }
-    const opts = [`<option value="">\u2014 Seleccionar entidad \u2014</option>`];
+    const opts = [`<option value="">— Seleccionar entidad —</option>`];
     for (const e of candidates) {
       const sel = e.id === selectedId ? " selected" : "";
       opts.push(`<option value="${escapeAttr(e.id)}"${sel}>${escapeText(e.name)}</option>`);
@@ -1570,20 +1570,20 @@
       if (!attr.refEntityId) {
         return {
           ok: false,
-          message: `El atributo \xAB${attr.label || attr.key}\xBB debe seleccionar una entidad referenciada.`
+          message: `El atributo «${attr.label || attr.key}» debe seleccionar una entidad referenciada.`
         };
       }
       const target = getEntityById(state, attr.refEntityId);
       if (!target) {
-        return { ok: false, message: "La entidad referenciada ya no existe. Eleg\xED otra." };
+        return { ok: false, message: "La entidad referenciada ya no existe. Elegí otra." };
       }
       if (entityId && attr.refEntityId === entityId) {
-        return { ok: false, message: "Una entidad no puede referenciarse a s\xED misma." };
+        return { ok: false, message: "Una entidad no puede referenciarse a sí misma." };
       }
       if (refTargets.has(attr.refEntityId)) {
         return {
           ok: false,
-          message: `No pod\xE9s referenciar \xAB${target.name}\xBB m\xE1s de una vez en ${entityLabel}.`
+          message: `No podés referenciar «${target.name}» más de una vez en ${entityLabel}.`
         };
       }
       refTargets.add(attr.refEntityId);
@@ -1604,7 +1604,7 @@
         const target = getEntityById(state, targetId);
         return {
           ok: false,
-          message: `La referencia a \xAB${target?.name ?? targetId}\xBB generar\xEDa un ciclo con \xAB${entityLabel}\xBB.`
+          message: `La referencia a «${target?.name ?? targetId}» generaría un ciclo con «${entityLabel}».`
         };
       }
     }
@@ -1623,17 +1623,17 @@
         return { ok: false, message: "Cada atributo necesita clave (key)." };
       }
       if (!attr.label) {
-        return { ok: false, message: `El atributo \xAB${attr.key}\xBB necesita etiqueta.` };
+        return { ok: false, message: `El atributo «${attr.key}» necesita etiqueta.` };
       }
       const keyLower = attr.key.toLowerCase();
       if (keys.has(keyLower)) {
-        return { ok: false, message: `Clave duplicada: \xAB${attr.key}\xBB.` };
+        return { ok: false, message: `Clave duplicada: «${attr.key}».` };
       }
       keys.add(keyLower);
       if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(attr.key)) {
         return {
           ok: false,
-          message: `Clave inv\xE1lida \xAB${attr.key}\xBB. Us\xE1 letras, n\xFAmeros y gui\xF3n bajo (empez\xE1 con letra).`
+          message: `Clave inválida «${attr.key}». Usá letras, números y guión bajo (empezá con letra).`
         };
       }
     }
@@ -1641,12 +1641,12 @@
   }
   function summarizeEntityAttributesForList(state, attributes) {
     const list = attributes ?? [];
-    if (!list.length) return "\u2014";
+    if (!list.length) return "—";
     const parts = list.slice(0, 5).map((raw) => {
       const a = normalizeEntityAttribute(raw);
       if (a.type === ENTITY_REF_TYPE && a.refEntityId) {
         const name = getEntityById(state, a.refEntityId)?.name ?? "?";
-        return `\u2192 ${name}`;
+        return `→ ${name}`;
       }
       if (a.type === ENTITY_UUID_TYPE) {
         return `${a.label || a.key} (UUID autogenerado)`;
@@ -1660,7 +1660,7 @@
       return a.label || a.key;
     });
     const preview = parts.filter(Boolean).join(", ");
-    return list.length > 5 ? `${preview}\u2026` : preview;
+    return list.length > 5 ? `${preview}…` : preview;
   }
   function cloneEntityAttributes(attributes) {
     return (attributes ?? []).map((a) => normalizeEntityAttribute({ ...a }));
@@ -1700,13 +1700,13 @@
   function masterAuditAreaLabel(area) {
     if (area === "flowType") return "Tipo de flujo";
     if (area === "entity") return "Entidad";
-    if (area === "masterDefinition") return "Definici\xF3n de maestros";
+    if (area === "masterDefinition") return "Definición de maestros";
     if (area === "masterRecord") return "Registro de maestro";
     return area;
   }
   function masterAuditActionLabel(action) {
     if (action === "create") return "Alta";
-    if (action === "update") return "Modificaci\xF3n";
+    if (action === "update") return "Modificación";
     if (action === "delete") return "Baja";
     return action;
   }
@@ -1754,27 +1754,27 @@
   function validateMasterDefinition(state, name, entityIds, excludeId) {
     const label = String(name ?? "").trim();
     if (!label) {
-      return { ok: false, message: "El nombre de la definici\xF3n es obligatorio." };
+      return { ok: false, message: "El nombre de la definición es obligatorio." };
     }
     if (isMasterDefinitionNameTaken(state, label, excludeId)) {
-      return { ok: false, message: `Ya existe una definici\xF3n con el nombre \xAB${label}\xBB.` };
+      return { ok: false, message: `Ya existe una definición con el nombre «${label}».` };
     }
     const ids = [...new Set((entityIds ?? []).map((id) => String(id)).filter(Boolean))];
     if (!ids.length) {
-      return { ok: false, message: "Seleccion\xE1 al menos una entidad del maestro." };
+      return { ok: false, message: "Seleccioná al menos una entidad del maestro." };
     }
     for (const id of ids) {
       if (!getEntityById(state, id)) {
-        return { ok: false, message: "Una entidad seleccionada ya no existe. Actualiz\xE1 la definici\xF3n." };
+        return { ok: false, message: "Una entidad seleccionada ya no existe. Actualizá la definición." };
       }
     }
     return { ok: true };
   }
   function summarizeMasterDefinitionEntities(state, def) {
     const names = (def.entityIds ?? []).map((id) => getEntityById(state, id)?.name).filter(Boolean);
-    if (!names.length) return "\u2014";
+    if (!names.length) return "—";
     const preview = names.slice(0, 4).join(", ");
-    return names.length > 4 ? `${preview}\u2026 (+${names.length - 4})` : preview;
+    return names.length > 4 ? `${preview}… (+${names.length - 4})` : preview;
   }
   function escapeText2(value) {
     return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1783,7 +1783,7 @@
     const selected = new Set(selectedIds ?? []);
     const entities = state.entities ?? [];
     if (!entities.length) {
-      return `<p class="form-hint">No hay entidades. Cre\xE1 al menos una en Maestros \u2192 Entidades.</p>`;
+      return `<p class="form-hint">No hay entidades. Creá al menos una en Maestros → Entidades.</p>`;
     }
     return `<div class="master-def-entity-checklist" role="group" aria-label="Entidades incluidas">
     ${entities.map((e) => {
@@ -1793,7 +1793,7 @@
           <input type="checkbox" name="entityIds" value="${escapeText2(e.id)}"${checked} />
           <span class="master-def-entity-check__label">
             <strong>${escapeText2(e.name)}</strong>
-            <span class="form-hint">${attrCount} ${attrCount === 1 ? "atributo" : "atributos"} \xB7 <code>${escapeText2(e.id)}</code></span>
+            <span class="form-hint">${attrCount} ${attrCount === 1 ? "atributo" : "atributos"} · <code>${escapeText2(e.id)}</code></span>
           </span>
         </label>`;
     }).join("")}
@@ -1877,9 +1877,9 @@
     };
   }
   function masterRecordUsageStatusLabel(record) {
-    if (record?.status === "historico") return "Hist\xF3rico";
+    if (record?.status === "historico") return "Histórico";
     const v = record?.version ?? 1;
-    return v > 1 ? `Vigente \xB7 v${v}` : "Vigente";
+    return v > 1 ? `Vigente · v${v}` : "Vigente";
   }
   function listVigenteMasterRecordsForDefinition(state, definitionId) {
     if (!definitionId) return [];
@@ -1954,15 +1954,15 @@
   function validateMasterRecordValues(state, definitionId, values) {
     const def = getMasterDefinitionById(state, definitionId);
     if (!def) {
-      return { ok: false, message: "La definici\xF3n de maestros seleccionada ya no existe." };
+      return { ok: false, message: "La definición de maestros seleccionada ya no existe." };
     }
     if (!(def.entityIds ?? []).length) {
-      return { ok: false, message: "La definici\xF3n no tiene entidades configuradas." };
+      return { ok: false, message: "La definición no tiene entidades configuradas." };
     }
     for (const entityId of def.entityIds) {
       const entity = getEntityById(state, entityId);
       if (!entity) {
-        return { ok: false, message: "Falta una entidad de la definici\xF3n en el cat\xE1logo." };
+        return { ok: false, message: "Falta una entidad de la definición en el catálogo." };
       }
       const entityValues = values[entityId] ?? {};
       for (const raw of entity.attributes ?? []) {
@@ -1976,7 +1976,7 @@
         if (val === "" || val == null) {
           return {
             ok: false,
-            message: `\xAB${attr.label || attr.key}\xBB (${entity.name}) es obligatorio.`
+            message: `«${attr.label || attr.key}» (${entity.name}) es obligatorio.`
           };
         }
       }
@@ -2006,7 +2006,7 @@
       }
       if (parts.length >= 3) break;
     }
-    return parts.length ? parts.join(" \xB7 ") : "\u2014";
+    return parts.length ? parts.join(" · ") : "—";
   }
 
   // js/flow-lifecycle.js
@@ -2041,10 +2041,10 @@
   }
   function designerReadOnlyMessage(flow) {
     if (isFlowDeprecated(flow)) {
-      return "Esta versi\xF3n est\xE1 deprecada. Solo pod\xE9s consultar el diagrama; no se puede editar.";
+      return "Esta versión está deprecada. Solo podés consultar el diagrama; no se puede editar.";
     }
     if (flow?.status === "listo") {
-      return "Flujo en estado Listo. Us\xE1 \xABVersionar\xBB en el cat\xE1logo para crear un borrador editable.";
+      return "Flujo en estado Listo. Usá «Versionar» en el catálogo para crear un borrador editable.";
     }
     return "Este flujo no es editable.";
   }
@@ -2084,19 +2084,19 @@
     return "borrador";
   }
   function formatFlowVersion(flow) {
-    if (flow.status === "borrador" || flow.version == null) return "\u2014";
+    if (flow.status === "borrador" || flow.version == null) return "—";
     return `v${flow.version}`;
   }
   function createVersionDraft(flows, sourceFlowId) {
     const source = flows.find((f) => f.id === sourceFlowId);
     if (!source) return { error: "Flujo no encontrado." };
     if (source.status !== "listo") {
-      return { error: "Solo pod\xE9s versionar un flujo en estado listo." };
+      return { error: "Solo podés versionar un flujo en estado listo." };
     }
     const lineageId = source.lineageId ?? source.id;
     if (findDraftInLineage(flows, lineageId)) {
       return {
-        error: "Ya hay un borrador en este flujo. Confirmalo o elimin\xE1lo antes de versionar de nuevo."
+        error: "Ya hay un borrador en este flujo. Confirmalo o eliminálo antes de versionar de nuevo."
       };
     }
     const draft = cloneFlowSnapshot(source);
@@ -2111,7 +2111,7 @@
     const flow = flows.find((f) => f.id === flowId);
     if (!flow) return { ok: false, error: "Flujo no encontrado." };
     if (flow.status !== "borrador") {
-      return { ok: false, error: "Solo pod\xE9s confirmar un flujo en borrador." };
+      return { ok: false, error: "Solo podés confirmar un flujo en borrador." };
     }
     const lineageId = flow.lineageId ?? flow.id;
     if (flow.supersedesFlowId) {
@@ -2119,7 +2119,7 @@
       if (!parent || parent.status !== "listo") {
         return {
           ok: false,
-          error: "No se encontr\xF3 la versi\xF3n publicada que este borrador debe reemplazar."
+          error: "No se encontró la versión publicada que este borrador debe reemplazar."
         };
       }
       const nextVersion = (typeof parent.version === "number" ? parent.version : 0) + 1;
@@ -2134,7 +2134,7 @@
     if (existingListo && existingListo.id !== flow.id) {
       return {
         ok: false,
-        error: "Ya existe una versi\xF3n listo en este flujo. Us\xE1 Versionar para crear un borrador."
+        error: "Ya existe una versión listo en este flujo. Usá Versionar para crear un borrador."
       };
     }
     flow.version = 1;
@@ -2236,16 +2236,16 @@
     return {
       id: flowId,
       lineageId: flowId,
-      type: "Aprobaci\xF3n",
+      type: "Aprobación",
       flowTypeId: sampleFlowTypeId ?? void 0,
-      name: "Aprobaci\xF3n de gasto",
-      description: "Ejemplo BPMN: Start \u2192 User Task \u2192 XOR Gateway \u2192 Service Task / End.",
+      name: "Aprobación de gasto",
+      description: "Ejemplo BPMN: Start → User Task → XOR Gateway → Service Task / End.",
       status: "listo",
       version: 1,
       supersedesFlowId: null,
       notation: "bpmn",
       inputParams: [
-        { id: pTitulo, key: "titulo", label: "T\xEDtulo del gasto", type: "texto", required: true },
+        { id: pTitulo, key: "titulo", label: "Título del gasto", type: "texto", required: true },
         { id: pMonto, key: "monto", label: "Monto", type: "numero", required: true }
       ],
       nodes: [
@@ -2253,8 +2253,8 @@
         {
           id: nManual,
           kind: "manual",
-          name: "Revisi\xF3n del supervisor",
-          description: "User Task \u2014 validar monto y concepto",
+          name: "Revisión del supervisor",
+          description: "User Task — validar monto y concepto",
           x: 200,
           y: 180,
           usedParamIds: [pTitulo, pMonto],
@@ -2264,7 +2264,7 @@
           id: nGateway,
           kind: "gateway",
           gatewayType: "exclusive",
-          name: "\xBFAprobado?",
+          name: "¿Aprobado?",
           description: "Exclusive Gateway",
           x: 420,
           y: 200,
@@ -2312,11 +2312,11 @@
       screens: {
         [nManual]: {
           blocks: [
-            { id: createId("blk"), type: "titulo", text: "Revisi\xF3n de gasto" },
+            { id: createId("blk"), type: "titulo", text: "Revisión de gasto" },
             { id: createId("blk"), type: "texto", text: "Verifique los datos antes de aprobar o rechazar." },
             { id: createId("blk"), type: "dato", paramId: pTitulo },
             { id: createId("blk"), type: "dato", paramId: pMonto },
-            { id: createId("blk"), type: "comentario", label: "Motivo de revisi\xF3n", outputKey: "motivoRevision", required: true }
+            { id: createId("blk"), type: "comentario", label: "Motivo de revisión", outputKey: "motivoRevision", required: true }
           ]
         }
       }
@@ -2333,7 +2333,7 @@
       isBase: true,
       extendsBaseEntityId: null,
       attributes: [
-        { id: createId("entityAttr"), key: "titulo", label: "T\xEDtulo del gasto", type: "texto", required: true },
+        { id: createId("entityAttr"), key: "titulo", label: "Título del gasto", type: "texto", required: true },
         { id: createId("entityAttr"), key: "monto", label: "Monto", type: "numero", required: true }
       ]
     });
@@ -2342,7 +2342,7 @@
     state.masterDefinitions.push({
       id: masterDefId,
       name: "Maestro de gastos",
-      description: "Definici\xF3n basada en la entidad Gasto.",
+      description: "Definición basada en la entidad Gasto.",
       entityIds: [gastoEntityId]
     });
     if (!Array.isArray(state.masterRecords)) state.masterRecords = [];
@@ -2364,8 +2364,8 @@
     const approvalTypeId = createId("flowType");
     state.flowTypes.push({
       id: approvalTypeId,
-      name: "Aprobaci\xF3n",
-      description: "Flujos de aprobaci\xF3n y validaci\xF3n (ejemplo del mock)."
+      name: "Aprobación",
+      description: "Flujos de aprobación y validación (ejemplo del mock)."
     });
     setSampleFlowTypeId(approvalTypeId);
     state.flows.push(createSampleFlow());
@@ -2410,20 +2410,20 @@
   function designerBlockedMessage() {
     if (isMobileDesignerContext()) {
       return {
-        title: "Dise\xF1ador de flujo no disponible en este dispositivo",
-        body: "Esto no se puede hacer en tu dispositivo. Para editar flujos necesit\xE1s una pantalla m\xE1s grande: us\xE1 una tablet en horizontal (1024\xD7768 o m\xE1s) o una computadora."
+        title: "Diseñador de flujo no disponible en este dispositivo",
+        body: "Esto no se puede hacer en tu dispositivo. Para editar flujos necesitás una pantalla más grande: usá una tablet en horizontal (1024×768 o más) o una computadora."
       };
     }
     return {
-      title: "Pantalla demasiado peque\xF1a para dise\xF1ar",
-      body: "El dise\xF1ador requiere una ventana mayor a 800\xD7600 p\xEDxeles. Ampli\xE1 la ventana del navegador o us\xE1 una tablet horizontal / computadora con al menos 1024\xD7768 recomendados."
+      title: "Pantalla demasiado pequeña para diseñar",
+      body: "El diseñador requiere una ventana mayor a 800×600 píxeles. Ampliá la ventana del navegador o usá una tablet horizontal / computadora con al menos 1024×768 recomendados."
     };
   }
   function designerCriticalMessage() {
-    return "Gran problema: tu resoluci\xF3n es inferior a 1024\xD7768. Pod\xE9s intentar dise\xF1ar, pero la experiencia ser\xE1 muy limitada. Recomendamos un monitor m\xE1s grande o maximizar la ventana.";
+    return "Gran problema: tu resolución es inferior a 1024×768. Podés intentar diseñar, pero la experiencia será muy limitada. Recomendamos un monitor más grande o maximizar la ventana.";
   }
   function designerTabletWarnMessage() {
-    return "Est\xE1s en tablet (o pantalla t\xE1ctil grande): pod\xE9s dise\xF1ar, pero es probable que tengas problemas de dise\xF1o y visualizaci\xF3n en el lienzo, los paneles y el zoom.";
+    return "Estás en tablet (o pantalla táctil grande): podés diseñar, pero es probable que tengas problemas de diseño y visualización en el lienzo, los paneles y el zoom.";
   }
   function designerCatalogCalloutHtml() {
     if (isCatalogActionsBlocked()) {
@@ -2432,7 +2432,7 @@
     }
     const tier = getDesignerViewportTier();
     if (tier === "blocked") {
-      return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">Pod\xE9s crear y gestionar flujos desde ac\xE1. El lienzo BPMN requiere una ventana mayor a 800\xD7600 p\xEDxeles.</div>`;
+      return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">Podés crear y gestionar flujos desde acá. El lienzo BPMN requiere una ventana mayor a 800×600 píxeles.</div>`;
     }
     if (tier === "critical") {
       return `<div class="catalog-viewport-warning catalog-viewport-warning--critical" role="status">${designerCriticalMessage()}</div>`;
@@ -2490,7 +2490,7 @@
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function formatDateTime(iso) {
-    if (!iso) return "\u2014";
+    if (!iso) return "—";
     try {
       return new Date(iso).toLocaleString("es-AR");
     } catch {
@@ -2498,12 +2498,89 @@
     }
   }
 
+  // js/action-icons.js
+  var ACTION_ICON_SVG = {
+    edit: `<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>`,
+    delete: `<path d="M4 7h16M9 7V5h6v2M10 11v6M14 11v6M6 7l1 12h10l1-12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    save: `<path d="M5 5h11l3 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M8 5v5h8V5M8 19v-5h8v5" fill="none" stroke="currentColor" stroke-width="1.75"/>`,
+    add: `<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    import: `<path d="M12 3v12M8 11l4 4 4-4M5 21h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    history: `<path d="M3 12a9 9 0 1 0 3-6.7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><path d="M3 4v5h5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    open: `<path d="M14 3h7v7M10 14 21 3M5 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    close: `<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    cancel: `<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    back: `<path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    activate: `<path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    version: `<path d="M8 8H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3M16 3h5v5M10 14 21 3" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    download: `<path d="M12 3v12M8 11l4 4 4-4M5 21h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    view: `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" stroke-width="1.75"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.75"/>`,
+    refresh: `<path d="M21 12a9 9 0 0 0-15-6.7M3 12a9 9 0 0 0 15 6.7M3 4v5h5M21 20v-5h-5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    play: `<path d="M8 5v14l11-7L8 5z" fill="currentColor"/>`,
+    send: `<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>`,
+    manage: `<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 3.6a1.65 1.65 0 0 0 1-1.51V2a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 8c.36 0 .7.07 1 .2H21a2 2 0 1 1 0 4h-.09c-.7 0-1.34.37-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.25"/>`,
+    meta: `<path d="M12 8v4M12 16h.01M4 6h16v12H4V6z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    link: `<path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.3 1.3M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.3-1.3" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    chevronUp: `<path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    chevronDown: `<path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    logout: `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    user: `<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    sparkles: `<path d="M12 3l1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3zM5 16l.8 2.5L8 19l-2.2.7L5 22l-.8-2.3L2 19l2.2-.7L5 16z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
+    zoomIn: `<path d="M11 11l4 4M10 7v6M7 10h6M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    zoomOut: `<path d="M11 11l4 4M7 10h6M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    fit: `<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    fullscreen: `<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    start: `<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>`,
+    arrowRight: `<path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    accept: `<path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`,
+    reject: `<path d="M15 9l-6 6M9 9l6 6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`
+  };
+  function actionIconSvg(name) {
+    const inner = ACTION_ICON_SVG[name];
+    if (!inner) return "";
+    return `<svg class="action-icon-svg" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+  }
+  function serializeDataAttributes(attrs) {
+    return Object.entries(attrs).filter(([, v]) => v != null && v !== false).map(([key, val]) => {
+      const attr = key.startsWith("data-") ? key : `data-${key}`;
+      return `${attr}="${escapeHtml(String(val))}"`;
+    }).join(" ");
+  }
+  function renderActionButton(opts) {
+    const {
+      icon,
+      label,
+      variant = "",
+      size = "sm",
+      disabled = false,
+      type = "button",
+      id = "",
+      className = "",
+      badge,
+      data = {},
+      extraAttrs = ""
+    } = opts;
+    const variantClass = variant ? ` action-icon-btn--${variant}` : "";
+    const sizeClass = size === "md" ? " action-icon-btn--md" : "";
+    const badgeClass = badge != null && badge !== "" ? " action-icon-btn--badged" : "";
+    const dataStr = serializeDataAttributes(data);
+    const badgeHtml = badge != null && badge !== "" ? `<span class="action-icon-btn__badge">${escapeHtml(String(badge))}</span>` : "";
+    const classes = `action-icon-btn${variantClass}${sizeClass}${badgeClass}${className ? ` ${className}` : ""}`.trim();
+    return `<button type="${type}" class="${classes}" ${id ? `id="${escapeHtml(id)}"` : ""} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${disabled ? "disabled" : ""} ${dataStr} ${extraAttrs}>${actionIconSvg(icon)}${badgeHtml}</button>`;
+  }
+  function renderModalCloseButton(label = "Cerrar") {
+    return renderActionButton({
+      icon: "close",
+      label,
+      extraAttrs: "data-modal-close"
+    });
+  }
+
   // js/component-attributes-modal.js
   var DATA_TYPE_OPTIONS = [
     { value: "texto", label: "Texto" },
-    { value: "numero", label: "N\xFAmero" },
+    { value: "numero", label: "Número" },
     { value: "fecha", label: "Fecha" },
-    { value: "si_no", label: "S\xED / No" }
+    { value: "si_no", label: "Sí / No" }
   ];
   var ATTR_LIST_ICON_EDIT = `<svg class="component-attr-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>`;
   var ATTR_LIST_ICON_TRASH = `<svg class="component-attr-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M10 11v6M14 11v6M6 7l1 12h10l1-12" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -2514,9 +2591,9 @@
       return `<p class="component-attr-empty">Sin atributos definidos.</p>`;
     }
     return items.map((a) => {
-      const card = a.cardinality === INPUT_CARDINALITY.LISTA ? `lista \xB7 ${a.optionCount} opc.` : "\xFAnico";
+      const card = a.cardinality === INPUT_CARDINALITY.LISTA ? `lista · ${a.optionCount} opc.` : "único";
       const req = a.required ? " *" : "";
-      return `<span class="chip component-attr-chip">${escapeHtml(a.label)} \xB7 ${escapeHtml(card)}${req}</span>`;
+      return `<span class="chip component-attr-chip">${escapeHtml(a.label)} · ${escapeHtml(card)}${req}</span>`;
     }).join("");
   }
   function attributeEditSignature(attr) {
@@ -2549,15 +2626,15 @@
     const optionsHtml = (attr.listOptions ?? []).map(
       (opt, oi) => `
       <div class="component-attr-option-row" data-opt-index="${oi}" ${opt.id ? `data-opt-id="${escapeHtml(opt.id)}"` : ""}>
-        <input type="text" data-field="opt-label" value="${escapeHtml(opt.label)}" placeholder="Etiqueta opci\xF3n"${dis} />
+        <input type="text" data-field="opt-label" value="${escapeHtml(opt.label)}" placeholder="Etiqueta opción"${dis} />
         <label class="component-attr-opt-req"><input type="checkbox" data-field="opt-required" ${opt.required ? "checked" : ""}${dis} /> Obligatoria</label>
-        ${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-opt>\xD7</button>`}
+        ${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-opt>×</button>`}
       </div>`
     ).join("");
     return `
     <div class="component-attr-detail-form" data-attr-detail data-attr-index="${index}" data-attr-scope="${scope}" ${attr.id ? `data-attr-id="${escapeHtml(attr.id)}"` : ""}>
       <div class="component-attr-detail-head">
-        <strong>Par\xE1metros del atributo</strong>
+        <strong>Parámetros del atributo</strong>
       </div>
       <div class="form-grid component-attr-fields">
         <div class="form-row"><label>Clave</label><input data-field="key" pattern="[a-z0-9_]+" required value="${escapeHtml(attr.key)}" placeholder="ej. monto"${dis} /></div>
@@ -2565,49 +2642,48 @@
         <div class="form-row"><label>Tipo</label><select data-field="dataType"${dis}>${typeOpts}</select></div>
         <div class="form-row"><label>Cardinalidad</label>
           <select data-field="cardinality"${dis}>
-            <option value="unico" ${!isLista ? "selected" : ""}>\xDAnico</option>
+            <option value="unico" ${!isLista ? "selected" : ""}>Único</option>
             <option value="lista" ${isLista ? "selected" : ""}>Lista</option>
           </select>
         </div>
         <div class="form-row component-attr-order-row">
           <label>Orden</label>
           <input type="number" data-field="order" min="1" step="1" value="${(typeof attr.order === "number" ? attr.order : index) + 1}"${dis} />
-          <span class="form-hint component-attr-order-hint">Tambi\xE9n pod\xE9s arrastrar filas en el listado.</span>
+          <span class="form-hint component-attr-order-hint">También podés arrastrar filas en el listado.</span>
         </div>
         <label class="component-attr-required"><input type="checkbox" data-field="required" ${attr.required ? "checked" : ""}${dis} /> Obligatorio</label>
       </div>
       <div class="component-attr-options" data-options-block style="${isLista ? "" : "display:none"}">
         <div class="component-attr-options-head">
           <span>Opciones (lista)</span>
-          ${readOnly ? "" : `<button type="button" class="btn btn-sm" data-add-opt>+ Opci\xF3n</button>`}
+          ${readOnly ? "" : renderActionButton({ icon: "add", label: "Agregar opción", data: { "add-opt": "" }, extraAttrs: "data-add-opt" })}
         </div>
-        <div class="component-attr-options-list">${optionsHtml || `<p class="component-attr-empty">Agreg\xE1 al menos una opci\xF3n.</p>`}</div>
+        <div class="component-attr-options-list">${optionsHtml || `<p class="component-attr-empty">Agregá al menos una opción.</p>`}</div>
       </div>
       <div class="component-attr-detail-footer">
-        ${readOnly ? `<button type="button" class="btn btn-sm" data-close-attr-detail data-close-scope="${scope}">Cerrar</button>` : `<button type="button" class="btn btn-sm" data-cancel-attr-detail data-cancel-scope="${scope}">Cancelar</button>
-               <button type="button" class="btn btn-sm btn-primary" data-save-attr-detail data-save-scope="${scope}" disabled>Guardar</button>`}
+        ${readOnly ? renderActionButton({ icon: "close", label: "Cerrar", data: { "close-attr-detail": "", "close-scope": scope } }) : `<div class="action-icon-group">${renderActionButton({ icon: "cancel", label: "Cancelar", data: { "cancel-attr-detail": "", "cancel-scope": scope } })}${renderActionButton({ icon: "save", label: "Guardar atributo", variant: "primary", disabled: true, data: { "save-attr-detail": "", "save-scope": scope } })}</div>`}
       </div>
     </div>`;
   }
   function attributeListTypeLabel(attr) {
-    return DATA_TYPE_OPTIONS.find((o) => o.value === attr.dataType)?.label ?? attr.dataType ?? "\u2014";
+    return DATA_TYPE_OPTIONS.find((o) => o.value === attr.dataType)?.label ?? attr.dataType ?? "—";
   }
   function attributeListCardinalityLabel(attr) {
-    return attr.cardinality === INPUT_CARDINALITY.LISTA ? "Lista" : "\xDAnico";
+    return attr.cardinality === INPUT_CARDINALITY.LISTA ? "Lista" : "Único";
   }
   function renderDefinedAttributesList(attrs, scope, selectedIndex, readOnly, detailOpen) {
     if (!attrs.length) {
-      return `<p class="component-attr-empty">No hay atributos definidos. Us\xE1 \xAB+ Atributo\xBB para agregar uno.</p>`;
+      return `<p class="component-attr-empty">No hay atributos definidos. Usá «+ Atributo» para agregar uno.</p>`;
     }
     const safeIndex = Math.min(Math.max(0, selectedIndex), attrs.length - 1);
     const dragHint = readOnly ? "" : ` data-attr-dnd-list="${scope}"`;
     const rows = attrs.map((a, i) => {
-      const keyCell = a.key?.trim() ? `<code>${escapeHtml(a.key)}</code>` : `<span class="component-attr-cell-muted">\u2014</span>`;
-      const labelCell = a.label?.trim() ? escapeHtml(a.label) : `<span class="component-attr-cell-muted">\u2014</span>`;
+      const keyCell = a.key?.trim() ? `<code>${escapeHtml(a.key)}</code>` : `<span class="component-attr-cell-muted">—</span>`;
+      const labelCell = a.label?.trim() ? escapeHtml(a.label) : `<span class="component-attr-cell-muted">—</span>`;
       const orderNum = (typeof a.order === "number" ? a.order : i) + 1;
-      const requiredCell = a.required ? "S\xED" : "No";
-      const dragHandle = readOnly ? `<span class="component-attr-list-drag component-attr-list-drag--placeholder" aria-hidden="true"></span>` : `<span class="component-attr-list-drag" draggable="true" data-attr-drag-handle="${i}" data-drag-scope="${scope}" title="Arrastrar para reordenar" aria-hidden="true">\u22EE\u22EE</span>`;
-      const editBtn = readOnly ? `<button type="button" class="component-attr-icon-btn" data-list-edit-attr="${i}" data-list-scope="${scope}" title="Ver par\xE1metros" aria-label="Ver par\xE1metros">${ATTR_LIST_ICON_VIEW}</button>` : `<button type="button" class="component-attr-icon-btn" data-list-edit-attr="${i}" data-list-scope="${scope}" title="Editar par\xE1metros" aria-label="Editar par\xE1metros">${ATTR_LIST_ICON_EDIT}</button>`;
+      const requiredCell = a.required ? "Sí" : "No";
+      const dragHandle = readOnly ? `<span class="component-attr-list-drag component-attr-list-drag--placeholder" aria-hidden="true"></span>` : `<span class="component-attr-list-drag" draggable="true" data-attr-drag-handle="${i}" data-drag-scope="${scope}" title="Arrastrar para reordenar" aria-hidden="true">⋮⋮</span>`;
+      const editBtn = readOnly ? `<button type="button" class="component-attr-icon-btn" data-list-edit-attr="${i}" data-list-scope="${scope}" title="Ver parámetros" aria-label="Ver parámetros">${ATTR_LIST_ICON_VIEW}</button>` : `<button type="button" class="component-attr-icon-btn" data-list-edit-attr="${i}" data-list-scope="${scope}" title="Editar parámetros" aria-label="Editar parámetros">${ATTR_LIST_ICON_EDIT}</button>`;
       const deleteBtn = readOnly ? "" : `<button type="button" class="component-attr-icon-btn component-attr-icon-btn--danger" data-list-rm-attr="${i}" data-list-scope="${scope}" title="Eliminar atributo" aria-label="Eliminar atributo">${ATTR_LIST_ICON_TRASH}</button>`;
       const isEditing = detailOpen && i === safeIndex;
       return `<li class="component-attr-defined-row ${isEditing ? "is-selected" : ""}" data-attr-list-index="${i}" data-attr-list-scope="${scope}" role="option" aria-selected="${isEditing ? "true" : "false"}">
@@ -2770,20 +2846,20 @@
     mainEl.innerHTML = `
     <section class="gestion-hero component-attr-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-component-attrs-back>Volver</button>
+        ${renderActionButton({ icon: "back", label: "Volver", className: "gestion-hero-back", extraAttrs: "data-component-attrs-back" })}
         <div class="gestion-hero-heading">
           <h2>Atributos del componente</h2>
-          <p class="gestion-hero-subtitle">${titleKind} \xB7 ${escapeHtml(initialNode.name)} \xB7 ${escapeHtml(flow.name ?? "")} \xB7 ${flowVersionLabel}</p>
+          <p class="gestion-hero-subtitle">${titleKind} · ${escapeHtml(initialNode.name)} · ${escapeHtml(flow.name ?? "")} · ${flowVersionLabel}</p>
         </div>
       </header>
       <div class="component-attr-modal-body component-attr-hero-body">
-        ${readOnly ? `<p class="props-intro props-intro--readonly">Solo lectura: el flujo no est\xE1 en borrador.</p>` : ""}
-        <p class="form-hint component-attr-hint">Us\xE1 el icono de edici\xF3n en cada fila para abrir los par\xE1metros. Guard\xE1 o cancel\xE1 desde ese panel; el bot\xF3n \xABGuardar\xBB del pie persiste todos los cambios en el flujo${hasOutput ? " (entrada y salida son listas independientes)" : ""}.</p>
+        ${readOnly ? `<p class="props-intro props-intro--readonly">Solo lectura: el flujo no está en borrador.</p>` : ""}
+        <p class="form-hint component-attr-hint">Usá el icono de edición en cada fila para abrir los parámetros. Guardá o cancelá desde ese panel; el botón «Guardar» del pie persiste todos los cambios en el flujo${hasOutput ? " (entrada y salida son listas independientes)" : ""}.</p>
         ${tabsHtml}
         <div class="component-attr-panels">${bodyHtml}</div>
       </div>
       <footer class="component-attr-hero-footer">
-        ${readOnly ? "" : `<button type="button" class="btn btn-primary" data-save-attrs>Guardar</button>`}
+        ${readOnly ? "" : renderActionButton({ icon: "save", label: "Guardar atributos", variant: "primary", extraAttrs: "data-save-attrs" })}
       </footer>
     </section>`;
     const root = mainEl;
@@ -2922,7 +2998,7 @@
     const persistDraftToNode = () => {
       const editing = getEditingNode();
       if (!editing) {
-        toast("No se encontr\xF3 el componente en el flujo.");
+        toast("No se encontró el componente en el flujo.");
         return false;
       }
       pullDraftFromDom();
@@ -3122,13 +3198,13 @@
 
   // js/designer-studio.js
   var SCREEN_COMPONENTS = [
-    { type: "titulo", label: "T\xEDtulo" },
+    { type: "titulo", label: "Título" },
     { type: "texto", label: "Texto" },
     { type: "dato", label: "Dato entrada (lectura)" },
     { type: "campo_texto", label: "Campo texto" },
-    { type: "campo_numero", label: "Campo n\xFAmero" },
+    { type: "campo_numero", label: "Campo número" },
     { type: "campo_fecha", label: "Campo fecha" },
-    { type: "campo_si_no", label: "S\xED / No" },
+    { type: "campo_si_no", label: "Sí / No" },
     { type: "campo_texto_largo", label: "Texto largo" },
     { type: "comentario", label: "Comentario" },
     { type: "separador", label: "Separador" }
@@ -3139,14 +3215,14 @@
     const isAgenteIA = node?.kind === NODE_KINDS.AGENTE_IA;
     const tab = (mode, label, enabled) => `<button type="button" class="btn btn-sm studio-tab ${studioMode === mode ? "is-toggle-active" : ""}" data-studio-mode="${mode}" role="tab" ${enabled ? "" : "disabled"}>${label}</button>`;
     const kindBadge = isManual ? `<span class="node-kind-badge">User Task</span>` : isAuto ? `<span class="node-kind-badge node-kind-badge--auto">Service Task</span>` : isAgenteIA ? `<span class="node-kind-badge node-kind-badge--ai">Agente IA</span>` : "";
-    return `<div class="designer-studio-bar" role="tablist" aria-label="Modo de dise\xF1o">
+    return `<div class="designer-studio-bar" role="tablist" aria-label="Modo de diseño">
     <div class="segmented-control">
     ${tab("path", "Camino", true)}
     ${tab("screen", "Pantalla", isManual)}
-    ${tab("automation", "Automatizaci\xF3n", isAuto)}
+    ${tab("automation", "Automatización", isAuto)}
     ${tab("agente_ia", "Agente IA", isAgenteIA)}
     </div>
-    <span class="designer-studio-meta">${escapeHtml(flowName)} \xB7 ${escapeHtml(node?.name ?? "\u2014")}${kindBadge}</span>
+    <span class="designer-studio-meta">${escapeHtml(flowName)} · ${escapeHtml(node?.name ?? "—")}${kindBadge}</span>
   </div>`;
   }
   function collectScreenOutputKeys(screen) {
@@ -3169,7 +3245,7 @@
   function renderScreenPreviewHtml(flow, screen) {
     let html = "";
     for (const b of screen?.blocks ?? []) {
-      if (b.type === "titulo") html += `<h3>${escapeHtml(b.text || "T\xEDtulo")}</h3>`;
+      if (b.type === "titulo") html += `<h3>${escapeHtml(b.text || "Título")}</h3>`;
       if (b.type === "texto") html += `<p>${escapeHtml(b.text || "")}</p>`;
       if (b.type === "separador") html += `<hr class="studio-separator" />`;
       if (b.type === "dato") {
@@ -3197,7 +3273,7 @@
       }
       if (b.type === "campo_si_no") {
         const name = b.outputKey ?? b.fieldKey ?? b.id;
-        html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}"><option value="">\u2014</option><option value="si">S\xED</option><option value="no">No</option></select></div>`;
+        html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}"><option value="">—</option><option value="si">Sí</option><option value="no">No</option></select></div>`;
       }
     }
     html += `<div class="preview-actions"><button type="button" class="btn btn-success" disabled>Aceptar</button><button type="button" class="btn btn-danger" disabled>Rechazar</button></div>`;
@@ -3209,19 +3285,19 @@
     const screen = flow.screens[node.id];
     const blocksHtml = screen.blocks.map(
       (b, i) => `<div class="studio-block-row"><span class="studio-block-handle" aria-hidden="true"></span><span>${escapeHtml(blockLabel(flow, b))}</span>
-    <span class="studio-block-actions"><button type="button" class="btn btn-sm" data-block-up="${i}" aria-label="Subir">\u2191</button>
-    <button type="button" class="btn btn-sm" data-block-down="${i}" aria-label="Bajar">\u2193</button>
-    <button type="button" class="btn btn-sm btn-danger" data-block-rm="${i}" aria-label="Eliminar">\xD7</button></span></div>`
-    ).join("") || "<p class='empty-state gestion-empty'>Agreg\xE1 componentes desde la izquierda.</p>";
+    <span class="studio-block-actions"><button type="button" class="btn btn-sm" data-block-up="${i}" aria-label="Subir">↑</button>
+    <button type="button" class="btn btn-sm" data-block-down="${i}" aria-label="Bajar">↓</button>
+    <button type="button" class="btn btn-sm btn-danger" data-block-rm="${i}" aria-label="Eliminar">×</button></span></div>`
+    ).join("") || "<p class='empty-state gestion-empty'>Agregá componentes desde la izquierda.</p>";
     const components = SCREEN_COMPONENTS.map(
       (c) => `<button type="button" class="studio-component-tile" data-add-block="${c.type}">${escapeHtml(c.label)}</button>`
     ).join("");
     const outKeys = collectScreenOutputKeys(screen);
-    const outTable = outKeys.length === 0 ? `<p class="form-hint">Sin claves de salida a\xFAn.</p>` : `<table class="studio-map-table"><thead><tr><th>context</th></tr></thead><tbody>${outKeys.map((k) => `<tr><td><code>${escapeHtml(k)}</code></td></tr>`).join("")}</tbody></table>`;
+    const outTable = outKeys.length === 0 ? `<p class="form-hint">Sin claves de salida aún.</p>` : `<table class="studio-map-table"><thead><tr><th>context</th></tr></thead><tbody>${outKeys.map((k) => `<tr><td><code>${escapeHtml(k)}</code></td></tr>`).join("")}</tbody></table>`;
     return `<div class="designer-studio workspace-screen">
     <aside class="studio-panel"><h3 class="panel-title">Componentes</h3><div class="studio-component-grid">${components}</div></aside>
     <main class="studio-panel"><h3 class="panel-title">Estructura</h3><div id="studio-blocks-list">${blocksHtml}</div>
-    <div class="screen-preview-frame"><p class="preview-caption">Como en Gesti\xF3n</p><div class="screen-preview" id="studio-screen-preview">${renderScreenPreviewHtml(flow, screen)}</div></div></main>
+    <div class="screen-preview-frame"><p class="preview-caption">Como en Gestión</p><div class="screen-preview" id="studio-screen-preview">${renderScreenPreviewHtml(flow, screen)}</div></div></main>
     <aside class="studio-panel"><h3 class="panel-title">Salidas</h3><p class="form-hint">Valores en <code>context</code> de la instancia.</p>${outTable}</aside>
   </div>`;
   }
@@ -3232,9 +3308,9 @@
     const adapterOptions = ADAPTER_CATALOG.map(
       (a) => `<option value="${a.id}" ${i.adapter === a.id ? "selected" : ""}>${escapeHtml(a.label)}</option>`
     ).join("");
-    let adapterFields = `<p class="props-intro">Simulaci\xF3n sin API externa.</p>`;
+    let adapterFields = `<p class="props-intro">Simulación sin API externa.</p>`;
     if (i.adapter === ADAPTER_KINDS.REST_JSON) {
-      adapterFields = `<div class="form-row"><label>M\xE9todo</label><select name="method"><option ${i.method === "GET" ? "selected" : ""}>GET</option><option ${i.method === "POST" ? "selected" : ""}>POST</option></select></div>
+      adapterFields = `<div class="form-row"><label>Método</label><select name="method"><option ${i.method === "GET" ? "selected" : ""}>GET</option><option ${i.method === "POST" ? "selected" : ""}>POST</option></select></div>
     <div class="form-row"><label>URL</label><input name="urlTemplate" value="${escapeHtml(i.urlTemplate ?? "")}" /></div>
     <div class="form-row"><label>Body JSON</label><textarea name="bodyTemplate" rows="4">${escapeHtml(i.bodyTemplate ?? "{}")}</textarea></div>`;
     } else if (i.adapter === ADAPTER_KINDS.SOAP_XML) {
@@ -3243,7 +3319,7 @@
       adapterFields = `<div class="form-row"><label>Endpoint</label><input name="endpoint" value="${escapeHtml(i.endpoint ?? "")}" /></div><p class="props-intro">GraphQL simulado en v1.</p>`;
     } else if (i.adapter === ADAPTER_KINDS.CONNECTOR) {
       adapterFields = `<div class="form-row"><label>Conector</label><input name="connectorId" value="${escapeHtml(i.connectorId ?? "erp_generico")}" /></div>
-    <div class="form-row"><label>Operaci\xF3n</label><input name="operation" value="${escapeHtml(i.operation ?? "")}" /></div>`;
+    <div class="form-row"><label>Operación</label><input name="operation" value="${escapeHtml(i.operation ?? "")}" /></div>`;
     }
     const resp = (i.responseMappings ?? []).map(
       (m, idx) => `<div class="form-row"><input data-resp-ctx="${idx}" value="${escapeHtml(m.contextKey ?? "")}" placeholder="context key" /><input data-resp-path="${idx}" value="${escapeHtml(m.jsonPath ?? "")}" placeholder="json path" /></div>`
@@ -3254,9 +3330,9 @@
     <aside class="studio-panel"><h3 class="panel-title">Adaptador</h3>
     <div class="form-row"><label>Tipo</label><select id="integration-adapter">${adapterOptions}</select></div>
     <div class="form-row"><label>Modo</label><select id="integration-exec-mode"><option value="mock">Mock</option><option value="live" ${i.executionMode === "live" ? "selected" : ""}>Live REST</option></select></div>
-    <div class="form-row"><label>credentialRef</label><input id="integration-cred-ref" value="${escapeHtml(i.credentialRef ?? "")}" placeholder="vault://\u2026" /><p class="form-hint">Referencia only; sin secretos en el navegador.</p></div></aside>
+    <div class="form-row"><label>credentialRef</label><input id="integration-cred-ref" value="${escapeHtml(i.credentialRef ?? "")}" placeholder="vault://…" /><p class="form-hint">Referencia only; sin secretos en el navegador.</p></div></aside>
     <main class="studio-panel"><div class="studio-section" style="margin-top:0;padding-top:0;border-top:none"><h3 class="studio-section-title">Request</h3><form id="form-integration" class="form-grid">${adapterFields}</form></div>
-    <div class="studio-section"><h3 class="studio-section-title">Respuesta \u2192 contexto</h3><div id="response-mappings">${resp}</div>
+    <div class="studio-section"><h3 class="studio-section-title">Respuesta → contexto</h3><div id="response-mappings">${resp}</div>
     <button type="button" class="btn btn-sm" id="btn-add-resp-map">+ mapping</button></div>
     <div class="studio-section">
     <button type="button" class="btn btn-primary" id="btn-test-integration">Probar contrato</button>${modeBadge}${simNote}
@@ -3268,7 +3344,7 @@
       btn.addEventListener("click", () => {
         const type = btn.dataset.addBlock;
         const block = { id: createId("blk"), type };
-        if (type === "titulo") block.text = "T\xEDtulo";
+        if (type === "titulo") block.text = "Título";
         if (type === "texto") block.text = "Texto";
         if (type === "dato") block.paramId = flow.inputParams[0]?.id;
         if (type === "comentario") {
@@ -3374,8 +3450,8 @@
     return `
     <div class="studio-layout">
       <aside class="studio-sidebar">
-        <h3>Configuraci\xF3n del Agente IA</h3>
-        <p class="props-intro">Define el prompt y la interacci\xF3n humana (HITL).</p>
+        <h3>Configuración del Agente IA</h3>
+        <p class="props-intro">Define el prompt y la interacción humana (HITL).</p>
       </aside>
       <main class="studio-main">
         <div class="studio-section">
@@ -3390,9 +3466,9 @@
               <input type="email" id="hitl-email" value="${escapeHtml(hitlEmail)}" placeholder="operador@empresa.com" />
             </div>
             <div class="form-row">
-              <label>Tipo de interacci\xF3n</label>
+              <label>Tipo de interacción</label>
               <select id="hitl-type">
-                <option value="approval" ${hitlType === "approval" ? "selected" : ""}>Aprobaci\xF3n (S\xED/No)</option>
+                <option value="approval" ${hitlType === "approval" ? "selected" : ""}>Aprobación (Sí/No)</option>
                 <option value="input" ${hitlType === "input" ? "selected" : ""}>Entrada de datos (Texto)</option>
               </select>
             </div>
@@ -3613,8 +3689,8 @@
     return `
     ${renderDesignerViewportBannerHtml()}
     <div class="toolbar">
-      <button type="button" class="btn" id="btn-back-catalog">\u2190 Cat\xE1logo</button>
-      <span style="flex:1;font-weight:600">Estudio \xB7 ${escapeHtml(flow.name)}</span>
+      <button type="button" class="btn" id="btn-back-catalog">← Catálogo</button>
+      <span style="flex:1;font-weight:600">Estudio · ${escapeHtml(flow.name)}</span>
       <button type="button" class="btn" id="btn-flow-meta">Metadatos</button>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
@@ -3624,7 +3700,7 @@
   function applyFlowMetaFromForm(flow, state, fd) {
     const flowTypeId = String(fd.get("flowTypeId") ?? "");
     if (!applyFlowTypeToFlow(flow, state, flowTypeId)) {
-      toast("Seleccion\xE1 un tipo de flujo v\xE1lido.");
+      toast("Seleccioná un tipo de flujo válido.");
       return false;
     }
     flow.name = String(fd.get("name") ?? "").trim();
@@ -3643,19 +3719,19 @@
     });
     mainEl.querySelector("#btn-flow-meta")?.addEventListener("click", () => {
       const { close, root } = openModal(`
-      <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
+      <div class="modal-header"><h2>Metadatos del flujo</h2>${renderModalCloseButton()}</div>
       <form id="form-meta" class="form-grid">
         ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
-        <div class="form-row"><label>Descripci\xF3n</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
+        <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
+        ${renderActionButton({ icon: "save", label: "Guardar metadatos", variant: "primary", type: "submit", disabled: !(state.flowTypes ?? []).length })}
       </form>
     `);
       bindFlowTypeGotoButton(root, close);
       root.querySelector("#form-meta")?.addEventListener("submit", (e) => {
         e.preventDefault();
         if (!isFlowEditable(flow)) {
-          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
           return;
         }
         const fd = new FormData(e.target);
@@ -3671,7 +3747,7 @@
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
         if (designerContext.readOnly) {
-          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
           return;
         }
         designerContext.studioMode = btn.dataset.studioMode;
@@ -3685,9 +3761,9 @@
     <section class="panel designer-viewport-blocked">
       <h2 class="panel-title">${escapeHtml(title)}</h2>
       <p>${escapeHtml(body)}</p>
-      <p class="designer-viewport-blocked-meta">Viewport actual: ${typeof window !== "undefined" ? `${window.innerWidth}\xD7${window.innerHeight}` : "\u2014"} px</p>
+      <p class="designer-viewport-blocked-meta">Viewport actual: ${typeof window !== "undefined" ? `${window.innerWidth}×${window.innerHeight}` : "—"} px</p>
       <div class="toolbar" style="margin-top:1rem">
-        <button type="button" class="btn btn-primary" id="btn-viewport-back-catalog">Volver al cat\xE1logo</button>
+        ${renderActionButton({ icon: "back", label: "Volver al catálogo", variant: "primary", id: "btn-viewport-back-catalog" })}
       </div>
     </section>`;
   }
@@ -3699,21 +3775,40 @@
     });
   }
   function renderCatalogFlowActions(flow, catalogBlocked) {
-    const disabled = catalogBlocked ? 'disabled aria-disabled="true"' : "";
-    const openBtn = `<button type="button" class="btn btn-sm" data-open-flow="${flow.id}" ${disabled}>Abrir</button>`;
+    const disabled = catalogBlocked;
+    const openBtn = renderActionButton({
+      icon: "open",
+      label: "Abrir flujo",
+      disabled,
+      data: { "open-flow": flow.id }
+    });
     if (flow.status === "listo") {
-      return `${openBtn}
-        <button type="button" class="btn btn-sm" data-version-flow="${flow.id}" ${disabled}>Versionar</button>`;
+      return `<span class="action-icon-group">${openBtn}${renderActionButton({
+        icon: "version",
+        label: "Versionar flujo",
+        disabled,
+        data: { "version-flow": flow.id }
+      })}</span>`;
     }
     if (flow.status === "borrador") {
-      return `${openBtn}
-        <button type="button" class="btn btn-sm btn-success" data-activate-flow="${flow.id}" ${disabled}>Activar</button>
-        <button type="button" class="btn btn-sm btn-danger" data-delete-flow="${flow.id}" aria-label="Eliminar flujo ${escapeHtml(flow.name ?? "")}">Eliminar</button>`;
+      return `<span class="action-icon-group">${openBtn}${renderActionButton({
+        icon: "activate",
+        label: "Activar flujo",
+        variant: "success",
+        disabled,
+        data: { "activate-flow": flow.id }
+      })}${renderActionButton({
+        icon: "delete",
+        label: `Eliminar flujo ${flow.name ?? ""}`,
+        variant: "danger",
+        disabled,
+        data: { "delete-flow": flow.id }
+      })}</span>`;
     }
     return openBtn;
   }
   function renderCatalogTreeToggle(lineageId, expanded, childCount) {
-    const label = childCount === 1 ? "1 versi\xF3n anterior" : `${childCount} versiones anteriores`;
+    const label = childCount === 1 ? "1 versión anterior" : `${childCount} versiones anteriores`;
     return `<button type="button" class="catalog-tree-toggle ${expanded ? "is-expanded" : ""}" data-toggle-deprecados="${escapeHtml(lineageId)}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${expanded ? `Contraer ${label}` : `Expandir ${label}`}" title="${expanded ? "Ocultar versiones anteriores" : "Ver versiones deprecadas"}">
       <svg class="catalog-tree-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 4l4 4-4 4V4z"/></svg>
     </button>`;
@@ -3802,28 +3897,28 @@
     const hasListo = listoGroups.length > 0;
     const emptyBody = !hasAnyFlow ? `<div class="empty-state empty-state--rich">
           <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-          <strong>Sin flujos todav\xEDa</strong>
-          <p>Cre\xE1 tu primer flujo BPMN en borrador y us\xE1 \xABActivar\xBB para publicarlo como Listo en Gesti\xF3n.</p>
-          <button type="button" class="btn btn-primary" id="btn-new-flow-empty" ${catalogBlocked ? "disabled" : ""}>Nuevo flujo</button>
+          <strong>Sin flujos todavía</strong>
+          <p>Creá tu primer flujo BPMN en borrador y usá «Activar» para publicarlo como Listo en Gestión.</p>
+          ${renderActionButton({ icon: "add", label: "Nuevo flujo", variant: "primary", id: "btn-new-flow-empty", disabled: catalogBlocked })}
         </div>` : !hasListo ? `<div class="empty-state empty-state--compact">
           <strong>Sin flujos listos</strong>
-          <p>Activ\xE1 un borrador pendiente para verlo ac\xE1 como versi\xF3n publicada.</p>
+          <p>Activá un borrador pendiente para verlo acá como versión publicada.</p>
         </div>` : "";
     const listoTable = hasListo ? `<div class="table-wrap table-wrap--modern">
         <table class="table-modern catalog-flow-tree">
           <thead>
-            <tr><th>Nombre</th><th>Tipo</th><th>Versi\xF3n</th><th>Estado</th><th>Acciones</th></tr>
+            <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
           ${lineageGroupsHtml}
         </table>
       </div>` : "";
     const draftSection = draftRows.length > 0 ? `<div class="catalog-section catalog-section--drafts">
           <h3 class="catalog-section-title">Borradores pendientes</h3>
-          <p class="catalog-section-hint">A\xFAn no publicados. Us\xE1 \xABActivar\xBB para pasarlos a Listo.</p>
+          <p class="catalog-section-hint">Aún no publicados. Usá «Activar» para pasarlos a Listo.</p>
           <div class="table-wrap table-wrap--modern">
             <table class="table-modern">
               <thead>
-                <tr><th>Nombre</th><th>Tipo</th><th>Versi\xF3n</th><th>Estado</th><th>Acciones</th></tr>
+                <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
               </thead>
               <tbody>${draftRows}</tbody>
             </table>
@@ -3832,13 +3927,13 @@
     return `
     <section class="panel panel--catalog">
       ${renderPageHeader(
-      "Cat\xE1logo de flujos",
-      "Se listan los flujos en estado Listo. Despleg\xE1 \u25B8 para ver versiones deprecadas del mismo linaje. Los borradores sin publicar aparecen abajo."
+      "Catálogo de flujos",
+      "Se listan los flujos en estado Listo. Desplegá ▸ para ver versiones deprecadas del mismo linaje. Los borradores sin publicar aparecen abajo."
     )}
       ${catalogCallout}
       ${hasAnyFlow ? `<div class="catalog-toolbar-secondary">
-          <p class="catalog-toolbar-secondary__hint">Flujos listos para Gesti\xF3n. Version\xE1 para editar; las versiones anteriores quedan deprecadas bajo el \xE1rbol.</p>
-          <button type="button" class="btn btn-primary" id="btn-new-flow-table" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Nuevo flujo</button>
+          <p class="catalog-toolbar-secondary__hint">Flujos listos para Gestión. Versioná para editar; las versiones anteriores quedan deprecadas bajo el árbol.</p>
+          ${renderActionButton({ icon: "add", label: "Nuevo flujo", variant: "primary", id: "btn-new-flow-table", disabled: catalogBlocked })}
         </div>` : ""}
       ${emptyBody}
       ${listoTable}
@@ -3916,12 +4011,12 @@
       return `<span class="catalog-component-icon-wrap catalog-component-icon-wrap--gateway" title="${title}"><span class="icon-gateway-diamond catalog-component-gateway" aria-hidden="true"><span class="gateway-mark ${mark}"></span></span></span>`;
     }
     if (node.kind === NODE_KINDS.MANUAL) {
-      return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">\u{1F464}</span>`;
+      return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">👤</span>`;
     }
     if (node.kind === NODE_KINDS.AUTOMATICA) {
-      return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">\u2699</span>`;
+      return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">⚙</span>`;
     }
-    return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">\u2022</span>`;
+    return `<span class="catalog-component-icon-wrap catalog-component-glyph" title="${title}" aria-hidden="true">•</span>`;
   }
   function renderActivityTreeToggle(flowId, expanded, childCount) {
     const label = childCount === 1 ? "1 componente" : `${childCount} componentes`;
@@ -3944,11 +4039,11 @@
           </span>
         </span>
       </td>
-      <td>\u2014</td>
+      <td>—</td>
       <td><span class="badge badge-${badgeClass}">${escapeHtml(kindLabel)}</span></td>
-      <td>${escapeHtml(node.description || "\u2014")}</td>
+      <td>${escapeHtml(node.description || "—")}</td>
       <td class="catalog-actions">
-        <button type="button" class="btn btn-sm" data-open-activity="${flow.id}" data-node-id="${node.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir</button>
+        ${renderActionButton({ icon: "open", label: "Abrir actividad", disabled: catalogBlocked, data: { "open-activity": flow.id, "node-id": node.id } })}
       </td>
     </tr>`;
   }
@@ -3962,8 +4057,13 @@
       const childCount = components.length;
       const hasChildren = childCount > 0;
       const toggle = hasChildren ? renderActivityTreeToggle(flow.id, expanded, childCount) : `<span class="catalog-tree-toggle catalog-tree-toggle--spacer" aria-hidden="true"></span>`;
-      const countChip = hasChildren ? !expanded ? `<span class="catalog-tree-count" title="Componentes del diagrama">${childCount} ${childCount === 1 ? "componente" : "componentes"}</span>` : "" : `<span class="catalog-tree-count catalog-tree-count--muted" title="Agente IA no se lista en este cat\xE1logo">Sin componentes listados</span>`;
-      const openFlowBtn = `<button type="button" class="btn btn-sm" data-open-flow-only="${flow.id}" ${catalogBlocked ? 'disabled aria-disabled="true"' : ""}>Abrir flujo</button>`;
+      const countChip = hasChildren ? !expanded ? `<span class="catalog-tree-count" title="Componentes del diagrama">${childCount} ${childCount === 1 ? "componente" : "componentes"}</span>` : "" : `<span class="catalog-tree-count catalog-tree-count--muted" title="Agente IA no se lista en este catálogo">Sin componentes listados</span>`;
+      const openFlowBtn = renderActionButton({
+        icon: "open",
+        label: "Abrir flujo",
+        disabled: catalogBlocked,
+        data: { "open-flow-only": flow.id }
+      });
       const parentRow = `
     <tr class="catalog-row catalog-row--parent catalog-row--activity-flow ${hasChildren ? "catalog-row--has-children" : ""} ${expanded ? "catalog-row--expanded" : "catalog-row--collapsed"}" data-activity-flow-parent="${escapeHtml(flow.id)}">
       <td class="catalog-name-cell">
@@ -3988,7 +4088,7 @@
       <td class="catalog-name-cell catalog-name-cell--child" colspan="5">
         <span class="catalog-tree-node catalog-tree-node--empty">
           <span class="catalog-tree-rail" aria-hidden="true"></span>
-          <span class="catalog-muted">Sin componentes listados (Agente IA no aparece en este cat\xE1logo).</span>
+          <span class="catalog-muted">Sin componentes listados (Agente IA no aparece en este catálogo).</span>
         </span>
       </td>
     </tr>`;
@@ -4003,21 +4103,21 @@
     const hasFlows = activityFlows.length > 0;
     const emptyBody = !hasFlows ? `<div class="empty-state empty-state--rich">
           <strong>Sin flujos para listar</strong>
-          <p>Activ\xE1 un borrador o public\xE1 un flujo en estado Listo. Las versiones deprecadas no aparecen ac\xE1.</p>
-          <button type="button" class="btn btn-sm" id="btn-goto-flow-catalog">Ir al cat\xE1logo de flujos</button>
+          <p>Activá un borrador o publicá un flujo en estado Listo. Las versiones deprecadas no aparecen acá.</p>
+          <button type="button" class="btn btn-sm" id="btn-goto-flow-catalog">Ir al catálogo de flujos</button>
         </div>` : "";
     return `
     <section class="panel panel--catalog">
       ${renderPageHeader(
-      "Cat\xE1logo de actividades",
-      "Flujos en estado Listo o Borrador. Despleg\xE1 cada fila para ver Start, End, Gateway y tareas (User/Service). Agente IA no se lista."
+      "Catálogo de actividades",
+      "Flujos en estado Listo o Borrador. Desplegá cada fila para ver Start, End, Gateway y tareas (User/Service). Agente IA no se lista."
     )}
       ${catalogCallout}
       ${emptyBody}
       ${hasFlows ? `<div class="table-wrap table-wrap--modern">
         <table class="table-modern catalog-flow-tree catalog-activity-tree">
           <thead>
-            <tr><th>Flujo / componente</th><th>Tipo de flujo</th><th>Versi\xF3n</th><th>Estado</th><th>Acciones</th></tr>
+            <tr><th>Flujo / componente</th><th>Tipo de flujo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
           ${flowGroupsHtml}
         </table>
@@ -4117,7 +4217,7 @@
       lanes: [{ id: createId("lane"), name: "General", height: 220 }]
     };
     if (!applyFlowTypeToFlow(flow, state, flowTypeId)) {
-      toast("Seleccion\xE1 un tipo de flujo v\xE1lido.");
+      toast("Seleccioná un tipo de flujo válido.");
       return null;
     }
     if (!flow.name) {
@@ -4147,22 +4247,24 @@
     mainEl.innerHTML = `
     <section class="gestion-hero new-flow-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-new-flow-back>Volver al cat\xE1logo</button>
+        ${renderActionButton({ icon: "back", label: "Volver al catálogo", className: "gestion-hero-back", extraAttrs: "data-new-flow-back" })}
         <div class="gestion-hero-heading">
           <h2>Nuevo flujo</h2>
-          <p class="gestion-hero-subtitle">Defin\xED tipo, nombre y descripci\xF3n. Al crear se abre el lienzo en borrador con Start y End.</p>
+          <p class="gestion-hero-subtitle">Definí tipo, nombre y descripción. Al crear se abre el lienzo en borrador con Start y End.</p>
         </div>
       </header>
       <div class="new-flow-hero-body">
         <form id="form-new-flow" class="form-grid new-flow-form">
           ${renderFlowTypeFormRow(state, null)}
           <div class="form-row"><label>Nombre</label><input name="name" required autocomplete="off" ${hasTypes ? "" : "disabled"} /></div>
-          <div class="form-row"><label>Descripci\xF3n</label><textarea name="description" rows="4" ${hasTypes ? "" : "disabled"}></textarea></div>
+          <div class="form-row"><label>Descripción</label><textarea name="description" rows="4" ${hasTypes ? "" : "disabled"}></textarea></div>
         </form>
       </div>
       <footer class="component-attr-hero-footer">
-        <button type="button" class="btn btn-sm" data-new-flow-back>Cancelar</button>
-        <button type="submit" form="form-new-flow" class="btn btn-primary" ${hasTypes ? "" : "disabled"}>Crear flujo</button>
+        <div class="action-icon-group">
+          ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-new-flow-back" })}
+          ${renderActionButton({ icon: "add", label: "Crear flujo", variant: "primary", type: "submit", extraAttrs: 'form="form-new-flow"', disabled: !hasTypes })}
+        </div>
       </footer>
     </section>`;
     bindFlowTypeGotoButton(mainEl, () => exitNewFlowScreen());
@@ -4190,7 +4292,7 @@
       designerContext.selectedNodeId = startId;
       designerContext._viewFitForFlowId = null;
       renderDesigner(mainEl, state, persist);
-      toast("Flujo creado con Start y End. Eleg\xED un tipo de l\xEDnea y conect\xE1 desde el puerto del nodo.", 3200, "success");
+      toast("Flujo creado con Start y End. Elegí un tipo de línea y conectá desde el puerto del nodo.", 3200, "success");
     });
     if (hasTypes) {
       mainEl.querySelector('#form-new-flow input[name="name"]')?.focus();
@@ -4250,20 +4352,22 @@
     });
   }
   function openFlowValidationModal(mainEl, state, persist, flow, errors) {
-    const items = errors.length > 0 ? errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("") : "<li>Validaci\xF3n fallida sin detalle.</li>";
+    const items = errors.length > 0 ? errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("") : "<li>Validación fallida sin detalle.</li>";
     const { close, root } = openModal(`
     <div class="modal-header">
       <h2>No se puede activar el flujo</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
     <div class="validation-modal-body">
       <p class="validation-modal-intro">
-        <strong>${escapeHtml(flow.name ?? "Flujo")}</strong> est\xE1 en borrador. Correg\xED estos problemas antes de pasar a Listo:
+        <strong>${escapeHtml(flow.name ?? "Flujo")}</strong> está en borrador. Corregí estos problemas antes de pasar a Listo:
       </p>
       <ul class="validation-list validation-modal-list">${items}</ul>
       <div class="validation-modal-actions">
-        <button type="button" class="btn btn-primary" id="btn-validation-open-flow">Abrir flujo</button>
-        <button type="button" class="btn" data-modal-close>Cerrar</button>
+        <div class="action-icon-group">
+          ${renderActionButton({ icon: "open", label: "Abrir flujo", variant: "primary", id: "btn-validation-open-flow" })}
+          ${renderModalCloseButton()}
+        </div>
       </div>
     </div>
   `);
@@ -4279,7 +4383,7 @@
     const flow = state.flows.find((f) => f.id === flowId);
     if (!flow) return;
     if (flow.status !== "borrador") {
-      toast("Solo pod\xE9s activar flujos en borrador.");
+      toast("Solo podés activar flujos en borrador.");
       return;
     }
     const v = validateFlow(flow);
@@ -4294,7 +4398,7 @@
     }
     persist();
     toast(
-      `Estado Listo (${formatFlowVersion(flow)}). Pod\xE9s instanciarlo en Gesti\xF3n o versionarlo desde el cat\xE1logo.`,
+      `Estado Listo (${formatFlowVersion(flow)}). Podés instanciarlo en Gestión o versionarlo desde el catálogo.`,
       3200,
       "success"
     );
@@ -4314,14 +4418,14 @@
     designerContext.selectedFlowId = draft.id;
     designerContext.selectedNodeId = null;
     designerContext._viewFitForFlowId = null;
-    toast("Borrador creado. Edit\xE1 y confirm\xE1 la versi\xF3n cuando est\xE9 listo.", 3200, "success");
+    toast("Borrador creado. Editá y confirmá la versión cuando esté listo.", 3200, "success");
     renderDesigner(mainEl, state, persist);
   }
   function attemptDeleteFlow(mainEl, state, persist, flowId) {
     const flow = state.flows.find((f) => f.id === flowId);
     if (!flow) return;
     if (flow.status !== "borrador") {
-      toast("Solo pod\xE9s eliminar flujos en borrador.");
+      toast("Solo podés eliminar flujos en borrador.");
       return;
     }
     const activeForFlow = state.instances.some(
@@ -4331,7 +4435,7 @@
       toast("Hay instancias en curso de este flujo; completalas antes de eliminar.");
       return;
     }
-    const ok = confirm(`\xBFEliminar el flujo "${flow.name}"? Esta acci\xF3n no se puede deshacer.`);
+    const ok = confirm(`¿Eliminar el flujo "${flow.name}"? Esta acción no se puede deshacer.`);
     if (!ok) return;
     state.flows = state.flows.filter((f) => f.id !== flowId);
     if (designerContext.selectedFlowId === flowId) {
@@ -4370,26 +4474,26 @@
         <div class="palette-row palette-item palette-task palette-task-toggle">
           <span class="palette-shape-icon icon-task" aria-hidden="true"></span>
           <span>Task</span>
-          <button type="button" class="palette-chevron" id="palette-task-menu-btn" aria-expanded="false" aria-label="Tipos de task">\u25BE</button>
+          <button type="button" class="palette-chevron" id="palette-task-menu-btn" aria-expanded="false" aria-label="Tipos de task">▾</button>
         </div>
         <div class="palette-submenu" id="palette-task-submenu" hidden>
           <div class="palette-row palette-item palette-manual" draggable="true" data-palette="manual">
-            <span class="palette-kind-icon" aria-hidden="true">\u{1F464}</span>
+            <span class="palette-kind-icon" aria-hidden="true">👤</span>
             <span>User Task</span>
           </div>
           <div class="palette-row palette-item palette-auto" draggable="true" data-palette="automatica">
-            <span class="palette-kind-icon" aria-hidden="true">\u2699</span>
+            <span class="palette-kind-icon" aria-hidden="true">⚙</span>
             <span>Service Task</span>
           </div>
           <div class="palette-row palette-item palette-agente-ia" draggable="true" data-palette="agente_ia">
-            <span class="palette-kind-icon" aria-hidden="true">\u2728</span>
+            <span class="palette-kind-icon" aria-hidden="true">✨</span>
             <span>Agente IA</span>
           </div>
         </div>
         <div class="palette-row palette-item palette-gateway palette-gateway-toggle">
           ${renderGatewayTypeIcon(GATEWAY_TYPES.EXCLUSIVE)}
           <span>Gateway</span>
-          <button type="button" class="palette-chevron" id="palette-gateway-menu-btn" aria-expanded="false" aria-label="Tipos de compuerta">\u25BE</button>
+          <button type="button" class="palette-chevron" id="palette-gateway-menu-btn" aria-expanded="false" aria-label="Tipos de compuerta">▾</button>
         </div>
         <div class="palette-submenu" id="palette-gateway-submenu" hidden>
           ${renderPaletteGatewaySubmenu()}
@@ -4418,7 +4522,7 @@
     return `
         <div class="designer-panel-head">
           <h3 class="panel-title">Propiedades</h3>
-          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="props" aria-label="Cerrar propiedades">\xD7</button>
+          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="props" aria-label="Cerrar propiedades">×</button>
         </div>
         <div class="props-panel-scroll" id="props-panel-scroll">
           ${selected ? renderNodeProps(flow, selected) : renderFlowDiagramProps(flow)}
@@ -4442,44 +4546,43 @@
     ${renderDesignerViewportBannerHtml()}
     ${selected ? renderStudioToolbar(flow.name, selected, "path") : ""}
     <div class="toolbar toolbar--designer">
-      <div class="toolbar-group">
-        <button type="button" class="btn btn-ghost" id="btn-back-catalog">\u2190 Cat\xE1logo</button>
+      <div class="toolbar-group action-icon-group">
+        ${renderActionButton({ icon: "back", label: "Volver al catálogo", id: "btn-back-catalog", className: "action-icon-btn--ghost" })}
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
       <span class="toolbar-flow-title">${escapeHtml(flow.name)} ${renderFlowStatusBadge(flow)} <span class="toolbar-flow-version">${escapeHtml(formatFlowVersion(flow))}</span></span>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <div class="toolbar-group">
-        <button type="button" class="btn btn-sm" id="btn-flow-meta" ${designerContext.readOnly ? 'disabled aria-disabled="true"' : ""}>Metadatos</button>
-        ${flow.status === "borrador" ? `<button type="button" class="btn btn-sm btn-success" id="btn-confirm-version">Activar</button>
-        <button type="button" class="btn btn-sm btn-danger" id="btn-delete-flow">Eliminar</button>` : ""}
-        ${flow.status === "listo" ? `<button type="button" class="btn btn-sm" id="btn-versionar">Versionar</button>` : ""}
+      <div class="toolbar-group action-icon-group">
+        ${renderActionButton({ icon: "meta", label: "Metadatos del flujo", id: "btn-flow-meta", disabled: designerContext.readOnly })}
+        ${flow.status === "borrador" ? `${renderActionButton({ icon: "activate", label: "Activar flujo", variant: "success", id: "btn-confirm-version" })}${renderActionButton({ icon: "delete", label: "Eliminar flujo", variant: "danger", id: "btn-delete-flow" })}` : ""}
+        ${flow.status === "listo" ? renderActionButton({ icon: "version", label: "Versionar flujo", id: "btn-versionar" }) : ""}
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <div class="toolbar-group">
-        <button type="button" class="btn btn-sm" id="btn-toggle-copilot">\u2728 Copilot</button>
+      <div class="toolbar-group action-icon-group">
+        ${renderActionButton({ icon: "sparkles", label: "Copilot IA", id: "btn-toggle-copilot" })}
       </div>
     </div>
     ${validation.isValid ? "" : `<ul class="validation-list">${validation.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`}
-    ${designerContext.readOnly ? `<p class="flow-readonly-banner" role="status">Vista de solo lectura. ${escapeHtml(designerReadOnlyMessage(flow))}</p>` : flow.supersedesFlowId ? `<p class="flow-draft-banner" role="status">Borrador de nueva versi\xF3n. Al confirmar, reemplazar\xE1 la versi\xF3n publicada anterior (quedar\xE1 deprecada).</p>` : ""}
+    ${designerContext.readOnly ? `<p class="flow-readonly-banner" role="status">Vista de solo lectura. ${escapeHtml(designerReadOnlyMessage(flow))}</p>` : flow.supersedesFlowId ? `<p class="flow-draft-banner" role="status">Borrador de nueva versión. Al confirmar, reemplazará la versión publicada anterior (quedará deprecada).</p>` : ""}
     <div class="${designerSplitClassNames()}" id="designer-split">
       <aside class="panel palette designer-side-panel" id="designer-palette-panel">
         <div class="designer-panel-head">
           <h3 class="panel-title">Elementos BPMN</h3>
-          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="palette" aria-label="Cerrar elementos">\xD7</button>
+          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="palette" aria-label="Cerrar elementos">×</button>
         </div>
         <div class="palette-panel-scroll">
           ${renderUiCollapse("palette-activities", "Eventos y actividades", renderPaletteActivitiesBody(), false, "palette-section-collapse")}
-          ${renderUiCollapse("palette-lines", "L\xEDneas", renderPaletteLinesBody(), false, "palette-section-collapse")}
-          <p class="palette-hint">Expand\xED cada secci\xF3n para ver elementos. Conect\xE1 con el punto del borde derecho (arrastrar) o \xABConectar\xBB en el men\xFA del nodo.</p>
+          ${renderUiCollapse("palette-lines", "Líneas", renderPaletteLinesBody(), false, "palette-section-collapse")}
+          <p class="palette-hint">Expandí cada sección para ver elementos. Conectá con el punto del borde derecho (arrastrar) o «Conectar» en el menú del nodo.</p>
         </div>
       </aside>
       <div class="canvas-wrap" id="canvas-wrap">
         <div class="canvas-view-toolbar" role="toolbar" aria-label="Vista del lienzo">
-          <div class="designer-panel-toggles" role="group" aria-label="Paneles del dise\xF1ador">
+          <div class="designer-panel-toggles" role="group" aria-label="Paneles del diseñador">
             <button type="button" class="btn btn-sm ${designerContext.mobilePaletteOpen ? "is-toggle-active" : ""}" id="btn-mobile-palette">Elementos</button>
             <button type="button" class="btn btn-sm ${designerContext.mobilePropsOpen ? "is-toggle-active" : ""}" id="btn-mobile-props">Propiedades</button>
           </div>
-          <button type="button" class="btn btn-sm" id="btn-zoom-out" title="Alejar">Zoom \u2212</button>
+          <button type="button" class="btn btn-sm" id="btn-zoom-out" title="Alejar">Zoom −</button>
           <button type="button" class="btn btn-sm" id="btn-zoom-in" title="Acercar">Zoom +</button>
           <span class="canvas-zoom-label" id="canvas-zoom-label">${Math.round(zoom * 100)}%</span>
           <button type="button" class="btn btn-sm" id="btn-zoom-100">100%</button>
@@ -4501,16 +4604,16 @@
       </aside>
       <aside class="panel copilot-panel designer-side-panel" id="copilot-panel">
         <div class="designer-panel-head">
-          <h3 class="panel-title">\u2728 Copilot (Mock)</h3>
-          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="copilot" aria-label="Cerrar Copilot">\xD7</button>
+          <h3 class="panel-title">✨ Copilot (Mock)</h3>
+          <button type="button" class="btn btn-sm designer-panel-close" data-designer-close="copilot" aria-label="Cerrar Copilot">×</button>
         </div>
         <div class="copilot-chat" id="copilot-chat">
           <div class="copilot-message copilot-message--ai">
-            \xA1Hola! Soy tu asistente de dise\xF1o. \xBFQu\xE9 flujo quer\xE9s armar o modificar?
+            ¡Hola! Soy tu asistente de diseño. ¿Qué flujo querés armar o modificar?
           </div>
         </div>
         <form id="form-copilot" class="copilot-input-area">
-          <input name="prompt" placeholder="Ej: Agreg\xE1 un paso de revisi\xF3n..." autocomplete="off" />
+          <input name="prompt" placeholder="Ej: Agregá un paso de revisión..." autocomplete="off" />
           <button type="submit" class="btn btn-sm btn-primary">Enviar</button>
         </form>
       </aside>
@@ -4549,7 +4652,7 @@
     return `<span class="palette-shape-icon icon-task" aria-hidden="true"></span>`;
   }
   function renderTaskKindGlyph(kind) {
-    const glyph = kind === NODE_KINDS.AUTOMATICA ? "\u2699" : "\u{1F464}";
+    const glyph = kind === NODE_KINDS.AUTOMATICA ? "⚙" : "👤";
     return `<span class="context-pad-kind-icon" aria-hidden="true">${glyph}</span>`;
   }
   function gatewayMarkClass(gatewayTypeId) {
@@ -4601,7 +4704,7 @@
     </label>`
     ).join("");
     return `
-    <p class="props-intro">Solo la <strong>Compuerta Exclusiva</strong> est\xE1 disponible en el mock. Las dem\xE1s se habilitar\xE1n en versiones futuras.</p>
+    <p class="props-intro">Solo la <strong>Compuerta Exclusiva</strong> está disponible en el mock. Las demás se habilitarán en versiones futuras.</p>
     <div class="gateway-type-list">${rows}</div>`;
   }
   function ensureFlowDiagram(flow) {
@@ -4720,7 +4823,7 @@
       (lane) => `
     <div class="flow-lane" data-lane-id="${lane.id}" style="height:${lane.height}px">
       <div class="flow-lane-title" title="Rol, grupo o perfil">
-        ${canRemoveLane ? `<button type="button" class="flow-lane-remove" data-remove-lane-canvas="${lane.id}" aria-label="Eliminar lane" title="Eliminar lane">\xD7</button>` : ""}
+        ${canRemoveLane ? `<button type="button" class="flow-lane-remove" data-remove-lane-canvas="${lane.id}" aria-label="Eliminar lane" title="Eliminar lane">×</button>` : ""}
         <span class="flow-lane-title-text">${escapeHtml(lane.name)}</span>
       </div>
       <div class="flow-lane-content" aria-hidden="true"></div>
@@ -4794,13 +4897,13 @@
       (lane) => `
     <div class="lane-editor-row" data-lane-row="${lane.id}">
       <input type="text" class="lane-name-input" data-lane-id="${lane.id}" value="${escapeHtml(lane.name)}" placeholder="Rol, grupo o perfil" aria-label="Nombre de lane"${ro} />
-      ${!designerContext.readOnly && flow.lanes.length > 1 ? `<button type="button" class="btn btn-sm btn-danger" data-remove-lane="${lane.id}" aria-label="Quitar lane">\xD7</button>` : ""}
+      ${!designerContext.readOnly && flow.lanes.length > 1 ? `<button type="button" class="btn btn-sm btn-danger" data-remove-lane="${lane.id}" aria-label="Quitar lane">×</button>` : ""}
     </div>`
     ).join("");
     const body = `
     <p class="props-intro">El <strong>pool</strong> muestra el nombre del flujo. Cada <strong>lane</strong> representa un rol, grupo o perfil.</p>
     ${designerContext.readOnly ? `<p class="props-intro props-intro--readonly">${escapeHtml(designerReadOnlyMessage(flow))}</p>` : ""}
-    <div class="form-row"><label>Pool (nombre del flujo)</label><input id="flow-pool-name" value="${escapeHtml(flow.name)}" readonly title="Edit\xE1 el nombre en Metadatos" /></div>
+    <div class="form-row"><label>Pool (nombre del flujo)</label><input id="flow-pool-name" value="${escapeHtml(flow.name)}" readonly title="Editá el nombre en Metadatos" /></div>
     <h4 class="props-subtitle">Lanes</h4>
     ${lanesHtml}
     ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-sm" id="btn-add-lane" style="margin-top:0.5rem">+ Agregar lane</button>`}`;
@@ -4866,12 +4969,12 @@
     return `
     <div class="context-pad-task-block" data-task-menu-block="${menuKey}">
       <div class="context-pad-task-row">
-        <button type="button" class="context-pad-btn context-pad-task-main" data-context-task-append data-append-condition="${condition}" title="User Task${branchTitle} (clic r\xE1pido)">
+        <button type="button" class="context-pad-btn context-pad-task-main" data-context-task-append data-append-condition="${condition}" title="User Task${branchTitle} (clic rápido)">
           ${renderGenericTaskIcon()}
           ${contextPadLabel("Task")}
           ${branchBadge}
         </button>
-        <button type="button" class="context-pad-chevron" data-context-task-toggle data-task-menu-key="${menuKey}" aria-expanded="${isOpen ? "true" : "false"}" aria-label="Elegir User Task o Service Task">\u25BE</button>
+        <button type="button" class="context-pad-chevron" data-context-task-toggle data-task-menu-key="${menuKey}" aria-expanded="${isOpen ? "true" : "false"}" aria-label="Elegir User Task o Service Task">▾</button>
       </div>
       <div class="context-pad-submenu" ${isOpen ? "" : "hidden"} data-task-submenu-key="${menuKey}">
         <button type="button" class="context-pad-btn context-pad-submenu-btn" data-append-kind="${NODE_KINDS.MANUAL}" data-append-condition="${condition}" title="User Task${branchTitle}">
@@ -4899,7 +5002,7 @@
         </button>`;
       }
       return `
-        <button type="button" class="context-pad-btn context-pad-submenu-btn context-pad-btn-future" data-gateway-future="${entry.id}" disabled title="Pr\xF3ximamente: ${escapeHtml(entry.label)}">
+        <button type="button" class="context-pad-btn context-pad-submenu-btn context-pad-btn-future" data-gateway-future="${entry.id}" disabled title="Próximamente: ${escapeHtml(entry.label)}">
           ${renderGatewayTypeIcon(entry.id)}
           ${contextPadLabel(entry.label.replace(/^Compuerta /, ""))}
           <span class="future-badge">Futuro</span>
@@ -4908,12 +5011,12 @@
     return `
     <div class="context-pad-gateway-block" data-gateway-menu-block="${menuKey}">
       <div class="context-pad-task-row">
-        <button type="button" class="context-pad-btn context-pad-gateway-main" data-context-gateway-append data-append-condition="${condition}" data-gateway-type="${GATEWAY_TYPES.EXCLUSIVE}" title="Compuerta Exclusiva${branchTitle} (clic r\xE1pido)">
+        <button type="button" class="context-pad-btn context-pad-gateway-main" data-context-gateway-append data-append-condition="${condition}" data-gateway-type="${GATEWAY_TYPES.EXCLUSIVE}" title="Compuerta Exclusiva${branchTitle} (clic rápido)">
           ${renderGatewayTypeIcon(GATEWAY_TYPES.EXCLUSIVE)}
           ${contextPadLabel("Gateway")}
           ${branchBadge}
         </button>
-        <button type="button" class="context-pad-chevron" data-context-gateway-toggle data-gateway-menu-key="${menuKey}" aria-expanded="${isOpen ? "true" : "false"}" aria-label="Elegir tipo de compuerta">\u25BE</button>
+        <button type="button" class="context-pad-chevron" data-context-gateway-toggle data-gateway-menu-key="${menuKey}" aria-expanded="${isOpen ? "true" : "false"}" aria-label="Elegir tipo de compuerta">▾</button>
       </div>
       <div class="context-pad-submenu" ${isOpen ? "" : "hidden"} data-gateway-submenu-key="${menuKey}">
         ${submenuItems}
@@ -4974,7 +5077,7 @@
     const node = flow.nodes.find((n) => n.id === nodeId);
     if (!node) return false;
     if (node.kind === NODE_KINDS.INICIO) {
-      toast("No pod\xE9s eliminar el Start Event.");
+      toast("No podés eliminar el Start Event.");
       return false;
     }
     flow.nodes = flow.nodes.filter((n) => n.id !== nodeId);
@@ -4986,10 +5089,10 @@
     if (!isSelected || designerContext.readOnly || node.kind === NODE_KINDS.FIN) return "";
     if (node.kind === NODE_KINDS.GATEWAY) {
       return `
-      <button type="button" class="flow-port flow-port-accept" data-condition="aceptar" style="top:30%" title="Arrastr\xE1 para conectar (aceptar)" aria-label="Conectar rama aceptar"></button>
-      <button type="button" class="flow-port flow-port-reject" data-condition="rechazar" style="top:70%" title="Arrastr\xE1 para conectar (rechazar)" aria-label="Conectar rama rechazar"></button>`;
+      <button type="button" class="flow-port flow-port-accept" data-condition="aceptar" style="top:30%" title="Arrastrá para conectar (aceptar)" aria-label="Conectar rama aceptar"></button>
+      <button type="button" class="flow-port flow-port-reject" data-condition="rechazar" style="top:70%" title="Arrastrá para conectar (rechazar)" aria-label="Conectar rama rechazar"></button>`;
     }
-    return `<button type="button" class="flow-port" data-condition="siempre" title="Arrastr\xE1 para conectar" aria-label="Conectar"></button>`;
+    return `<button type="button" class="flow-port" data-condition="siempre" title="Arrastrá para conectar" aria-label="Conectar"></button>`;
   }
   function renderContextPadConnectButtons(node) {
     if (designerContext.readOnly || node.kind === NODE_KINDS.FIN) return "";
@@ -5028,12 +5131,12 @@
     const appendBtns = actions.map((entry) => renderContextPadAppendEntry(node, entry)).join("");
     const connectBtns = renderContextPadConnectButtons(node);
     const deleteBtn = node.kind === NODE_KINDS.INICIO ? "" : `<button type="button" class="context-pad-btn context-pad-btn-danger" data-context-delete-node title="Eliminar elemento" aria-label="Eliminar elemento">
-      <span class="context-pad-delete-icon" aria-hidden="true">\u{1F5D1}</span>
+      <span class="context-pad-delete-icon" aria-hidden="true">🗑</span>
       ${contextPadLabel("Eliminar")}
     </button>`;
     return `
     ${selectionHandles}
-    <div class="context-pad" role="toolbar" aria-label="Acciones r\xE1pidas BPMN">
+    <div class="context-pad" role="toolbar" aria-label="Acciones rápidas BPMN">
       ${appendBtns}
       ${connectBtns}
       ${deleteBtn}
@@ -5070,7 +5173,7 @@
       const gt = gatewayType ?? DEFAULT_GATEWAY_TYPE;
       const catalogEntry = GATEWAY_TYPE_CATALOG.find((e) => e.id === gt);
       if (!catalogEntry?.enabled) {
-        toast(`Pr\xF3ximamente: ${catalogEntry?.label ?? gt}`);
+        toast(`Próximamente: ${catalogEntry?.label ?? gt}`);
         return null;
       }
     }
@@ -5113,7 +5216,7 @@
       gateway: "XOR Gateway",
       fin: "End Event"
     }[node.kind];
-    const icon = node.kind === "manual" ? `<span class="bpmn-task-icon" aria-hidden="true">\u{1F464}</span>` : node.kind === "automatica" ? `<span class="bpmn-task-icon" aria-hidden="true">\u2699</span>` : node.kind === "gateway" ? `<span class="bpmn-gateway-x gateway-mark ${gatewayMarkClass(node.gatewayType ?? DEFAULT_GATEWAY_TYPE)}" aria-hidden="true"></span>` : "";
+    const icon = node.kind === "manual" ? `<span class="bpmn-task-icon" aria-hidden="true">👤</span>` : node.kind === "automatica" ? `<span class="bpmn-task-icon" aria-hidden="true">⚙</span>` : node.kind === "gateway" ? `<span class="bpmn-gateway-x gateway-mark ${gatewayMarkClass(node.gatewayType ?? DEFAULT_GATEWAY_TYPE)}" aria-hidden="true"></span>` : "";
     const gwTitle = node.kind === NODE_KINDS.GATEWAY ? gatewayTypeLabel(node.gatewayType ?? DEFAULT_GATEWAY_TYPE) : kindLabel;
     const nodeBody = node.kind === NODE_KINDS.GATEWAY ? `<div class="gateway-node-shape">${icon}<div class="node-kind">${kindLabel}</div><div class="node-name">${escapeHtml(node.name)}</div></div>` : `${icon}<div class="node-kind">${kindLabel}</div><div class="node-name">${escapeHtml(node.name)}</div>`;
     return `
@@ -5127,7 +5230,7 @@
   }
   function tryAddTransition(flow, fromId, toId, lineType, condition) {
     if (fromId === toId) {
-      toast("No pod\xE9s conectar un nodo consigo mismo.");
+      toast("No podés conectar un nodo consigo mismo.");
       return false;
     }
     const from = flow.nodes.find((n) => n.id === fromId);
@@ -5142,7 +5245,7 @@
     if (lt === LINE_TYPES.SEQUENCE) {
       if (from.kind === NODE_KINDS.GATEWAY) {
         if (cond !== "aceptar" && cond !== "rechazar") {
-          toast("Desde el gateway us\xE1 los puertos aceptar o rechazar.");
+          toast("Desde el gateway usá los puertos aceptar o rechazar.");
           return false;
         }
       } else if (from.kind === NODE_KINDS.FIN) {
@@ -5157,7 +5260,7 @@
       (t) => t.fromId === fromId && t.toId === toId && (t.lineType ?? LINE_TYPES.SEQUENCE) === lt && (lt === LINE_TYPES.SEQUENCE ? t.condition === cond : true)
     );
     if (dup) {
-      toast("Esa conexi\xF3n ya existe.");
+      toast("Esa conexión ya existe.");
       return false;
     }
     flow.transitions.push({
@@ -5178,7 +5281,7 @@
         <input type="checkbox" data-used-param="${p.id}" ${(node.usedParamIds ?? []).includes(p.id) ? "checked" : ""}${roCheck} />
         ${escapeHtml(p.label)} (${escapeHtml(p.key)})
       </label>`
-    ).join("") || "<p style='font-size:0.8rem;color:var(--muted)'>Sin par\xE1metros. Def\xEDnalos en el nodo Inicio.</p>";
+    ).join("") || "<p style='font-size:0.8rem;color:var(--muted)'>Sin parámetros. Defínalos en el nodo Inicio.</p>";
     const transitions = flow.transitions.filter((t) => t.fromId === node.id);
     const incomingTransitions = flow.transitions.filter((t) => t.toId === node.id);
     const targets = flow.nodes.filter((n) => n.id !== node.id);
@@ -5192,18 +5295,18 @@
     } else {
       connectConditions = `<option value="siempre">Siempre (Sequence Flow)</option>`;
     }
-    const screenBtn = node.kind === NODE_KINDS.MANUAL && !designerContext.readOnly ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-screen" style="width:100%;margin-top:0.5rem">Dise\xF1ar pantalla (estudio)</button>` : "";
-    const automationBtn = node.kind === NODE_KINDS.AUTOMATICA && !designerContext.readOnly ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-automation" style="width:100%;margin-top:0.5rem">Dise\xF1ar automatizaci\xF3n</button>` : "";
+    const screenBtn = node.kind === NODE_KINDS.MANUAL && !designerContext.readOnly ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-screen" style="width:100%;margin-top:0.5rem">Diseñar pantalla (estudio)</button>` : "";
+    const automationBtn = node.kind === NODE_KINDS.AUTOMATICA && !designerContext.readOnly ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-automation" style="width:100%;margin-top:0.5rem">Diseñar automatización</button>` : "";
     const agenteIABtn = node.kind === NODE_KINDS.AGENTE_IA && !designerContext.readOnly ? `<button type="button" class="btn btn-primary btn-sm" id="btn-design-agente-ia" style="width:100%;margin-top:0.5rem">Configurar Agente IA</button>` : "";
     ensureFlowDiagram(flow);
     const laneOptions = flow.lanes.map(
       (lane) => `<option value="${lane.id}" ${node.laneId === lane.id ? "selected" : ""}>${escapeHtml(lane.name)}</option>`
     ).join("");
-    const eventPoolHint = node.kind === NODE_KINDS.INICIO || node.kind === NODE_KINDS.FIN ? `<p class="props-intro">Debe permanecer dentro del pool; pod\xE9s usar otro lane (rol / grupo).</p>` : "";
+    const eventPoolHint = node.kind === NODE_KINDS.INICIO || node.kind === NODE_KINDS.FIN ? `<p class="props-intro">Debe permanecer dentro del pool; podés usar otro lane (rol / grupo).</p>` : "";
     const generalBody = `
       ${designerContext.readOnly ? `<p class="props-intro props-intro--readonly">${escapeHtml(designerReadOnlyMessage(flow))}</p>` : ""}
       <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(node.name)}" required${ro} /></div>
-      <div class="form-row"><label>Descripci\xF3n</label><textarea name="description"${ro}>${escapeHtml(node.description || "")}</textarea></div>
+      <div class="form-row"><label>Descripción</label><textarea name="description"${ro}>${escapeHtml(node.description || "")}</textarea></div>
       <div class="form-row"><label>Lane (rol / perfil)</label><select name="laneId"${ro}>${laneOptions}</select></div>
       ${eventPoolHint}
       ${screenBtn}
@@ -5211,38 +5314,38 @@
       ${agenteIABtn}`;
     const inputDataSection = node.kind !== NODE_KINDS.INICIO && node.kind !== NODE_KINDS.FIN && node.kind !== NODE_KINDS.GATEWAY ? renderPropsCollapse("input-data", "Datos de entrada que usa", paramsHtml, false) : "";
     const componentAttrsKinds = COMPONENTS_WITH_INPUT_ATTRIBUTES.has(node.kind);
-    const editAttrsBtn = (tab = "input") => !designerContext.readOnly && componentAttrsKinds ? `<button type="button" class="btn btn-sm btn-primary" id="btn-edit-component-attrs" data-attr-tab="${tab}" style="margin-top:0.5rem">Editar par\xE1metros de entrada</button>` : "";
+    const editAttrsBtn = (tab = "input") => !designerContext.readOnly && componentAttrsKinds ? `<button type="button" class="btn btn-sm btn-primary" id="btn-edit-component-attrs" data-attr-tab="${tab}" style="margin-top:0.5rem">Editar parámetros de entrada</button>` : "";
     const componentInputSection = componentAttrsKinds ? renderPropsCollapse(
       "component-input-attrs",
-      node.kind === NODE_KINDS.INICIO ? "Par\xE1metros de entrada del flujo" : "Par\xE1metros de entrada del componente",
+      node.kind === NODE_KINDS.INICIO ? "Parámetros de entrada del flujo" : "Parámetros de entrada del componente",
       `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.inputAttributes ?? [])}</div>${editAttrsBtn("input")}`,
       false
     ) : "";
     const componentOutputSection = node.kind === NODE_KINDS.GATEWAY ? renderPropsCollapse(
       "component-output-attrs",
-      "Par\xE1metros de salida del componente",
-      `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.outputAttributes ?? [])}</div>${!designerContext.readOnly ? `<button type="button" class="btn btn-sm" id="btn-edit-component-attrs-out" data-attr-tab="output" style="margin-top:0.5rem">Editar par\xE1metros de salida</button>` : ""}`,
+      "Parámetros de salida del componente",
+      `<div class="component-attr-chip-list">${renderComponentAttributeChipsHtml(node.outputAttributes ?? [])}</div>${!designerContext.readOnly ? `<button type="button" class="btn btn-sm" id="btn-edit-component-attrs-out" data-attr-tab="output" style="margin-top:0.5rem">Editar parámetros de salida</button>` : ""}`,
       false
     ) : "";
     const connectionListItem = (t, peerId, arrow) => {
       const peer = flow.nodes.find((n) => n.id === peerId);
       const lt = t.lineType ?? LINE_TYPES.SEQUENCE;
       const badge = lineTypeLabel(lt);
-      const cond = t.condition ? ` \xB7 ${t.condition}` : "";
-      const delBtn = designerContext.readOnly ? "" : ` <button type="button" class="btn btn-sm btn-danger" data-del-tr="${t.id}">\xD7</button>`;
+      const cond = t.condition ? ` · ${t.condition}` : "";
+      const delBtn = designerContext.readOnly ? "" : ` <button type="button" class="btn btn-sm btn-danger" data-del-tr="${t.id}">×</button>`;
       return `<li><span class="line-badge line-badge-${lt}">${badge}</span>${cond} ${arrow} ${escapeHtml(peer?.name ?? peerId)}${delBtn}</li>`;
     };
     const connectionsList = `
         <ul class="props-connection-list">
-          ${transitions.map((t) => connectionListItem(t, t.toId, "\u2192")).join("") || "<li class='props-empty'>Ninguna</li>"}
+          ${transitions.map((t) => connectionListItem(t, t.toId, "→")).join("") || "<li class='props-empty'>Ninguna</li>"}
         </ul>`;
     const incomingList = `
         <ul class="props-connection-list">
-          ${incomingTransitions.map((t) => connectionListItem(t, t.fromId, "\u2190")).join("") || "<li class='props-empty'>Ninguna</li>"}
+          ${incomingTransitions.map((t) => connectionListItem(t, t.fromId, "←")).join("") || "<li class='props-empty'>Ninguna</li>"}
         </ul>`;
     const connectionsForm = node.kind === NODE_KINDS.FIN || designerContext.readOnly ? "" : `
         <div class="form-row" style="margin-top:0.5rem">
-          <label>Tipo de l\xEDnea</label>
+          <label>Tipo de línea</label>
           <select id="connect-line-type">
             <option value="${LINE_TYPES.SEQUENCE}" ${designerContext.activeLineType === LINE_TYPES.SEQUENCE ? "selected" : ""}>Sequence Flow</option>
             <option value="${LINE_TYPES.MESSAGE}" ${designerContext.activeLineType === LINE_TYPES.MESSAGE ? "selected" : ""}>Message Flow</option>
@@ -5250,17 +5353,17 @@
           </select>
         </div>
         <div class="form-row">
-          <label>Nueva conexi\xF3n hacia</label>
+          <label>Nueva conexión hacia</label>
           <select id="connect-target">
-            <option value="">\u2014 Seleccionar \u2014</option>
+            <option value="">— Seleccionar —</option>
             ${targets.map((t) => `<option value="${t.id}">${escapeHtml(t.name)} (${t.kind})</option>`).join("")}
           </select>
         </div>
         <div class="form-row" id="connect-condition-row">
-          <label>Condici\xF3n</label>
+          <label>Condición</label>
           <select id="connect-condition">${connectConditions}</select>
         </div>
-        <button type="button" class="btn btn-sm" id="btn-add-transition">Agregar conexi\xF3n</button>`;
+        <button type="button" class="btn btn-sm" id="btn-add-transition">Agregar conexión</button>`;
     const connectionsSection = renderPropsCollapse(
       "connections",
       "Conexiones salientes",
@@ -5287,7 +5390,7 @@
       ${componentOutputSection}
       ${incomingSection}
       ${connectionsSection}
-      ${designerContext.readOnly ? "" : `<button type="button" class="btn btn-danger btn-sm props-delete-node" id="btn-delete-node">Eliminar nodo</button>`}
+      ${designerContext.readOnly ? "" : renderActionButton({ icon: "delete", label: "Eliminar nodo", variant: "danger", id: "btn-delete-node", className: "props-delete-node" })}
     </form>`;
   }
   function applyDesignerSidePanelState(mainEl) {
@@ -5385,16 +5488,16 @@
     });
     mainEl.querySelector("#btn-flow-meta")?.addEventListener("click", () => {
       if (!isFlowEditable(flow)) {
-        toast("Metadatos de solo lectura. Version\xE1 el flujo para editarlos.");
+        toast("Metadatos de solo lectura. Versioná el flujo para editarlos.");
         return;
       }
       const { close, root } = openModal(`
-      <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
+      <div class="modal-header"><h2>Metadatos del flujo</h2>${renderModalCloseButton()}</div>
       <form id="form-meta" class="form-grid">
         ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
-        <div class="form-row"><label>Descripci\xF3n</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
+        <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
+        ${renderActionButton({ icon: "save", label: "Guardar metadatos", variant: "primary", type: "submit", disabled: !(state.flowTypes ?? []).length })}
       </form>
     `);
       bindFlowTypeGotoButton(root, close);
@@ -5415,7 +5518,7 @@
     wrap.addEventListener("drop", (e) => {
       e.preventDefault();
       if (designerContext.readOnly) {
-        toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+        toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
         return;
       }
       const kind = e.dataTransfer.getData("palette-kind");
@@ -5431,7 +5534,7 @@
       if (kind === NODE_KINDS.GATEWAY) {
         const catalogEntry = GATEWAY_TYPE_CATALOG.find((entry) => entry.id === droppedGatewayType);
         if (!catalogEntry?.enabled) {
-          toast(`Pr\xF3ximamente: ${catalogEntry?.label ?? droppedGatewayType}`);
+          toast(`Próximamente: ${catalogEntry?.label ?? droppedGatewayType}`);
           return;
         }
       }
@@ -5481,7 +5584,7 @@
     mainEl.querySelectorAll("[data-gateway-future]").forEach((item) => {
       item.addEventListener("click", () => {
         const id = item.dataset.gatewayFuture;
-        toast(`Pr\xF3ximamente: ${gatewayTypeLabel(id)}`);
+        toast(`Próximamente: ${gatewayTypeLabel(id)}`);
       });
     });
     mainEl.querySelector("#palette-task-menu-btn")?.addEventListener("click", (e) => {
@@ -5717,7 +5820,7 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (designerContext.readOnly) {
-          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
           return;
         }
         const laneId = btn.dataset.removeLaneCanvas;
@@ -5747,7 +5850,7 @@
       if (!deleteFlowTransitionById(flow, transitionId)) return;
       persist();
       renderDesigner(mainEl, state, persist);
-      toast("Conexi\xF3n eliminada.");
+      toast("Conexión eliminada.");
     });
   }
   function defaultNodeName(kind) {
@@ -5755,7 +5858,7 @@
       inicio: "Start",
       manual: "User Task",
       automatica: "Service Task",
-      gateway: "Decisi\xF3n XOR",
+      gateway: "Decisión XOR",
       fin: "End"
     }[kind];
   }
@@ -5797,7 +5900,7 @@
             e.preventDefault();
             e.stopPropagation();
             if (designerContext.readOnly) {
-              toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+              toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
               return;
             }
             const lineType = designerContext.activeLineType;
@@ -5816,13 +5919,13 @@
             } else {
               const fromNode = flow.nodes.find((n) => n.id === nodeId);
               if (fromNode?.kind === NODE_KINDS.GATEWAY && lineType === LINE_TYPES.SEQUENCE) {
-                toast("Desde el gateway us\xE1 los puertos A/R o \xABConectar A / R\xBB en el men\xFA.");
+                toast("Desde el gateway usá los puertos A/R o «Conectar A / R» en el menú.");
                 return;
               }
               const cond = lineType === LINE_TYPES.SEQUENCE ? "siempre" : null;
               designerContext.connectClickFrom = { fromId: nodeId, condition: cond };
               designerContext.selectedNodeId = nodeId;
-              toast("Seleccion\xE1 el nodo destino.");
+              toast("Seleccioná el nodo destino.");
               renderDesigner(mainEl, state, persist);
             }
             return;
@@ -5962,7 +6065,7 @@
         designerContext.connectClickFrom = { fromId: fromId2, condition: condition2 };
         designerContext.selectedNodeId = fromId2;
         closeContextPadSubmenus(canvas);
-        toast("Seleccion\xE1 el nodo destino en el lienzo.");
+        toast("Seleccioná el nodo destino en el lienzo.");
         renderDesigner(mainEl, state, persist);
         return;
       }
@@ -6056,7 +6159,7 @@
         e.stopPropagation();
         e.preventDefault();
         if (designerContext.readOnly) {
-          toast("Este flujo no es editable. Us\xE1 \xABVersionar\xBB para crear un borrador.");
+          toast("Este flujo no es editable. Usá «Versionar» para crear un borrador.");
           return;
         }
         const nodeEl = port.closest(".flow-node");
@@ -6123,7 +6226,7 @@
   function buildConnectionSvgGroup(x1, y1, x2, y2, lineType, transitionId) {
     const { stroke, dash, markerStart, markerEnd } = connectionLineStyle(lineType);
     const hit = !designerContext.readOnly && transitionId ? `<line class="flow-connection-hit" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="14" pointer-events="stroke" />` : "";
-    const title = !designerContext.readOnly && transitionId ? `<title>Clic para eliminar conexi\xF3n</title>` : "";
+    const title = !designerContext.readOnly && transitionId ? `<title>Clic para eliminar conexión</title>` : "";
     return `<g class="flow-connection-group" data-transition-id="${transitionId}">${title}${hit}<line class="flow-connection-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="2"${dash}${markerStart} marker-end="${markerEnd}" pointer-events="none" /></g>`;
   }
   function drawConnections(mainEl, flow) {
@@ -6207,11 +6310,11 @@
       const lineType = lineTypeSelect?.value ?? designerContext.activeLineType;
       const condition = lineType === LINE_TYPES.SEQUENCE ? mainEl.querySelector("#connect-condition")?.value : null;
       if (!toId) {
-        toast("Seleccion\xE1 destino.");
+        toast("Seleccioná destino.");
         return;
       }
       if (lineType === LINE_TYPES.SEQUENCE && !condition) {
-        toast("Seleccion\xE1 condici\xF3n.");
+        toast("Seleccioná condición.");
         return;
       }
       if (tryAddTransition(flow, node.id, toId, lineType, condition)) {
@@ -6295,7 +6398,7 @@
     const result = await executeIntegration(node, inputs);
     appendTrace(instance, {
       type: result.ok ? "integration_response" : "error",
-      message: result.ok ? `Integraci\xF3n OK (${result.durationMs}ms)` : "Integraci\xF3n fall\xF3",
+      message: result.ok ? `Integración OK (${result.durationMs}ms)` : "Integración falló",
       nodeId: node.id,
       dataShown: redactSecrets(result.response),
       httpStatus: result.httpStatus,
@@ -6418,7 +6521,7 @@
     };
     appendTrace(instance, {
       type: "inicio",
-      message: `Instancia iniciada \u2014 flujo "${flowSnapshot.name}"`,
+      message: `Instancia iniciada — flujo "${flowSnapshot.name}"`,
       nodeId: start.id,
       dataShown: { ...inputValues }
     });
@@ -6472,7 +6575,7 @@
       throw new Error("No hay Gateway pendiente");
     }
     if (decision !== "aceptar" && decision !== "rechazar") {
-      throw new Error("Decisi\xF3n de gateway inv\xE1lida");
+      throw new Error("Decisión de gateway inválida");
     }
     completeStep(instance, nodeId, "completada", decision);
     appendTrace(instance, {
@@ -6650,7 +6753,7 @@
         return `<option value="${val}" ${sel}>${val}${o.required ? " *" : ""}</option>`;
       }).join("");
       const selectReq = p.required ? "required" : "";
-      return `<div class="form-row"><label>${escapeHtml(p.label)}</label><select name="${key}" ${selectReq}><option value="">\u2014</option>${optsHtml}</select></div>`;
+      return `<div class="form-row"><label>${escapeHtml(p.label)}</label><select name="${key}" ${selectReq}><option value="">—</option>${optsHtml}</select></div>`;
     }
     const valueAttr = prefill !== null && prefill !== void 0 && prefill !== "" ? ` value="${escapeHtml(String(prefill))}"` : "";
     if (p.type === "fecha") {
@@ -6660,7 +6763,7 @@
     if (p.type === "numero") input = `<input type="number" name="${key}" ${req}${valueAttr} />`;
     if (p.type === "si_no") {
       const pre = prefill === null || prefill === void 0 ? "" : String(prefill);
-      input = `<select name="${key}" ${req}><option value="">\u2014</option><option value="si"${pre === "si" ? " selected" : ""}>S\xED</option><option value="no"${pre === "no" ? " selected" : ""}>No</option></select>`;
+      input = `<select name="${key}" ${req}><option value="">—</option><option value="si"${pre === "si" ? " selected" : ""}>Sí</option><option value="no"${pre === "no" ? " selected" : ""}>No</option></select>`;
     }
     return `<div class="form-row"><label>${escapeHtml(p.label)}</label>${input}</div>`;
   }
@@ -6679,7 +6782,7 @@
       }
       for (const o of options) {
         if (o.required && !selected.includes(o.label)) {
-          errors.push(`Opci\xF3n obligatoria \xAB${o.label}\xBB en ${p.label ?? p.key}.`);
+          errors.push(`Opción obligatoria «${o.label}» en ${p.label ?? p.key}.`);
         }
       }
       return { value: selected, errors };
@@ -6727,15 +6830,12 @@
 
   // js/gestion-instance-helpers.js
   function formatInstanceValue(val) {
-    if (Array.isArray(val)) return val.filter(Boolean).join(", ") || "\u2014";
-    if (val === null || val === void 0 || val === "") return "\u2014";
+    if (Array.isArray(val)) return val.filter(Boolean).join(", ") || "—";
+    if (val === null || val === void 0 || val === "") return "—";
     return String(val);
   }
   function componentAttrContextKey(nodeId, attrKey) {
     return `${nodeId}__${attrKey}`;
-  }
-  function isInstanceFinalized(status) {
-    return status !== "en_curso";
   }
   function instanceStatusBadgeClass(status) {
     if (status === "en_curso") return "curso";
@@ -6749,7 +6849,7 @@
       completada: "Completada",
       pendiente: "Pendiente"
     };
-    return map[status ?? ""] ?? status ?? "\u2014";
+    return map[status ?? ""] ?? status ?? "—";
   }
   function buildInstanceDataSections(instance) {
     const snap = instance.flowSnapshot;
@@ -6777,7 +6877,7 @@
     };
     const addField = (sec, label, value) => {
       if (value === void 0) return;
-      const lbl = String(label || "").trim() || "\u2014";
+      const lbl = String(label || "").trim() || "—";
       if (sec.fields.some((f) => f.label === lbl)) return;
       sec.fields.push({ label: lbl, value: formatInstanceValue(value) });
     };
@@ -6852,7 +6952,7 @@
   }
   function getFirstStartAttributeDisplay(instance) {
     const snap = instance.flowSnapshot;
-    if (!snap) return "\u2014";
+    if (!snap) return "—";
     const start = snap.nodes?.find((n) => n.kind === NODE_KINDS.INICIO);
     let first = null;
     if (start?.inputAttributes?.length) {
@@ -6862,7 +6962,7 @@
       const p = snap.inputParams[0];
       first = { label: p.label || p.key || "?", key: p.key };
     }
-    if (!first?.key) return "\u2014";
+    if (!first?.key) return "—";
     const val = instance.inputValues?.[first.key];
     return `${first.label}: ${formatInstanceValue(val)}`;
   }
@@ -6940,7 +7040,7 @@
       gateway: "Gateway",
       fin: "End"
     }[node.kind];
-    const icon = node.kind === NODE_KINDS.MANUAL ? `<span class="bpmn-task-icon" aria-hidden="true">\u{1F464}</span>` : node.kind === NODE_KINDS.AUTOMATICA ? `<span class="bpmn-task-icon" aria-hidden="true">\u2699</span>` : node.kind === NODE_KINDS.GATEWAY ? `<span class="bpmn-gateway-x gateway-mark gateway-mark-exclusive" aria-hidden="true"></span>` : "";
+    const icon = node.kind === NODE_KINDS.MANUAL ? `<span class="bpmn-task-icon" aria-hidden="true">👤</span>` : node.kind === NODE_KINDS.AUTOMATICA ? `<span class="bpmn-task-icon" aria-hidden="true">⚙</span>` : node.kind === NODE_KINDS.GATEWAY ? `<span class="bpmn-gateway-x gateway-mark gateway-mark-exclusive" aria-hidden="true"></span>` : "";
     const body = node.kind === NODE_KINDS.GATEWAY ? `<div class="gateway-node-shape">${icon}<div class="node-kind">${kindLabel}</div><div class="node-name">${escapeHtml(node.name)}</div></div>` : `${icon}<div class="node-kind">${kindLabel}</div><div class="node-name">${escapeHtml(node.name)}</div>`;
     return `
     <div class="flow-node flow-node--readonly node-${node.kind} ${isCurrent ? "is-instance-current" : ""}"
@@ -6953,9 +7053,9 @@
     const map = {
       inicio: "Inicio",
       manual: "User Task",
-      automatica: "Autom\xE1tico",
+      automatica: "Automático",
       gateway: "Gateway",
-      integration_request: "Integraci\xF3n",
+      integration_request: "Integración",
       integration_response: "Respuesta",
       fin: "Fin",
       error: "Error",
@@ -6964,13 +7064,13 @@
     return map[type] ?? type ?? "Evento";
   }
   function traceDecisionLabel(decision) {
-    if (decision === "aceptar") return "Aprobaci\xF3n / Aceptar";
+    if (decision === "aceptar") return "Aprobación / Aceptar";
     if (decision === "rechazar") return "Rechazo";
     return decision;
   }
   function renderInstanceDataPanel(sections) {
     if (!sections.length) {
-      return `<p class="gestion-empty">Todav\xEDa no hay datos cargados en esta instancia.</p>`;
+      return `<p class="gestion-empty">Todavía no hay datos cargados en esta instancia.</p>`;
     }
     const cards = sections.map((sec) => {
       const meta = [
@@ -7012,7 +7112,7 @@
         </div>
         <p class="instance-preview-trace-msg">${escapeHtml(t.message)}</p>
         ${node ? `<p class="form-hint">Paso: ${escapeHtml(node.name)}</p>` : ""}
-        ${t.decision ? `<p class="form-hint"><strong>Decisi\xF3n:</strong> ${escapeHtml(traceDecisionLabel(t.decision))}</p>` : ""}
+        ${t.decision ? `<p class="form-hint"><strong>Decisión:</strong> ${escapeHtml(traceDecisionLabel(t.decision))}</p>` : ""}
         ${t.comment ? `<p class="form-hint"><strong>Comentario:</strong> ${escapeHtml(t.comment)}</p>` : ""}
       </li>`;
     }).join("");
@@ -7043,7 +7143,7 @@
       return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow-preview)" />`;
     }).join("");
     const nodesHtml = (flow.nodes ?? []).map((n) => renderPreviewNode(n, instance.currentNodeId)).join("");
-    const legend = instance.currentNodeId ? `<p class="gestion-preview-legend">El paso resaltado es el paso actual de la instancia.</p>` : `<p class="gestion-preview-legend">Instancia finalizada \u2014 diagrama en solo lectura.</p>`;
+    const legend = instance.currentNodeId ? `<p class="gestion-preview-legend">El paso resaltado es el paso actual de la instancia.</p>` : `<p class="gestion-preview-legend">Instancia finalizada — diagrama en solo lectura.</p>`;
     return `
     ${legend}
     <div class="gestion-flow-preview-wrap">
@@ -7087,10 +7187,10 @@
     return `
     <section class="gestion-hero gestion-hero--preview panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-gestion-back>Volver al listado</button>
+        ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-gestion-back" })}
         <div class="gestion-hero-heading">
           <h2>Visualizar flujo</h2>
-          <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} \xB7 ${statusBadge}</p>
+          <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} · ${statusBadge}</p>
         </div>
       </header>
       <div class="gestion-preview-tabs component-attr-tabs" role="tablist">
@@ -7119,6 +7219,12 @@
 
   // js/gestion.js
   var gestionScreen = { mode: "list", instanceId: null };
+  var gestionHubTab = "en_curso";
+  var GESTION_HUB_TABS = [
+    { id: "en_curso", label: "En curso" },
+    { id: "completada", label: "Completadas" },
+    { id: "cerrada_rechazo", label: "Cerradas por rechazo" }
+  ];
   function enterGestionHub() {
     gestionScreen = { mode: "list", instanceId: null };
   }
@@ -7153,7 +7259,7 @@
     }
     const rows = instances.map((inst) => {
       const node = getCurrentNode(inst);
-      const flowType = inst.flowSnapshot?.type ?? "\u2014";
+      const flowType = inst.flowSnapshot?.type ?? "—";
       const startAttr = getFirstStartAttributeDisplay(inst);
       return `
     <tr class="gestion-instance-row" data-inst-row="${inst.id}">
@@ -7162,12 +7268,12 @@
       <td class="gestion-cell-muted">${formatDateTime(inst.startedAt)}</td>
       <td class="gestion-cell-muted">${escapeHtml(startAttr)}</td>
       <td>
-        <span class="gestion-step-label">${escapeHtml(node?.name ?? "\u2014")}</span>
+        <span class="gestion-step-label">${escapeHtml(node?.name ?? "—")}</span>
         ${stepKindBadge(node)}
       </td>
-      <td class="gestion-instance-actions">
-        <button type="button" class="btn btn-sm btn-primary" data-manage-inst="${inst.id}">Gestionar</button>
-        <button type="button" class="btn btn-sm" data-view-inst="${inst.id}">Visualizar</button>
+      <td class="gestion-instance-actions action-icon-group">
+        ${renderActionButton({ icon: "manage", label: "Gestionar instancia", variant: "primary", data: { "manage-inst": inst.id } })}
+        ${renderActionButton({ icon: "view", label: "Visualizar instancia", data: { "view-inst": inst.id } })}
       </td>
     </tr>`;
     }).join("");
@@ -7190,12 +7296,12 @@
   }
   function renderFinalizedInstancesTable(instances) {
     if (!instances.length) {
-      return `<p class="gestion-empty">No hay instancias finalizadas.</p>`;
+      return `<p class="gestion-empty">No hay instancias en este estado.</p>`;
     }
     const rows = instances.map((inst) => {
-      const flowType = inst.flowSnapshot?.type ?? "\u2014";
+      const flowType = inst.flowSnapshot?.type ?? "—";
       const startAttr = getFirstStartAttributeDisplay(inst);
-      const finished = inst.finishedAt ? formatDateTime(inst.finishedAt) : "\u2014";
+      const finished = inst.finishedAt ? formatDateTime(inst.finishedAt) : "—";
       return `
     <tr class="gestion-instance-row gestion-instance-row--final" data-inst-row="${inst.id}">
       <td><strong>${escapeHtml(inst.flowName)}</strong></td>
@@ -7204,8 +7310,8 @@
       <td class="gestion-cell-muted">${escapeHtml(startAttr)}</td>
       <td>${renderInstanceStatusBadge(inst.status)}</td>
       <td class="gestion-cell-muted">${finished}</td>
-      <td class="gestion-instance-actions">
-        <button type="button" class="btn btn-sm" data-view-inst="${inst.id}">Visualizar</button>
+      <td class="gestion-instance-actions action-icon-group">
+        ${renderActionButton({ icon: "view", label: "Visualizar instancia", data: { "view-inst": inst.id } })}
       </td>
     </tr>`;
     }).join("");
@@ -7229,7 +7335,7 @@
   }
   function renderNewInstanceFormFields(readyFlows, types) {
     if (!readyFlows.length) {
-      return `<p class="gestion-empty">No hay flujos listos. Activ\xE1 uno en el dise\xF1ador.</p>`;
+      return `<p class="gestion-empty">No hay flujos listos. Activá uno en el diseñador.</p>`;
     }
     const typeOptions = types.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
     return `
@@ -7237,20 +7343,22 @@
       <div class="form-row">
         <label>Tipo de flujo</label>
         <select id="select-flow-type" required>
-          <option value="">\u2014 Eleg\xED un tipo \u2014</option>
+          <option value="">— Elegí un tipo —</option>
           ${typeOptions}
         </select>
       </div>
       <div class="form-row">
         <label>Flujo (listo)</label>
         <select name="flowId" id="select-flow" required disabled>
-          <option value="">\u2014 Eleg\xED tipo primero \u2014</option>
+          <option value="">— Elegí tipo primero —</option>
         </select>
       </div>
       <div id="input-fields"></div>
       <div class="modal-footer" style="margin-top:0;padding-top:0;border:0">
-        <button type="button" class="btn btn-sm" data-modal-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary">Iniciar instancia</button>
+        <div class="action-icon-group">
+          ${renderModalCloseButton("Cancelar")}
+          ${renderActionButton({ icon: "start", label: "Iniciar instancia", variant: "primary", type: "submit" })}
+        </div>
       </div>
     </form>`;
   }
@@ -7277,10 +7385,10 @@
     mainEl.innerHTML = `
     <section class="gestion-hero gestion-hero--manage panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-gestion-back>Volver al listado</button>
+        ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-gestion-back" })}
         <div class="gestion-hero-heading">
           <h2>Gestionar flujo</h2>
-          <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} \xB7 Paso actual: <strong>${escapeHtml(node.name)}</strong> ${stepKindBadge(node)}</p>
+          <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} · Paso actual: <strong>${escapeHtml(node.name)}</strong> ${stepKindBadge(node)}</p>
         </div>
       </header>
       <div class="gestion-manage-body gestion-manage-body--hero">
@@ -7324,38 +7432,87 @@
     gestionScreen = { mode: "preview", instanceId: id };
     renderGestion(mainEl, state, persist);
   }
+  function renderGestionHubTabs(counts) {
+    return `<div class="gestion-hub-tabs component-attr-tabs" role="tablist" aria-label="Instancias por estado">
+    ${GESTION_HUB_TABS.map((tab) => {
+      const n = counts[tab.id] ?? 0;
+      const active = gestionHubTab === tab.id ? " is-active" : "";
+      return `<button type="button" class="component-attr-tab${active}" data-gestion-tab="${tab.id}" role="tab" aria-selected="${gestionHubTab === tab.id ? "true" : "false"}">${escapeHtml(tab.label)} <span class="gestion-tab-count">${n}</span></button>`;
+    }).join("")}
+  </div>`;
+  }
   function renderGestionHub(mainEl, state, persist) {
     const readyFlows = state.flows.filter((f) => f.status === "listo");
     const byType = getReadyFlowsByType(state.flows);
     const types = listReadyFlowTypes(byType);
     const activeInstances = sortInstancesByStarted(state.instances.filter((i) => i.status === "en_curso"));
-    const finalizedInstances = sortInstancesByFinished(
-      state.instances.filter((i) => isInstanceFinalized(i.status))
+    const completedInstances = sortInstancesByFinished(
+      state.instances.filter((i) => i.status === "completada")
     );
+    const rejectedInstances = sortInstancesByFinished(
+      state.instances.filter((i) => i.status === "cerrada_rechazo")
+    );
+    const counts = {
+      en_curso: activeInstances.length,
+      completada: completedInstances.length,
+      cerrada_rechazo: rejectedInstances.length
+    };
+    const enCursoPanel = `
+    ${renderActiveInstancesTable(activeInstances)}
+    <div class="gestion-start-actions">
+      ${readyFlows.length ? renderActionButton({ icon: "start", label: "Iniciar instancia", variant: "primary", id: "btn-open-start-modal" }) : `<p class="gestion-empty gestion-empty--inline">No hay flujos listos para instanciar.</p>`}
+    </div>`;
     mainEl.innerHTML = `
     ${renderPageHeader(
-      "Gesti\xF3n de actividades",
-      "Instancias en curso y finalizadas: gestion\xE1 el paso actual, visualiz\xE1 el diagrama o revis\xE1 instancias cerradas."
+      "Gestión de actividades",
+      "Filtrá instancias por estado. Por defecto se muestran las en curso; completadas y cerradas por rechazo están en las otras pestañas."
     )}
     <div class="kpi-row">
       <span class="stat-chip">Flujos listos <strong>${readyFlows.length}</strong></span>
-      <span class="stat-chip">En curso <strong>${activeInstances.length}</strong></span>
-      <span class="stat-chip">Finalizados <strong>${finalizedInstances.length}</strong></span>
+      <span class="stat-chip">En curso <strong>${counts.en_curso}</strong></span>
+      <span class="stat-chip">Completadas <strong>${counts.completada}</strong></span>
+      <span class="stat-chip">Cerradas <strong>${counts.cerrada_rechazo}</strong></span>
     </div>
     <div class="gestion-layout gestion-layout--hub">
-      <section class="panel gestion-panel-list">
-        <h2 class="panel-title">Instancias en curso</h2>
-        ${renderActiveInstancesTable(activeInstances)}
-        <div class="gestion-start-actions">
-          ${readyFlows.length ? `<button type="button" class="btn btn-primary" id="btn-open-start-modal">Iniciar instancia</button>` : `<p class="gestion-empty gestion-empty--inline">No hay flujos listos para instanciar.</p>`}
+      <section class="panel gestion-panel-list gestion-panel-hub">
+        ${renderGestionHubTabs(counts)}
+        <div class="gestion-hub-panels">
+          <div class="gestion-hub-panel" data-gestion-panel="en_curso" ${gestionHubTab === "en_curso" ? "" : "hidden"}>
+            ${enCursoPanel}
+          </div>
+          <div class="gestion-hub-panel" data-gestion-panel="completada" ${gestionHubTab === "completada" ? "" : "hidden"}>
+            ${renderFinalizedInstancesTable(completedInstances)}
+          </div>
+          <div class="gestion-hub-panel" data-gestion-panel="cerrada_rechazo" ${gestionHubTab === "cerrada_rechazo" ? "" : "hidden"}>
+            ${renderFinalizedInstancesTable(rejectedInstances)}
+          </div>
         </div>
       </section>
-      <section class="panel gestion-panel-list gestion-panel-finished">
-        <h2 class="panel-title">Instancias finalizadas</h2>
-        ${renderFinalizedInstancesTable(finalizedInstances)}
-      </section>
     </div>`;
+    bindGestionHubTabs(mainEl);
     bindGestion(mainEl, state, persist, byType, types, readyFlows);
+  }
+  function bindGestionHubTabs(mainEl) {
+    mainEl.querySelectorAll("[data-gestion-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.getAttribute("data-gestion-tab");
+        if (!tab || tab === gestionHubTab) return;
+        if (!GESTION_HUB_TABS.some((t) => t.id === tab)) return;
+        gestionHubTab = /** @type {typeof gestionHubTab} */
+        tab;
+        mainEl.querySelectorAll("[data-gestion-tab]").forEach((el) => {
+          const id = el.getAttribute("data-gestion-tab");
+          const isActive = id === gestionHubTab;
+          el.classList.toggle("is-active", isActive);
+          el.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+        mainEl.querySelectorAll("[data-gestion-panel]").forEach((panel) => {
+          const show = panel.getAttribute("data-gestion-panel") === gestionHubTab;
+          if (show) panel.removeAttribute("hidden");
+          else panel.setAttribute("hidden", "");
+        });
+      });
+    });
   }
   function renderGestion(mainEl, state, persist) {
     if (gestionScreen.mode === "manage" && gestionScreen.instanceId) {
@@ -7434,7 +7591,7 @@
       const flows = byType.get(type) ?? [];
       if (!type) {
         selectFlow.disabled = true;
-        selectFlow.innerHTML = `<option value="">\u2014 Eleg\xED tipo primero \u2014</option>`;
+        selectFlow.innerHTML = `<option value="">— Elegí tipo primero —</option>`;
         if (inputFields) inputFields.innerHTML = "";
         return;
       }
@@ -7459,7 +7616,7 @@
       if (!flow || flow.status !== "listo") return;
       const v = validateFlow(flow);
       if (!v.isValid) {
-        toast("El flujo ya no cumple validaci\xF3n.");
+        toast("El flujo ya no cumple validación.");
         return;
       }
       const inputValues = {};
@@ -7491,11 +7648,11 @@
     if (node.kind === NODE_KINDS.GATEWAY) {
       return `
       <section class="gestion-manage-step">
-        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
-        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "Eleg\xED la rama del flujo.")}</p>
+        <h3 class="gestion-manage-section-title">Acción del paso</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "Elegí la rama del flujo.")}</p>
         <div class="preview-actions">
-          <button type="button" class="btn btn-success" id="btn-gateway-aceptar">Aceptar</button>
-          <button type="button" class="btn btn-danger" id="btn-gateway-rechazar">Rechazar</button>
+          ${renderActionButton({ icon: "accept", label: "Aceptar", variant: "success", id: "btn-gateway-aceptar" })}
+          ${renderActionButton({ icon: "reject", label: "Rechazar", variant: "danger", id: "btn-gateway-rechazar" })}
         </div>
       </section>`;
     }
@@ -7503,17 +7660,17 @@
       const adapter = node.integration?.adapter ?? "simulation";
       return `
       <section class="gestion-manage-step">
-        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <h3 class="gestion-manage-section-title">Acción del paso</h3>
         <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
         <p style="font-size:0.8rem;color:var(--muted)">Adaptador: ${escapeHtml(adapter)}</p>
-        <button type="button" class="btn btn-primary" id="btn-run-auto">Ejecutar y continuar</button>
+        ${renderActionButton({ icon: "play", label: "Ejecutar y continuar", variant: "primary", id: "btn-run-auto" })}
       </section>`;
     }
     if (node.kind === NODE_KINDS.MANUAL) {
       const screen = instance.flowSnapshot.screens?.[node.id];
       return `
       <section class="gestion-manage-step">
-        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <h3 class="gestion-manage-section-title">Acción del paso</h3>
         <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">${escapeHtml(node.description || "")}</p>
         <form id="form-manual" class="screen-preview">${renderScreenForInstance(instance, screen)}</form>
       </section>`;
@@ -7521,7 +7678,7 @@
     if (node.kind === NODE_KINDS.AGENTE_IA) {
       return `
       <section class="gestion-manage-step">
-        <h3 class="gestion-manage-section-title">Acci\xF3n del paso</h3>
+        <h3 class="gestion-manage-section-title">Acción del paso</h3>
         <p style="font-size:0.85rem;color:var(--muted)">${escapeHtml(node.description || "")}</p>
         <div style="background:var(--bg-card);padding:1rem;border-radius:6px;margin:1rem 0;border:1px solid var(--border)">
           <p style="margin:0 0 0.5rem 0;font-size:0.85rem"><strong>Estado:</strong> Esperando respuesta de ${escapeHtml(node.hitlEmail || "operador")}</p>
@@ -7536,7 +7693,7 @@
     if (node.kind === NODE_KINDS.INICIO || node.kind === NODE_KINDS.FIN) {
       return `
       <section class="gestion-manage-step">
-        <p style="font-size:0.85rem;color:var(--muted)">Complet\xE1 los datos del componente arriba si aplica. Este evento no requiere m\xE1s acciones en el mock.</p>
+        <p style="font-size:0.85rem;color:var(--muted)">Completá los datos del componente arriba si aplica. Este evento no requiere más acciones en el mock.</p>
       </section>`;
     }
     return `<p>Nodo inesperado: ${escapeHtml(node.name)}</p>`;
@@ -7576,10 +7733,10 @@
       }
       if (b.type === "campo_si_no") {
         const name = b.outputKey ?? b.fieldKey ?? b.id;
-        html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}" ${b.required ? "required" : ""}><option value="">\u2014</option><option value="si">S\xED</option><option value="no">No</option></select></div>`;
+        html += `<div class="preview-field"><div class="preview-label">${escapeHtml(b.label ?? name)}</div><select name="${escapeHtml(name)}" ${b.required ? "required" : ""}><option value="">—</option><option value="si">Sí</option><option value="no">No</option></select></div>`;
       }
     }
-    html += `<div class="preview-actions preview-actions--sticky"><button type="button" class="btn btn-success" data-decision="aceptar">Aceptar</button><button type="button" class="btn btn-danger" data-decision="rechazar">Rechazar</button></div>`;
+    html += `<div class="preview-actions preview-actions--sticky action-icon-group">${renderActionButton({ icon: "accept", label: "Aceptar", variant: "success", data: { decision: "aceptar" } })}${renderActionButton({ icon: "reject", label: "Rechazar", variant: "danger", data: { decision: "rechazar" } })}</div>`;
     return html;
   }
   function collectFormValues(form, screen) {
@@ -7624,7 +7781,7 @@
     });
     root.querySelector("#btn-ai-resolve")?.addEventListener("click", async () => {
       if (!persistNodeAttrsFromModal(root, node, instance)) return;
-      await resolveAIHITL(instance, { status: "approved", note: "Aprobado v\xEDa correo" });
+      await resolveAIHITL(instance, { status: "approved", note: "Aprobado vía correo" });
       persist();
       toast("Respuesta recibida.");
       onDone();
@@ -7655,7 +7812,7 @@
   var selectedReportInstanceId = null;
   function renderReporte(mainEl, state, opts = {}) {
     const pageTitle = opts.title ?? "Reporte de avance";
-    const pageSubtitle = opts.subtitle ?? "Filtr\xE1 instancias y revis\xE1 contexto, entradas y traza de ejecuci\xF3n.";
+    const pageSubtitle = opts.subtitle ?? "Filtrá instancias y revisá contexto, entradas y traza de ejecución.";
     const filterFlow = mainEl.dataset.filterFlow ?? "";
     const filterStatus = mainEl.dataset.filterStatus ?? "";
     let instances = [...state.instances];
@@ -7695,15 +7852,15 @@
       return `<tr data-report-inst="${i.id}" class="table-row-selectable ${i.id === selectedReportInstanceId ? "is-selected" : ""}">
                   <td>${escapeHtml(i.flowName)}</td>
                   <td><span class="badge badge-${badgeForStatus(i.status)}">${statusLabel2(i.status)}</span></td>
-                  <td>${prog.pct}% \xB7 ${escapeHtml(node?.name ?? "Finalizado")}</td>
+                  <td>${prog.pct}% · ${escapeHtml(node?.name ?? "Finalizado")}</td>
                   <td>${formatDateTime(i.startedAt)}</td>
                 </tr>`;
-    }).join("") || `<tr><td colspan="4"><div class="empty-state empty-state--rich"><strong>Sin instancias</strong><p>Inici\xE1 un flujo en Gesti\xF3n para ver reportes aqu\xED.</p></div></td></tr>`}
+    }).join("") || `<tr><td colspan="4"><div class="empty-state empty-state--rich"><strong>Sin instancias</strong><p>Iniciá un flujo en Gestión para ver reportes aquí.</p></div></td></tr>`}
             </tbody>
           </table>
         </div>
         <div class="panel">
-          ${selected ? renderDetail(selected) : `<p class="gestion-empty">Seleccion\xE1 una instancia.</p>`}
+          ${selected ? renderDetail(selected) : `<p class="gestion-empty">Seleccioná una instancia.</p>`}
         </div>
       </div>
     </section>`;
@@ -7732,26 +7889,26 @@
     const node = getCurrentNode(instance);
     const inputs = Object.entries(instance.inputValues).map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`).join("");
     const ctxEntries = Object.entries(instance.context ?? {});
-    const context = ctxEntries.length === 0 ? "<li>\u2014</li>" : `<pre class="report-context-json">${escapeHtml(JSON.stringify(Object.fromEntries(ctxEntries), null, 2))}</pre>`;
+    const context = ctxEntries.length === 0 ? "<li>—</li>" : `<pre class="report-context-json">${escapeHtml(JSON.stringify(Object.fromEntries(ctxEntries), null, 2))}</pre>`;
     const trace = instance.trace.map(
       (t) => `
     <li class="trace-item">
-      <time>${formatDateTime(t.at)}</time> \u2014 ${escapeHtml(t.message)}
+      <time>${formatDateTime(t.at)}</time> — ${escapeHtml(t.message)}
       ${t.comment ? `<div class="form-hint">Comentario: ${escapeHtml(t.comment)}</div>` : ""}
-      ${t.decision ? `<div class="form-hint">Decisi\xF3n: ${escapeHtml(t.decision)}</div>` : ""}
+      ${t.decision ? `<div class="form-hint">Decisión: ${escapeHtml(t.decision)}</div>` : ""}
     </li>`
     ).join("");
     return `
     <h3 class="report-detail-title">${escapeHtml(instance.flowName)}</h3>
     <p><span class="badge badge-${badgeForStatus(instance.status)}">${statusLabel2(instance.status)}</span></p>
     <div class="progress-bar"><span style="width:${prog.pct}%"></span></div>
-    <p class="form-hint">${prog.done} actividades registradas \xB7 Paso actual: ${escapeHtml(node?.name ?? "\u2014")}</p>
+    <p class="form-hint">${prog.done} actividades registradas · Paso actual: ${escapeHtml(node?.name ?? "—")}</p>
     <h4>Datos de entrada</h4>
-    <ul class="trace-list">${inputs || "<li>\u2014</li>"}</ul>
+    <ul class="trace-list">${inputs || "<li>—</li>"}</ul>
     <h4>Contexto de instancia</h4>
     ${context.startsWith("<pre") ? context : `<ul class="trace-list">${context}</ul>`}
     <h4>Traza</h4>
-    <ul class="trace-list">${trace || "<li>\u2014</li>"}</ul>`;
+    <ul class="trace-list">${trace || "<li>—</li>"}</ul>`;
   }
 
   // js/reports.js
@@ -7765,13 +7922,13 @@
   var REPORT_NAV_ITEMS = [
     {
       id: "report-activities",
-      title: "Actividades (ejecuci\xF3n)",
+      title: "Actividades (ejecución)",
       description: "Instancias en curso o finalizadas, contexto y traza."
     },
     {
       id: "report-maestros-changes",
       title: "Cambios en maestros",
-      description: "Alta, baja y modificaci\xF3n de tipos de flujo (y filtro global)."
+      description: "Alta, baja y modificación de tipos de flujo (y filtro global)."
     },
     {
       id: "report-entities-changes",
@@ -7780,8 +7937,8 @@
     },
     {
       id: "report-flows",
-      title: "Cat\xE1logo de flujos",
-      description: "Flujos definidos en el dise\xF1ador y su estado de publicaci\xF3n."
+      title: "Catálogo de flujos",
+      description: "Flujos definidos en el diseñador y su estado de publicación."
     },
     {
       id: "report-flow-types",
@@ -7795,8 +7952,8 @@
     },
     {
       id: "report-activities-catalog",
-      title: "Cat\xE1logo de actividades",
-      description: "Componentes de actividad por flujo (vista cat\xE1logo del dise\xF1ador)."
+      title: "Catálogo de actividades",
+      description: "Componentes de actividad por flujo (vista catálogo del diseñador)."
     }
   ];
   function renderReportView(mainEl, state, reportId) {
@@ -7804,7 +7961,7 @@
       case "report-activities":
         renderReporte(mainEl, state, {
           title: "Reporte de actividades",
-          subtitle: "Ejecuci\xF3n de instancias: avance, contexto y traza (Operaciones \u2192 Gesti\xF3n)."
+          subtitle: "Ejecución de instancias: avance, contexto y traza (Operaciones → Gestión)."
         });
         return;
       case "report-maestros-changes":
@@ -7833,7 +7990,7 @@
     const meta = REPORT_NAV_ITEMS.find((r) => r.id === reportId);
     mainEl.innerHTML = `
     <section class="panel">
-      ${renderPageHeader(meta?.title ?? "Reporte", meta?.description ?? "Seleccion\xE1 un reporte en el men\xFA Reportes.")}
+      ${renderPageHeader(meta?.title ?? "Reporte", meta?.description ?? "Seleccioná un reporte en el menú Reportes.")}
       <p class="gestion-empty">Vista no disponible.</p>
     </section>`;
   }
@@ -7845,7 +8002,7 @@
     if (!entity) {
       return `<span class="catalog-muted">Ya no existe</span>`;
     }
-    return `<span class="badge badge-listo">En cat\xE1logo</span>`;
+    return `<span class="badge badge-listo">En catálogo</span>`;
   }
   function renderMasterAuditReport(mainEl, state, config) {
     mainEl.dataset.auditReportKey = config.reportKey;
@@ -7859,43 +8016,43 @@
       if (isEntitiesMode) {
         return `<tr>
         <td>${formatDateTime(r.at)}</td>
-        <td>${escapeHtml(r.userLabel ?? r.userId ?? "\u2014")}</td>
+        <td>${escapeHtml(r.userLabel ?? r.userId ?? "—")}</td>
         <td><span class="badge badge-listo">${escapeHtml(masterAuditActionLabel(r.action))}</span></td>
         <td><strong>${escapeHtml(r.label)}</strong></td>
-        <td><code>${escapeHtml(r.refId ?? "\u2014")}</code></td>
-        <td>${r.detail ? escapeHtml(r.detail) : "\u2014"}</td>
+        <td><code>${escapeHtml(r.refId ?? "—")}</code></td>
+        <td>${r.detail ? escapeHtml(r.detail) : "—"}</td>
         <td>${entityAuditCurrentStateCell(state, r)}</td>
       </tr>`;
       }
       return `<tr>
         <td>${formatDateTime(r.at)}</td>
-        <td>${escapeHtml(r.userLabel ?? r.userId ?? "\u2014")}</td>
+        <td>${escapeHtml(r.userLabel ?? r.userId ?? "—")}</td>
         <td>${escapeHtml(masterAuditAreaLabel(r.area))}</td>
         <td><span class="badge badge-listo">${escapeHtml(masterAuditActionLabel(r.action))}</span></td>
         <td><strong>${escapeHtml(r.label)}</strong>${r.detail ? `<div class="form-hint">${escapeHtml(r.detail)}</div>` : ""}</td>
       </tr>`;
     }).join("");
     const areaFilterHtml = config.showAreaFilter ? `<div class="form-row">
-          <label>\xC1rea</label>
+          <label>Área</label>
           <select id="filter-audit-area">
             <option value="">Todas</option>
             <option value="flowType" ${filterArea === "flowType" ? "selected" : ""}>Tipo de flujo</option>
             <option value="entity" ${filterArea === "entity" ? "selected" : ""}>Entidad</option>
-            <option value="masterDefinition" ${filterArea === "masterDefinition" ? "selected" : ""}>Definici\xF3n de maestros</option>
+            <option value="masterDefinition" ${filterArea === "masterDefinition" ? "selected" : ""}>Definición de maestros</option>
           </select>
         </div>` : "";
-    const tableHead = isEntitiesMode ? `<thead><tr><th>Fecha</th><th>Usuario</th><th>Acci\xF3n ABM</th><th>Entidad</th><th>Id</th><th>Detalle</th><th>Estado actual</th></tr></thead>` : `<thead><tr><th>Fecha</th><th>Usuario</th><th>Maestro</th><th>Acci\xF3n</th><th>Detalle</th></tr></thead>`;
+    const tableHead = isEntitiesMode ? `<thead><tr><th>Fecha</th><th>Usuario</th><th>Acción ABM</th><th>Entidad</th><th>Id</th><th>Detalle</th><th>Estado actual</th></tr></thead>` : `<thead><tr><th>Fecha</th><th>Usuario</th><th>Maestro</th><th>Acción</th><th>Detalle</th></tr></thead>`;
     mainEl.innerHTML = `
     <section class="panel panel--catalog">
       ${renderPageHeader(config.title, config.subtitle)}
       <div class="filters">
         ${areaFilterHtml}
         <div class="form-row">
-          <label>Acci\xF3n</label>
+          <label>Acción</label>
           <select id="filter-audit-action">
             <option value="">Todas</option>
             <option value="create" ${filterAction === "create" ? "selected" : ""}>Alta</option>
-            <option value="update" ${filterAction === "update" ? "selected" : ""}>Modificaci\xF3n</option>
+            <option value="update" ${filterAction === "update" ? "selected" : ""}>Modificación</option>
             <option value="delete" ${filterAction === "delete" ? "selected" : ""}>Baja</option>
           </select>
         </div>
@@ -7923,38 +8080,38 @@
   function renderReportMaestrosChanges(mainEl, state) {
     renderMasterAuditReport(mainEl, state, {
       reportKey: "maestros-changes",
-      title: "Gesti\xF3n de cambios en maestros",
-      subtitle: "Auditor\xEDa de tipos de flujo y, con el filtro, entidades.",
+      title: "Gestión de cambios en maestros",
+      subtitle: "Auditoría de tipos de flujo y, con el filtro, entidades.",
       showAreaFilter: true,
-      emptyHint: "Los cambios en Maestros aparecer\xE1n aqu\xED al crear, editar o eliminar registros."
+      emptyHint: "Los cambios en Maestros aparecerán aquí al crear, editar o eliminar registros."
     });
   }
   function renderReportEntitiesChanges(mainEl, state) {
     renderMasterAuditReport(mainEl, state, {
       reportKey: "entities-changes",
       title: "Cambios de entidades",
-      subtitle: "Historial del ABM de entidades (Maestros \u2192 Entidades): altas, modificaciones y bajas.",
+      subtitle: "Historial del ABM de entidades (Maestros → Entidades): altas, modificaciones y bajas.",
       fixedArea: "entity",
       showAreaFilter: false,
-      emptyHint: "Cre\xE1, edit\xE1 o elimin\xE1 entidades en Maestros para ver el historial aqu\xED.",
+      emptyHint: "Creá, editá o eliminá entidades en Maestros para ver el historial aquí.",
       mode: "entities"
     });
   }
   function renderReportFlowsCatalog(mainEl, state) {
     const flows = state.flows ?? [];
-    const rows = flows.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay flujos en el cat\xE1logo.</p></td></tr>` : flows.map((f) => {
+    const rows = flows.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay flujos en el catálogo.</p></td></tr>` : flows.map((f) => {
       const nodeCount = (f.nodes ?? []).length;
       const status = f.status ?? "borrador";
       return `<tr>
           <td><strong>${escapeHtml(f.name)}</strong><div class="form-hint"><code>${escapeHtml(f.id)}</code></div></td>
           <td><span class="badge badge-${status === "listo" ? "listo" : "borrador"}">${status === "listo" ? "Listo" : "Borrador"}</span></td>
-          <td>${escapeHtml(f.type ?? "\u2014")}</td>
+          <td>${escapeHtml(f.type ?? "—")}</td>
           <td>${nodeCount} nodos</td>
         </tr>`;
     }).join("");
     mainEl.innerHTML = `
     <section class="panel panel--catalog">
-      ${renderPageHeader("Reporte \u2014 cat\xE1logo de flujos", "Snapshot de los flujos definidos en el dise\xF1ador.")}
+      ${renderPageHeader("Reporte — catálogo de flujos", "Snapshot de los flujos definidos en el diseñador.")}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
           <thead><tr><th>Flujo</th><th>Estado</th><th>Tipo</th><th>Diagrama</th></tr></thead>
@@ -7969,16 +8126,16 @@
       const used = countFlowsUsingFlowType(state, t.id);
       return `<tr>
           <td><strong>${escapeHtml(t.name)}</strong></td>
-          <td>${escapeHtml(t.description || "\u2014")}</td>
+          <td>${escapeHtml(t.description || "—")}</td>
           <td>${used} ${used === 1 ? "flujo" : "flujos"}</td>
         </tr>`;
     }).join("");
     mainEl.innerHTML = `
     <section class="panel panel--catalog">
-      ${renderPageHeader("Reporte \u2014 tipos de flujo", "Maestro de tipos de flujo y referencias en dise\xF1os.")}
+      ${renderPageHeader("Reporte — tipos de flujo", "Maestro de tipos de flujo y referencias en diseños.")}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Nombre</th><th>Descripci\xF3n</th><th>Uso</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Descripción</th><th>Uso</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -7997,10 +8154,10 @@
     }).join("");
     mainEl.innerHTML = `
     <section class="panel panel--catalog">
-      ${renderPageHeader("Reporte \u2014 entidades", "Maestro de entidades y resumen de atributos.")}
+      ${renderPageHeader("Reporte — entidades", "Maestro de entidades y resumen de atributos.")}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Entidad</th><th>Clasificaci\xF3n</th><th>Atributos</th></tr></thead>
+          <thead><tr><th>Entidad</th><th>Clasificación</th><th>Atributos</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -8035,10 +8192,10 @@
     mainEl.innerHTML = `
     <section class="panel panel--catalog">
       ${renderPageHeader(
-      "Reporte \u2014 cat\xE1logo de actividades",
-      "Componentes visibles en Dise\xF1ador \u2192 Cat\xE1logo de actividades, agrupados por flujo."
+      "Reporte — catálogo de actividades",
+      "Componentes visibles en Diseñador → Catálogo de actividades, agrupados por flujo."
     )}
-      ${sections || `<p class="gestion-empty">No hay componentes de cat\xE1logo en los flujos actuales.</p>`}
+      ${sections || `<p class="gestion-empty">No hay componentes de catálogo en los flujos actuales.</p>`}
     </section>`;
   }
 
@@ -8070,17 +8227,17 @@
   }
   function parsePortableImportFile(parsed) {
     if (!parsed || typeof parsed !== "object") {
-      return { ok: false, message: "El archivo no es un JSON v\xE1lido de respaldo." };
+      return { ok: false, message: "El archivo no es un JSON válido de respaldo." };
     }
     const obj = parsed;
     const entries = obj.entries;
     if (!entries || typeof entries !== "object") {
-      return { ok: false, message: "Falta el objeto \xABentries\xBB con los datos del mock." };
+      return { ok: false, message: "Falta el objeto «entries» con los datos del mock." };
     }
     let count = 0;
     for (const key of Object.keys(entries)) {
       if (typeof entries[key] !== "string") {
-        return { ok: false, message: `Entrada inv\xE1lida para la clave \xAB${key}\xBB.` };
+        return { ok: false, message: `Entrada inválida para la clave «${key}».` };
       }
       count += 1;
     }
@@ -8159,24 +8316,24 @@
     <section class="panel panel--catalog data-backup-panel">
       ${renderPageHeader(
       "Datos del mock",
-      "Export\xE1 lo guardado en este navegador y restauralo en otro origen (local \u2194 GitHub Pages). La sesi\xF3n no se exporta: volv\xE9 a iniciar sesi\xF3n tras importar."
+      "Exportá lo guardado en este navegador y restauralo en otro origen (local ↔ GitHub Pages). La sesión no se exporta: volvé a iniciar sesión tras importar."
     )}
       <div class="entity-meta-panel">
         <h3 class="entity-meta-title">En este navegador</h3>
         <p class="form-hint">Origen: <code>${escapeHtml(location.origin)}</code></p>
-        <p class="catalog-tree-count">${keyCount} bloque(s) de datos \xB7 ${hasState ? "incluye flujos/maestros" : "sin estado principal"}</p>
+        <p class="catalog-tree-count">${keyCount} bloque(s) de datos · ${hasState ? "incluye flujos/maestros" : "sin estado principal"}</p>
         <ul class="form-hint data-backup-keys">
           ${PORTABLE_STORAGE_KEYS.map((k) => `<li><code>${escapeHtml(k)}</code></li>`).join("")}
         </ul>
       </div>
       ${isGitHubPagesHost() ? `<div class="entity-meta-panel data-backup-pages-hint">
         <h3 class="entity-meta-title">Entorno testing (GitHub Pages)</h3>
-        <p class="form-hint">Los datos de prueba viven en el repo (<code>data/environments/testing-bootstrap.json</code>). Si no ves flujos/maestros de local, abr\xED la URL de testing con recarga forzada:</p>
+        <p class="form-hint">Los datos de prueba viven en el repo (<code>data/environments/testing-bootstrap.json</code>). Si no ves flujos/maestros de local, abrí la URL de testing con recarga forzada:</p>
         <p><code>${escapeHtml(`${location.origin}${location.pathname.replace(/[^/]+$/, "")}testing.html`)}</code></p>
-        <p class="form-hint">O us\xE1 el bot\xF3n \xABRecargar datos testing\xBB en la barra superior.</p>
+        <p class="form-hint">O usá el botón «Recargar datos testing» en la barra superior.</p>
       </div>` : ""}
       <div class="data-backup-actions">
-        <button type="button" class="btn btn-primary" id="btn-export-portable-data">Descargar respaldo (.json)</button>
+        ${renderActionButton({ icon: "download", label: "Descargar respaldo (.json)", variant: "primary", id: "btn-export-portable-data" })}
       </div>
       <div class="entity-meta-panel data-backup-import-panel">
         <h3 class="entity-meta-title">Importar respaldo</h3>
@@ -8186,7 +8343,7 @@
           <input type="checkbox" id="field-portable-merge" />
           Fusionar (no reemplazar usuarios/IA si ya existen)
         </label>
-        <p class="form-hint data-backup-warn">Tras importar se recarga la aplicaci\xF3n. Hac\xE9 respaldo antes si no est\xE1s seguro.</p>
+        <p class="form-hint data-backup-warn">Tras importar se recarga la aplicación. Hacé respaldo antes si no estás seguro.</p>
       </div>
     </section>`;
     mainEl.querySelector("#btn-export-portable-data")?.addEventListener("click", () => {
@@ -8213,13 +8370,13 @@
           }
           const merge = !!mainEl.querySelector("#field-portable-merge")?.checked;
           if (!merge && !window.confirm(
-            "\xBFReemplazar los datos del mock en este sitio con el respaldo? Esta acci\xF3n no se puede deshacer sin otro respaldo."
+            "¿Reemplazar los datos del mock en este sitio con el respaldo? Esta acción no se puede deshacer sin otro respaldo."
           )) {
             return;
           }
           const result = applyPortableStorageBundle(check.bundle, { merge });
           toast(
-            `Importado: ${result.applied.join(", ") || "\u2014"}. Recargando\u2026`,
+            `Importado: ${result.applied.join(", ") || "—"}. Recargando…`,
             2800,
             "success"
           );
@@ -8278,13 +8435,13 @@
     }
     const check = parsePortableImportFile(parsedJson);
     if (!check.ok) {
-      console.warn("[mock] Bootstrap inv\xE1lido:", check.message);
+      console.warn("[mock] Bootstrap inválido:", check.message);
       return false;
     }
     applyPortableStorageBundle(check.bundle);
     rememberSeedApplied(env, seedId);
     console.info(
-      `[mock] Entorno \xAB${env.label}\xBB: datos aplicados (${env.bootstrapUrl}, seed ${seedId})`
+      `[mock] Entorno «${env.label}»: datos aplicados (${env.bootstrapUrl}, seed ${seedId})`
     );
     return true;
   }
@@ -8301,12 +8458,14 @@
     const badge = document.createElement("span");
     badge.id = "deploy-env-badge";
     badge.className = "deploy-env-badge";
-    badge.title = "Datos cargados desde el repositorio (localStorage). Us\xE1 ?bootstrap=1 para forzar recarga.";
+    badge.title = "Datos cargados desde el repositorio (localStorage). Usá ?bootstrap=1 para forzar recarga.";
     badge.textContent = env.label;
     const reset = document.createElement("button");
     reset.type = "button";
-    reset.className = "btn btn-ghost btn-sm deploy-env-reset";
-    reset.textContent = "Recargar datos testing";
+    reset.className = "action-icon-btn action-icon-btn--ghost deploy-env-reset";
+    reset.title = "Recargar datos testing";
+    reset.setAttribute("aria-label", "Recargar datos testing");
+    reset.innerHTML = actionIconSvg("refresh");
     reset.addEventListener("click", async () => {
       const url = new URL(location.href);
       url.searchParams.set("env", "testing");
@@ -8369,7 +8528,7 @@
       let hint = s.type;
       if (s.required) hint += "; obligatorio";
       if (s.type === ENTITY_REF_TYPE) hint += "; nombre o id de entidad referenciada";
-      if (s.type === "si_no") hint += "; s\xED/no, true/false, 1/0";
+      if (s.type === "si_no") hint += "; sí/no, true/false, 1/0";
       if (s.type === "fecha") hint += "; YYYY-MM-DD o DD/MM/YYYY";
       return hint;
     });
@@ -8438,7 +8597,7 @@ ${hints.map(escape).join(";")}
       );
       if (!xlsx?.read) {
         throw new Error(
-          "Excel no disponible sin conexi\xF3n. Guard\xE1 el archivo como CSV o abr\xED el mock con internet para cargar la librer\xEDa XLSX."
+          "Excel no disponible sin conexión. Guardá el archivo como CSV o abrí el mock con internet para cargar la librería XLSX."
         );
       }
       const buf = await file.arrayBuffer();
@@ -8459,7 +8618,7 @@ ${hints.map(escape).join(";")}
       }));
       return { headers, rows, delimiter: ";", format: "xlsx" };
     }
-    throw new Error("Formato no soportado. Us\xE1 CSV (.csv) o Excel (.xlsx).");
+    throw new Error("Formato no soportado. Usá CSV (.csv) o Excel (.xlsx).");
   }
   function headerMatchesSpec(spec, header) {
     const h = normalizeHeaderKey(header);
@@ -8490,7 +8649,7 @@ ${hints.map(escape).join(";")}
             code: "COLUMN_ALIAS",
             severity: "info",
             column: h,
-            message: `Columna \xAB${h}\xBB mapeada a \xAB${spec.header}\xBB.`
+            message: `Columna «${h}» mapeada a «${spec.header}».`
           });
         }
         return;
@@ -8499,7 +8658,7 @@ ${hints.map(escape).join(";")}
         code: "COLUMN_UNKNOWN",
         severity: "error",
         column: h,
-        message: `Columna \xAB${h}\xBB no coincide con ning\xFAn campo del maestro.`
+        message: `Columna «${h}» no coincide con ningún campo del maestro.`
       });
     });
     for (const spec of specs) {
@@ -8508,7 +8667,7 @@ ${hints.map(escape).join(";")}
           code: "COLUMN_MISSING",
           severity: spec.required ? "error" : "warn",
           column: spec.header,
-          message: spec.required ? `Falta la columna obligatoria \xAB${spec.header}\xBB.` : `Columna opcional \xAB${spec.header}\xBB no est\xE1 en el archivo.`
+          message: spec.required ? `Falta la columna obligatoria «${spec.header}».` : `Columna opcional «${spec.header}» no está en el archivo.`
         });
       }
     }
@@ -8522,7 +8681,7 @@ ${hints.map(escape).join(";")}
     }
     const target = getEntityById(state, refEntityId);
     if (!target) {
-      return { ok: false, message: "La entidad referenciada no existe en el cat\xE1logo." };
+      return { ok: false, message: "La entidad referenciada no existe en el catálogo." };
     }
     if (trimmed === target.id) return { ok: true, value: target.id };
     const norm = normalizeHeaderKey(trimmed);
@@ -8531,7 +8690,7 @@ ${hints.map(escape).join(";")}
     }
     return {
       ok: false,
-      message: `No hay match para \xAB${trimmed}\xBB en la entidad \xAB${target.name}\xBB.`,
+      message: `No hay match para «${trimmed}» en la entidad «${target.name}».`,
       suggested: target.name
     };
   }
@@ -8556,7 +8715,7 @@ ${hints.map(escape).join(";")}
           code: "REQUIRED",
           severity: "error",
           column: spec.header,
-          message: "Valor obligatorio vac\xEDo."
+          message: "Valor obligatorio vacío."
         });
       }
       return { value: spec.type === "si_no" ? false : "", issues };
@@ -8569,7 +8728,7 @@ ${hints.map(escape).join(";")}
           code: "TYPE_NUMBER",
           severity: "error",
           column: spec.header,
-          message: `\xAB${value}\xBB no es un n\xFAmero v\xE1lido.`,
+          message: `«${value}» no es un número válido.`,
           rawValue: value
         });
         return { value: "", issues };
@@ -8588,15 +8747,15 @@ ${hints.map(escape).join(";")}
     }
     if (spec.type === "si_no") {
       const v = normalizeHeaderKey(value);
-      if (["si", "s\xED", "true", "1", "yes", "y"].includes(v)) return { value: true, issues };
+      if (["si", "sí", "true", "1", "yes", "y"].includes(v)) return { value: true, issues };
       if (["no", "false", "0", "n"].includes(v)) return { value: false, issues };
       issues.push({
         code: "TYPE_BOOLEAN",
         severity: "error",
         column: spec.header,
-        message: `\xAB${value}\xBB no es un valor s\xED/no reconocido.`,
+        message: `«${value}» no es un valor sí/no reconocido.`,
         rawValue: value,
-        suggested: "s\xED / no"
+        suggested: "sí / no"
       });
       return { value: false, issues };
     }
@@ -8621,7 +8780,7 @@ ${hints.map(escape).join(";")}
         code: "TYPE_DATE",
         severity: "error",
         column: spec.header,
-        message: `\xAB${value}\xBB no es una fecha v\xE1lida (use YYYY-MM-DD o DD/MM/YYYY).`,
+        message: `«${value}» no es una fecha válida (use YYYY-MM-DD o DD/MM/YYYY).`,
         rawValue: value
       });
       return { value: "", issues };
@@ -8706,9 +8865,9 @@ ${hints.map(escape).join(";")}
       COLUMN_MISSING: "Columna faltante",
       COLUMN_ALIAS: "Columna alias",
       REQUIRED: "Obligatorio",
-      TYPE_NUMBER: "Tipo n\xFAmero",
+      TYPE_NUMBER: "Tipo número",
       TYPE_DATE: "Tipo fecha",
-      TYPE_BOOLEAN: "Tipo s\xED/no",
+      TYPE_BOOLEAN: "Tipo sí/no",
       REF_NO_MATCH: "Referencia sin match",
       NORMALIZE_TRIM: "Normalizar espacios",
       NORMALIZE_DECIMAL: "Normalizar decimal",
@@ -8839,10 +8998,10 @@ ${hints.map(escape).join(";")}
     }
     if (norm.type === ENTITY_REF_TYPE) {
       const refEntity = getEntityById(state, norm.refEntityId);
-      const opts = [`<option value="">\u2014 Seleccionar \u2014</option>`];
+      const opts = [`<option value="">— Seleccionar —</option>`];
       if (refEntity) {
         opts.push(
-          `<option value="${escapeHtml(refEntity.id)}"${value === refEntity.id ? " selected" : ""}>${escapeHtml(refEntity.name)} (cat\xE1logo)</option>`
+          `<option value="${escapeHtml(refEntity.id)}"${value === refEntity.id ? " selected" : ""}>${escapeHtml(refEntity.name)} (catálogo)</option>`
         );
       }
       return `<div class="form-row master-record-field">
@@ -8878,7 +9037,7 @@ ${hints.map(escape).join(";")}
   }
   function openMasterRecordEditorForDefinition(mainEl, state, persist, definitionId) {
     if (!isMasterDefinitionAvailableForAbm(state, definitionId)) {
-      toast("Esa definici\xF3n ya no est\xE1 disponible. Actualiz\xE1 Definici\xF3n de maestros.");
+      toast("Esa definición ya no está disponible. Actualizá Definición de maestros.");
       return;
     }
     exitMasterRecordImportSession();
@@ -8888,25 +9047,25 @@ ${hints.map(escape).join(";")}
   function openMasterRecordHistoryModal(state, record) {
     const def = getMasterDefinitionById(state, record.definitionId);
     const history = [...record.history ?? []].sort((a, b) => b.version - a.version);
-    const rows = history.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">Todav\xEDa no hay revisiones anteriores.</p></td></tr>` : history.map((entry) => {
+    const rows = history.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">Todavía no hay revisiones anteriores.</p></td></tr>` : history.map((entry) => {
       const summary = summarizeMasterRecordValues(state, record.definitionId, entry.values);
-      const when = entry.archivedAt ? new Date(entry.archivedAt).toLocaleString("es-AR") : "\u2014";
+      const when = entry.archivedAt ? new Date(entry.archivedAt).toLocaleString("es-AR") : "—";
       return `<tr>
               <td><strong>v${entry.version}</strong></td>
               <td>${escapeHtml(when)}</td>
               <td>${escapeHtml(summary)}</td>
-              <td><button type="button" class="btn btn-sm" data-view-history-version="${entry.version}">Ver datos</button></td>
+              <td>${renderActionButton({ icon: "view", label: "Ver datos de la versión", data: { "view-history-version": entry.version } })}</td>
             </tr>`;
     }).join("");
     const { close, root } = openModal(`
     <div class="modal-header">
       <h2>Historial de revisiones</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
-    <p class="form-hint"><strong>${escapeHtml(def?.name ?? "Maestro")}</strong> \xB7 vigente v${record.version ?? 1} \xB7 <code>${escapeHtml(record.id)}</code></p>
+    <p class="form-hint"><strong>${escapeHtml(def?.name ?? "Maestro")}</strong> · vigente v${record.version ?? 1} · <code>${escapeHtml(record.id)}</code></p>
     <div class="table-wrap table-wrap--modern">
       <table class="table-modern">
-        <thead><tr><th>Versi\xF3n</th><th>Archivada</th><th>Resumen</th><th></th></tr></thead>
+        <thead><tr><th>Versión</th><th>Archivada</th><th>Resumen</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -8926,22 +9085,27 @@ ${hints.map(escape).join(";")}
   function renderMasterRecordRowsForDefinition(state, definitionId) {
     const records = listVigenteMasterRecordsForDefinition(state, definitionId);
     if (!records.length) {
-      return `<tr><td colspan="6"><p class="gestion-empty">Sin registros vigentes en este maestro. Us\xE1 \xAB+ Nuevo registro\xBB.</p></td></tr>`;
+      return `<tr><td colspan="6"><p class="gestion-empty">Sin registros vigentes en este maestro. Usá «+ Nuevo registro».</p></td></tr>`;
     }
     return records.map((r) => {
       const usageBadge = `<span class="badge badge-listo">${escapeHtml(masterRecordUsageStatusLabel(r))}</span>`;
       const revCount = (r.history ?? []).length;
-      const historyBtn = revCount > 0 ? `<button type="button" class="btn btn-sm" data-history-master-record="${escapeHtml(r.id)}">Historial (${revCount})</button>` : `<span class="catalog-muted">\u2014</span>`;
+      const historyBtn = revCount > 0 ? renderActionButton({
+        icon: "history",
+        label: `Historial (${revCount})`,
+        badge: revCount,
+        data: { "history-master-record": r.id }
+      }) : `<span class="catalog-muted">—</span>`;
       return `<tr>
         <td><code class="form-hint">${escapeHtml(r.id)}</code></td>
         <td>${usageBadge}</td>
         <td><span class="catalog-tree-count">v${r.version ?? 1}</span></td>
         <td>${escapeHtml(summarizeMasterRecordForList(state, r))}</td>
         <td>${escapeHtml(new Date(r.updatedAt).toLocaleString("es-AR"))}</td>
-        <td class="catalog-actions">
-          <button type="button" class="btn btn-sm" data-edit-master-record="${escapeHtml(r.id)}">Editar</button>
+        <td class="catalog-actions action-icon-group">
+          ${renderActionButton({ icon: "edit", label: "Editar registro", data: { "edit-master-record": r.id } })}
           ${historyBtn}
-          <button type="button" class="btn btn-sm btn-danger" data-rm-master-record="${escapeHtml(r.id)}">Eliminar</button>
+          ${renderActionButton({ icon: "delete", label: "Eliminar registro", variant: "danger", data: { "rm-master-record": r.id } })}
         </td>
       </tr>`;
     }).join("");
@@ -8979,7 +9143,7 @@ ${hints.map(escape).join(";")}
         const item = getMasterRecordById(state, id);
         if (!item) return;
         const def = getMasterDefinitionById(state, item.definitionId);
-        if (!window.confirm(`\xBFEliminar el registro de \xAB${def?.name ?? "maestro"}\xBB?`)) return;
+        if (!window.confirm(`¿Eliminar el registro de «${def?.name ?? "maestro"}»?`)) return;
         recordMasterAudit(state, {
           area: "masterRecord",
           action: "delete",
@@ -9000,8 +9164,8 @@ ${hints.map(escape).join(";")}
     const allDefs = state.masterDefinitions ?? [];
     const emptyPanel = defs.length === 0 ? `<section class="master-abm-definitions-panel panel">
           <h3 class="entity-meta-title">Maestros detectados</h3>
-          <p class="gestion-empty">No hay definiciones con entidades. Cre\xE1 una en <strong>Definici\xF3n de maestros</strong>; ac\xE1 aparecer\xE1 un ABM independiente por cada una.</p>
-          <button type="button" class="btn btn-sm btn-primary" id="btn-goto-master-definitions">Ir a Definici\xF3n de maestros</button>
+          <p class="gestion-empty">No hay definiciones con entidades. Creá una en <strong>Definición de maestros</strong>; acá aparecerá un ABM independiente por cada una.</p>
+          ${renderActionButton({ icon: "arrowRight", label: "Ir a Definición de maestros", variant: "primary", id: "btn-goto-master-definitions" })}
         </section>` : "";
     const cards = defs.length === 0 ? "" : `<div class="master-abm-definitions-grid">
           ${defs.map((d) => {
@@ -9009,22 +9173,22 @@ ${hints.map(escape).join(";")}
       const count = countMasterRecordsForDefinition(state, d.id);
       return `<article class="master-abm-definition-card">
                 <h4>${escapeHtml(d.name)}</h4>
-                <p class="form-hint">${escapeHtml(d.description || "Sin descripci\xF3n")}</p>
+                <p class="form-hint">${escapeHtml(d.description || "Sin descripción")}</p>
                 <p class="form-hint"><code>${escapeHtml(d.id)}</code></p>
                 <p class="form-hint"><strong>Entidades:</strong> ${escapeHtml(entities)}</p>
                 <p class="catalog-tree-count">${count} ${count === 1 ? "registro" : "registros"}</p>
                 <div class="master-abm-definition-card__actions">
-                  <button type="button" class="btn btn-primary btn-sm" data-open-master-abm="${escapeHtml(d.id)}">Abrir ABM</button>
+                  ${renderActionButton({ icon: "open", label: "Abrir ABM", variant: "primary", data: { "open-master-abm": d.id } })}
                 </div>
               </article>`;
     }).join("")}
         </div>`;
-    const incompleteHint = allDefs.length > defs.length ? `<p class="form-hint master-abm-incomplete-hint">${allDefs.length - defs.length} definici\xF3n(es) sin entidades \u2014 no generan maestro hasta completarlas en Definici\xF3n de maestros.</p>` : "";
+    const incompleteHint = allDefs.length > defs.length ? `<p class="form-hint master-abm-incomplete-hint">${allDefs.length - defs.length} definición(es) sin entidades — no generan maestro hasta completarlas en Definición de maestros.</p>` : "";
     mainEl.innerHTML = `
     <section class="panel panel--catalog maestros-panel master-records-hub">
       ${renderPageHeader(
       "Resumen ABM maestros",
-      "Cada definici\xF3n con entidades tiene su propio ABM en el men\xFA (ABM maestros) o desde \xABAbrir ABM\xBB."
+      "Cada definición con entidades tiene su propio ABM en el menú (ABM maestros) o desde «Abrir ABM»."
     )}
       ${emptyPanel}
       ${incompleteHint}
@@ -9044,7 +9208,7 @@ ${hints.map(escape).join(";")}
   function renderMasterRecordsForDefinition(mainEl, state, persist, definitionId) {
     const definition = getMasterDefinitionById(state, definitionId);
     if (!definition || !isMasterDefinitionAvailableForAbm(state, definitionId)) {
-      toast("Ese maestro ya no est\xE1 disponible. Volv\xE9 al resumen.");
+      toast("Ese maestro ya no está disponible. Volvé al resumen.");
       masterRecordActiveDefinitionId = null;
       renderMasterRecordsHub(mainEl, state, persist);
       return;
@@ -9056,14 +9220,16 @@ ${hints.map(escape).join(";")}
     <section class="panel panel--catalog maestros-panel master-records-abm-view">
       ${renderPageHeader(
       `Maestro: ${escapeHtml(definition.name)}`,
-      `${escapeHtml(definition.description || "Sin descripci\xF3n")} \xB7 Entidades: ${escapeHtml(entities)} \xB7 <code>${escapeHtml(definition.id)}</code>`,
-      `<button type="button" class="btn btn-sm" data-open-import="${escapeHtml(definition.id)}">Importar CSV/Excel</button>
-         <button type="button" class="btn btn-primary btn-sm" data-new-for-def="${escapeHtml(definition.id)}">+ Nuevo registro</button>`
+      `${escapeHtml(definition.description || "Sin descripción")} · Entidades: ${escapeHtml(entities)} · <code>${escapeHtml(definition.id)}</code>`,
+      `<div class="action-icon-group">
+          ${renderActionButton({ icon: "import", label: "Importar CSV/Excel", data: { "open-import": definition.id } })}
+          ${renderActionButton({ icon: "add", label: "Nuevo registro", variant: "primary", data: { "new-for-def": definition.id } })}
+        </div>`
     )}
       <p class="catalog-tree-count master-records-abm-count">${count} ${count === 1 ? "registro" : "registros"}</p>
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Id</th><th>Estado</th><th>Versi\xF3n</th><th>Datos</th><th>Actualizado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Id</th><th>Estado</th><th>Versión</th><th>Datos</th><th>Actualizado</th><th>Acciones</th></tr></thead>
           <tbody>${renderMasterRecordRowsForDefinition(state, definition.id)}</tbody>
         </table>
       </div>
@@ -9099,16 +9265,16 @@ ${hints.map(escape).join(";")}
       const badge = issue.severity === "error" ? `<span class="badge badge-borrador">${escapeHtml(importIssueLabel(issue))}</span>` : issue.severity === "warn" ? `<span class="badge badge-borrador">Advertencia</span>` : `<span class="badge badge-listo">Info</span>`;
       return `<tr>
               <td>${badge}</td>
-              <td><code>${escapeHtml(issue.column ?? "\u2014")}</code></td>
+              <td><code>${escapeHtml(issue.column ?? "—")}</code></td>
               <td>${escapeHtml(issue.message)}</td>
             </tr>`;
-    }).join("") : `<tr><td colspan="3"><p class="gestion-empty">Sub\xED un archivo para ver el match de columnas.</p></td></tr>`;
+    }).join("") : `<tr><td colspan="3"><p class="gestion-empty">Subí un archivo para ver el match de columnas.</p></td></tr>`;
     const rowFilter = report?.rowResults ?? [];
     const rowRows = rowFilter.length ? rowFilter.map((row) => {
-      const statusBadge = row.status === "valid" ? `<span class="badge badge-listo">V\xE1lida</span>` : row.status === "normalize" ? `<span class="badge badge-borrador">Normalizar</span>` : `<span class="badge badge-borrador">Inv\xE1lida</span>`;
+      const statusBadge = row.status === "valid" ? `<span class="badge badge-listo">Válida</span>` : row.status === "normalize" ? `<span class="badge badge-borrador">Normalizar</span>` : `<span class="badge badge-borrador">Inválida</span>`;
       const issuesHtml = row.issues.length ? `<ul class="master-import-issue-list">${row.issues.map(
-        (i) => `<li><strong>${escapeHtml(importIssueLabel(i))}</strong>: ${escapeHtml(i.message)}${i.suggested ? ` <span class="form-hint">\u2192 sugerido: ${escapeHtml(i.suggested)}</span>` : ""}</li>`
-      ).join("")}</ul>` : `<span class="catalog-muted">\u2014</span>`;
+        (i) => `<li><strong>${escapeHtml(importIssueLabel(i))}</strong>: ${escapeHtml(i.message)}${i.suggested ? ` <span class="form-hint">→ sugerido: ${escapeHtml(i.suggested)}</span>` : ""}</li>`
+      ).join("")}</ul>` : `<span class="catalog-muted">—</span>`;
       return `<tr>
             <td>${row.lineNumber}</td>
             <td>${statusBadge}</td>
@@ -9118,24 +9284,24 @@ ${hints.map(escape).join(";")}
     const summary = report?.summary;
     const summaryHtml = summary ? `<div class="master-import-summary">
         <div class="master-import-stat"><span class="master-import-stat__n">${summary.totalRows}</span><span>Filas</span></div>
-        <div class="master-import-stat master-import-stat--ok"><span class="master-import-stat__n">${summary.validRows}</span><span>V\xE1lidas</span></div>
+        <div class="master-import-stat master-import-stat--ok"><span class="master-import-stat__n">${summary.validRows}</span><span>Válidas</span></div>
         <div class="master-import-stat master-import-stat--warn"><span class="master-import-stat__n">${summary.normalizeRows}</span><span>A normalizar</span></div>
         <div class="master-import-stat master-import-stat--err"><span class="master-import-stat__n">${summary.invalidRows}</span><span>Con error</span></div>
       </div>` : "";
     mainEl.innerHTML = `
     <section class="gestion-hero master-import-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-import-back>Volver al ABM</button>
+        ${renderActionButton({ icon: "back", label: "Volver al ABM", className: "gestion-hero-back", extraAttrs: "data-import-back" })}
         <div class="gestion-hero-heading">
-          <h2>Importar registros \u2014 ${escapeHtml(definition.name)}</h2>
-          <p class="gestion-hero-subtitle">CSV o Excel (.xlsx). Validamos columnas, tipos y referencias. Las filas inv\xE1lidas no se importan.</p>
+          <h2>Importar registros — ${escapeHtml(definition.name)}</h2>
+          <p class="gestion-hero-subtitle">CSV o Excel (.xlsx). Validamos columnas, tipos y referencias. Las filas inválidas no se importan.</p>
         </div>
       </header>
       <div class="master-import-body">
         <section class="entity-meta-panel">
           <h3 class="entity-meta-title">1. Plantilla</h3>
           <p class="form-hint">Columnas esperadas: <code>Entidad.atributo</code> (punto entre nombre de entidad y clave). Separador <strong>;</strong> o <strong>,</strong>.</p>
-          <button type="button" class="btn btn-sm" id="btn-download-import-template">Descargar plantilla CSV</button>
+          ${renderActionButton({ icon: "download", label: "Descargar plantilla CSV", id: "btn-download-import-template" })}
         </section>
         <section class="entity-meta-panel">
           <h3 class="entity-meta-title">2. Archivo</h3>
@@ -9147,7 +9313,7 @@ ${hints.map(escape).join(";")}
           </label>
         </section>
         <section class="entity-meta-panel">
-          <h3 class="entity-meta-title">3. Reporte de validaci\xF3n</h3>
+          <h3 class="entity-meta-title">3. Reporte de validación</h3>
           ${summaryHtml}
           <h4 class="master-import-subtitle">Match de columnas</h4>
           <div class="table-wrap table-wrap--modern">
@@ -9159,15 +9325,17 @@ ${hints.map(escape).join(";")}
           <h4 class="master-import-subtitle">Filas</h4>
           <div class="table-wrap table-wrap--modern">
             <table class="table-modern">
-              <thead><tr><th>#</th><th>Estado</th><th>Observaciones / normalizaci\xF3n</th></tr></thead>
+              <thead><tr><th>#</th><th>Estado</th><th>Observaciones / normalización</th></tr></thead>
               <tbody>${rowRows}</tbody>
             </table>
           </div>
         </section>
       </div>
       <footer class="component-attr-hero-footer">
-        <button type="button" class="btn btn-sm" data-import-back>Cancelar</button>
-        <button type="button" class="btn btn-primary" id="btn-commit-import" ${report ? "" : "disabled"}>Importar filas v\xE1lidas</button>
+        <div class="action-icon-group">
+          ${renderActionButton({ icon: "cancel", label: "Cancelar importación", extraAttrs: "data-import-back" })}
+          ${renderActionButton({ icon: "import", label: "Importar filas válidas", variant: "primary", id: "btn-commit-import", disabled: !report })}
+        </div>
       </footer>
     </section>`;
     const goBack = () => {
@@ -9220,7 +9388,7 @@ ${hints.map(escape).join(";")}
         { applyNormalizations: session.applyNormalizations, includeNormalizeStatus: true }
       );
       if (created === 0) {
-        toast("No hay filas v\xE1lidas para importar. Revis\xE1 el reporte.");
+        toast("No hay filas válidas para importar. Revisá el reporte.");
         return;
       }
       const def = getMasterDefinitionById(state, session.definitionId);
@@ -9229,7 +9397,7 @@ ${hints.map(escape).join(";")}
         action: "create",
         refId: session.definitionId,
         label: def?.name ?? session.definitionId,
-        detail: `Importaci\xF3n: ${created} registro(s), ${skipped} omitido(s)`
+        detail: `Importación: ${created} registro(s), ${skipped} omitido(s)`
       });
       persist();
       toast(`${created} registro(s) importado(s) (vigente v1). ${skipped ? `${skipped} fila(s) omitida(s).` : ""}`, 3200, "success");
@@ -9261,7 +9429,7 @@ ${hints.map(escape).join(";")}
       draft.values = buildEmptyValuesForDefinition(state, draft.definitionId);
     }
     if (session.mode === "edit" && !isMasterDefinitionAvailableForAbm(state, draft.definitionId)) {
-      toast("La definici\xF3n de este registro ya no est\xE1 disponible.");
+      toast("La definición de este registro ya no está disponible.");
       exitMasterRecordEditor();
       renderMasterRecordsListView(mainEl, state, persist);
       return;
@@ -9276,7 +9444,7 @@ ${hints.map(escape).join(";")}
     const paint = () => {
       const def = getMasterDefinitionById(state, draft.definitionId);
       const defSelect = session.mode === "create" && !lockDefinition ? `<div class="form-row form-row--entity-name">
-            <label for="field-master-record-def">Definici\xF3n de maestros</label>
+            <label for="field-master-record-def">Definición de maestros</label>
             <select id="field-master-record-def" required>
               ${defs.map(
         (d) => `<option value="${escapeHtml(d.id)}"${draft.definitionId === d.id ? " selected" : ""}>${escapeHtml(d.name)}</option>`
@@ -9285,7 +9453,7 @@ ${hints.map(escape).join(";")}
             <p class="form-hint">${def ? escapeHtml(summarizeMasterDefinitionEntities(state, def)) : ""}</p>
           </div>` : `<div class="form-row form-row--entity-name">
             <label>Maestro</label>
-            <p><strong>${escapeHtml(def?.name ?? "\u2014")}</strong></p>
+            <p><strong>${escapeHtml(def?.name ?? "—")}</strong></p>
             <p class="form-hint">${def ? escapeHtml(summarizeMasterDefinitionEntities(state, def)) : ""}</p>
           </div>`;
       let entitySections = "";
@@ -9303,25 +9471,32 @@ ${hints.map(escape).join(";")}
           </section>`;
         }).join("");
       } else {
-        entitySections = `<p class="gestion-empty">Eleg\xED una definici\xF3n con entidades para cargar el formulario.</p>`;
+        entitySections = `<p class="gestion-empty">Elegí una definición con entidades para cargar el formulario.</p>`;
       }
       mainEl.innerHTML = `
       <section class="gestion-hero master-record-editor-hero panel">
         <header class="gestion-hero-header">
-          <button type="button" class="btn btn-sm gestion-hero-back" data-master-record-editor-back>Volver al listado</button>
+          ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-master-record-editor-back" })}
           <div class="gestion-hero-heading">
             <h2>${title}</h2>
-            <p class="gestion-hero-subtitle">Al crear queda <strong>vigente</strong>. Al guardar cambios se archiva la revisi\xF3n anterior y pod\xE9s ver el historial desde el listado.</p>
+            <p class="gestion-hero-subtitle">Al crear queda <strong>vigente</strong>. Al guardar cambios se archiva la revisión anterior y podés ver el historial desde el listado.</p>
           </div>
         </header>
         <div class="entity-editor-body master-record-editor-body">
           ${defSelect}
-          ${session.mode === "edit" && existing ? `<p class="form-hint master-record-editor-version">Versi\xF3n actual: <strong>v${existing.version ?? 1}</strong>${(existing.history ?? []).length ? ` \xB7 ${existing.history.length} revisi\xF3n(es) en historial` : ""}</p>` : `<p class="form-hint master-record-editor-version">Al guardar se publicar\xE1 como <strong>vigente v1</strong>.</p>`}
+          ${session.mode === "edit" && existing ? `<p class="form-hint master-record-editor-version">Versión actual: <strong>v${existing.version ?? 1}</strong>${(existing.history ?? []).length ? ` · ${existing.history.length} revisión(es) en historial` : ""}</p>` : `<p class="form-hint master-record-editor-version">Al guardar se publicará como <strong>vigente v1</strong>.</p>`}
           ${entitySections}
         </div>
         <footer class="component-attr-hero-footer">
-          <button type="button" class="btn btn-sm" data-master-record-editor-back>Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-save-master-record">${session.mode === "edit" ? "Guardar" : "Crear registro"}</button>
+          <div class="action-icon-group">
+            ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-master-record-editor-back" })}
+            ${renderActionButton({
+        icon: "save",
+        label: session.mode === "edit" ? "Guardar registro" : "Crear registro",
+        variant: "primary",
+        id: "btn-save-master-record"
+      })}
+          </div>
         </footer>
       </section>`;
       const goBack = () => {
@@ -9332,7 +9507,7 @@ ${hints.map(escape).join(";")}
       mainEl.querySelector("#field-master-record-def")?.addEventListener("change", (e) => {
         draft.definitionId = e.target.value;
         if (!isMasterDefinitionAvailableForAbm(state, draft.definitionId)) {
-          toast("Seleccion\xE1 una definici\xF3n con entidades.");
+          toast("Seleccioná una definición con entidades.");
           return;
         }
         draft.values = buildEmptyValuesForDefinition(state, draft.definitionId);
@@ -9369,9 +9544,9 @@ ${hints.map(escape).join(";")}
             action: "update",
             refId: existing.id,
             label: def2?.name ?? existing.id,
-            detail: `v${existing.version} \xB7 ${summarizeMasterRecordForList(state, existing)}`
+            detail: `v${existing.version} · ${summarizeMasterRecordForList(state, existing)}`
           });
-          toast(`Revisi\xF3n guardada (vigente v${existing.version}).`, 2600, "success");
+          toast(`Revisión guardada (vigente v${existing.version}).`, 2600, "success");
         } else {
           const newId = createId("masterRecord");
           const created = {
@@ -9392,7 +9567,7 @@ ${hints.map(escape).join(";")}
             action: "create",
             refId: newId,
             label: def2?.name ?? newId,
-            detail: `v1 \xB7 ${summarizeMasterRecordForList(state, created)}`
+            detail: `v1 · ${summarizeMasterRecordForList(state, created)}`
           });
           toast("Registro creado (vigente v1).", 2600, "success");
         }
@@ -9464,15 +9639,15 @@ ${hints.map(escape).join(";")}
   }
   function renderFlowTypesMaster(mainEl, state, persist) {
     const types = state.flowTypes ?? [];
-    const rows = types.length === 0 ? `<tr><td colspan="3"><p class="gestion-empty">No hay tipos de flujo. Cre\xE1 uno con \xAB+ Nuevo tipo\xBB.</p></td></tr>` : types.map((t) => {
+    const rows = types.length === 0 ? `<tr><td colspan="3"><p class="gestion-empty">No hay tipos de flujo. Creá uno con «+ Nuevo tipo».</p></td></tr>` : types.map((t) => {
       const inUse = countFlowsUsingFlowType(state, t.id);
       const usage = inUse === 0 ? `<span class="catalog-muted">Sin flujos</span>` : `<span class="catalog-tree-count">${inUse} ${inUse === 1 ? "flujo" : "flujos"}</span>`;
       return `<tr>
               <td><strong>${escapeHtml(t.name)}</strong><div class="form-hint">${usage}</div></td>
-              <td>${escapeHtml(t.description || "\u2014")}</td>
-              <td class="catalog-actions">
-                <button type="button" class="btn btn-sm" data-edit-flow-type="${escapeHtml(t.id)}">Editar</button>
-                <button type="button" class="btn btn-sm btn-danger" data-rm-flow-type="${escapeHtml(t.id)}">Eliminar</button>
+              <td>${escapeHtml(t.description || "—")}</td>
+              <td class="catalog-actions action-icon-group">
+                ${renderActionButton({ icon: "edit", label: "Editar tipo de flujo", data: { "edit-flow-type": t.id } })}
+                ${renderActionButton({ icon: "delete", label: "Eliminar tipo de flujo", variant: "danger", data: { "rm-flow-type": t.id } })}
               </td>
             </tr>`;
     }).join("");
@@ -9480,12 +9655,12 @@ ${hints.map(escape).join(";")}
     <section class="panel panel--catalog maestros-panel">
       ${renderPageHeader(
       "Tipo de flujo",
-      "Maestro de categor\xEDas para clasificar flujos en el cat\xE1logo. Nombre y descripci\xF3n.",
-      `<button type="button" class="btn btn-primary btn-sm" id="btn-new-flow-type">+ Nuevo tipo</button>`
+      "Maestro de categorías para clasificar flujos en el catálogo. Nombre y descripción.",
+      renderActionButton({ icon: "add", label: "Nuevo tipo de flujo", variant: "primary", id: "btn-new-flow-type" })
     )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Nombre</th><th>Descripci\xF3n</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -9509,11 +9684,11 @@ ${hints.map(escape).join(";")}
         const inUse = countFlowsUsingFlowType(state, id);
         if (inUse > 0) {
           toast(
-            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${inUse} ${inUse === 1 ? "flujo lo usa" : "flujos lo usan"}.`
+            `No podés eliminar «${item.name}»: ${inUse} ${inUse === 1 ? "flujo lo usa" : "flujos lo usan"}.`
           );
           return;
         }
-        if (!window.confirm(`\xBFEliminar el tipo de flujo \xAB${item.name}\xBB?`)) return;
+        if (!window.confirm(`¿Eliminar el tipo de flujo «${item.name}»?`)) return;
         recordMasterAudit(state, {
           area: "flowType",
           action: "delete",
@@ -9532,12 +9707,12 @@ ${hints.map(escape).join(";")}
     const { close, root } = openModal(`
     <div class="modal-header">
       <h2>${isEdit ? "Editar tipo de flujo" : "Nuevo tipo de flujo"}</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
     <form id="form-flow-type" class="form-grid">
-      <div class="form-row"><label>Nombre</label><input name="name" required maxlength="120" value="${escapeHtml(existing?.name ?? "")}" placeholder="Ej. Aprobaci\xF3n" /></div>
-      <div class="form-row"><label>Descripci\xF3n</label><textarea name="description" rows="3" placeholder="Opcional">${escapeHtml(existing?.description ?? "")}</textarea></div>
-      <button type="submit" class="btn btn-primary">${isEdit ? "Guardar" : "Crear"}</button>
+      <div class="form-row"><label>Nombre</label><input name="name" required maxlength="120" value="${escapeHtml(existing?.name ?? "")}" placeholder="Ej. Aprobación" /></div>
+      <div class="form-row"><label>Descripción</label><textarea name="description" rows="3" placeholder="Opcional">${escapeHtml(existing?.description ?? "")}</textarea></div>
+      <div class="action-icon-group">${renderActionButton({ icon: isEdit ? "save" : "add", label: isEdit ? "Guardar tipo" : "Crear tipo", variant: "primary", type: "submit" })}</div>
     </form>
   `);
     root.querySelector("#form-flow-type")?.addEventListener("submit", (e) => {
@@ -9550,7 +9725,7 @@ ${hints.map(escape).join(";")}
         return;
       }
       if (isFlowTypeNameTaken(state, name, existing?.id)) {
-        toast(`Ya existe un tipo de flujo con el nombre \xAB${name}\xBB.`);
+        toast(`Ya existe un tipo de flujo con el nombre «${name}».`);
         return;
       }
       if (isEdit && existing) {
@@ -9587,29 +9762,29 @@ ${hints.map(escape).join(";")}
   }
   function renderMasterDefinitionsMaster(mainEl, state, persist) {
     const defs = state.masterDefinitions ?? [];
-    const rows = defs.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay definiciones. Cre\xE1 una con \xAB+ Nueva definici\xF3n\xBB (requiere entidades en el maestro).</p></td></tr>` : defs.map((d) => {
+    const rows = defs.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay definiciones. Creá una con «+ Nueva definición» (requiere entidades en el maestro).</p></td></tr>` : defs.map((d) => {
       const entitySummary = summarizeMasterDefinitionEntities(state, d);
       const count = (d.entityIds ?? []).length;
       return `<tr>
               <td><strong>${escapeHtml(d.name)}</strong><div class="form-hint"><code>${escapeHtml(d.id)}</code></div></td>
-              <td>${escapeHtml(d.description || "\u2014")}</td>
+              <td>${escapeHtml(d.description || "—")}</td>
               <td><span class="catalog-tree-count">${count} ${count === 1 ? "entidad" : "entidades"}</span><div class="form-hint">${escapeHtml(entitySummary)}</div></td>
-              <td class="catalog-actions">
-                <button type="button" class="btn btn-sm" data-edit-master-def="${escapeHtml(d.id)}">Editar</button>
-                <button type="button" class="btn btn-sm btn-danger" data-rm-master-def="${escapeHtml(d.id)}">Eliminar</button>
+              <td class="catalog-actions action-icon-group">
+                ${renderActionButton({ icon: "edit", label: "Editar definición", data: { "edit-master-def": d.id } })}
+                ${renderActionButton({ icon: "delete", label: "Eliminar definición", variant: "danger", data: { "rm-master-def": d.id } })}
               </td>
             </tr>`;
     }).join("");
     mainEl.innerHTML = `
     <section class="panel panel--catalog maestros-panel">
       ${renderPageHeader(
-      "Definici\xF3n de maestros",
-      "Composiciones basadas en una o m\xE1s entidades (Definiciones de entidad \u2192 Entidades).",
-      `<button type="button" class="btn btn-primary btn-sm" id="btn-new-master-def">+ Nueva definici\xF3n</button>`
+      "Definición de maestros",
+      "Composiciones basadas en una o más entidades (Definiciones de entidad → Entidades).",
+      renderActionButton({ icon: "add", label: "Nueva definición de maestro", variant: "primary", id: "btn-new-master-def" })
     )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Nombre</th><th>Descripci\xF3n</th><th>Entidades base</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Descripción</th><th>Entidades base</th><th>Acciones</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -9634,11 +9809,11 @@ ${hints.map(escape).join(";")}
         const recordCount = countMasterRecordsForDefinition(state, id);
         if (recordCount > 0) {
           toast(
-            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${recordCount} ${recordCount === 1 ? "registro de maestro la usa" : "registros de maestro la usan"}.`
+            `No podés eliminar «${item.name}»: ${recordCount} ${recordCount === 1 ? "registro de maestro la usa" : "registros de maestro la usan"}.`
           );
           return;
         }
-        if (!window.confirm(`\xBFEliminar la definici\xF3n \xAB${item.name}\xBB?`)) return;
+        if (!window.confirm(`¿Eliminar la definición «${item.name}»?`)) return;
         recordMasterAudit(state, {
           area: "masterDefinition",
           action: "delete",
@@ -9648,7 +9823,7 @@ ${hints.map(escape).join(";")}
         });
         state.masterDefinitions = (state.masterDefinitions ?? []).filter((d) => d.id !== id);
         persist();
-        toast("Definici\xF3n eliminada.", 2200, "success");
+        toast("Definición eliminada.", 2200, "success");
         renderMasterDefinitionsMaster(mainEl, state, persist);
       });
     });
@@ -9671,15 +9846,15 @@ ${hints.map(escape).join(";")}
       definitionId: existing?.id ?? null,
       entityIds: [...existing?.entityIds ?? []]
     };
-    const title = session.mode === "edit" ? "Editar definici\xF3n de maestros" : "Nueva definici\xF3n de maestros";
+    const title = session.mode === "edit" ? "Editar definición de maestros" : "Nueva definición de maestros";
     const paint = () => {
       mainEl.innerHTML = `
       <section class="gestion-hero master-def-editor-hero panel">
         <header class="gestion-hero-header">
-          <button type="button" class="btn btn-sm gestion-hero-back" data-master-def-editor-back>Volver al listado</button>
+          ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-master-def-editor-back" })}
           <div class="gestion-hero-heading">
             <h2>${title}</h2>
-            <p class="gestion-hero-subtitle">Eleg\xED una o m\xE1s entidades del maestro como base de esta definici\xF3n.</p>
+            <p class="gestion-hero-subtitle">Elegí una o más entidades del maestro como base de esta definición.</p>
           </div>
         </header>
         <div class="entity-editor-body master-def-editor-body">
@@ -9689,21 +9864,28 @@ ${hints.map(escape).join(";")}
               <input id="field-master-def-name" name="name" required maxlength="120" value="${escapeHtml(draft.name)}" placeholder="Ej. Maestro de proveedores" autocomplete="off" />
             </div>
             <div class="form-row form-row--full">
-              <label for="field-master-def-desc">Descripci\xF3n</label>
+              <label for="field-master-def-desc">Descripción</label>
               <textarea id="field-master-def-desc" name="description" rows="3" placeholder="Opcional">${escapeHtml(draft.description)}</textarea>
             </div>
           </form>
           <section class="entity-meta-panel master-def-entities-panel" aria-labelledby="master-def-entities-heading">
             <h3 id="master-def-entities-heading" class="entity-meta-title">Entidades del maestro</h3>
-            <p class="form-hint">Marc\xE1 todas las entidades que componen esta definici\xF3n (m\xEDnimo una).</p>
+            <p class="form-hint">Marcá todas las entidades que componen esta definición (mínimo una).</p>
             <div id="master-def-entity-checklist-host">
               ${renderMasterDefinitionEntityChecklist(state, draft.entityIds)}
             </div>
           </section>
         </div>
         <footer class="component-attr-hero-footer">
-          <button type="button" class="btn btn-sm" data-master-def-editor-back>Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-save-master-def">${session.mode === "edit" ? "Guardar definici\xF3n" : "Crear definici\xF3n"}</button>
+          <div class="action-icon-group">
+            ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-master-def-editor-back" })}
+            ${renderActionButton({
+        icon: "save",
+        label: session.mode === "edit" ? "Guardar definición" : "Crear definición",
+        variant: "primary",
+        id: "btn-save-master-def"
+      })}
+          </div>
         </footer>
       </section>`;
       const syncDraftFromDom = () => {
@@ -9772,7 +9954,7 @@ ${hints.map(escape).join(";")}
           });
         }
         persist();
-        toast(session.mode === "edit" ? "Definici\xF3n actualizada." : "Definici\xF3n creada.", 2200, "success");
+        toast(session.mode === "edit" ? "Definición actualizada." : "Definición creada.", 2200, "success");
         exitMasterDefinitionEditor();
         renderMasterDefinitionsMaster(mainEl, state, persist);
       });
@@ -9782,16 +9964,16 @@ ${hints.map(escape).join(";")}
   }
   function renderEntitiesMaster(mainEl, state, persist) {
     const entities = state.entities ?? [];
-    const rows = entities.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay entidades. Cre\xE1 una con \xAB+ Nueva entidad\xBB.</p></td></tr>` : entities.map((e) => {
+    const rows = entities.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay entidades. Creá una con «+ Nueva entidad».</p></td></tr>` : entities.map((e) => {
       const count = (e.attributes ?? []).length;
       const attrHint = count === 0 ? `<span class="catalog-muted">Sin atributos</span>` : `<span class="catalog-tree-count">${count} ${count === 1 ? "atributo" : "atributos"}</span>`;
       return `<tr>
               <td><strong>${escapeHtml(e.name)}</strong><div class="form-hint">${attrHint}</div></td>
               <td>${formatEntityKindLabel(state, e)}</td>
               <td>${escapeHtml(summarizeEntityAttributesForList(state, e.attributes))}</td>
-              <td class="catalog-actions">
-                <button type="button" class="btn btn-sm" data-edit-entity="${escapeHtml(e.id)}">Editar</button>
-                <button type="button" class="btn btn-sm btn-danger" data-rm-entity="${escapeHtml(e.id)}">Eliminar</button>
+              <td class="catalog-actions action-icon-group">
+                ${renderActionButton({ icon: "edit", label: "Editar entidad", data: { "edit-entity": e.id } })}
+                ${renderActionButton({ icon: "delete", label: "Eliminar entidad", variant: "danger", data: { "rm-entity": e.id } })}
               </td>
             </tr>`;
     }).join("");
@@ -9799,12 +9981,12 @@ ${hints.map(escape).join(";")}
     <section class="panel panel--catalog maestros-panel">
       ${renderPageHeader(
       "Definiciones de entidad",
-      "ABM de entidades: atributos, entidad base y extensi\xF3n sobre otras bases.",
-      `<button type="button" class="btn btn-primary btn-sm" id="btn-new-entity">+ Nueva entidad</button>`
+      "ABM de entidades: atributos, entidad base y extensión sobre otras bases.",
+      renderActionButton({ icon: "add", label: "Nueva entidad", variant: "primary", id: "btn-new-entity" })
     )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Nombre</th><th>Clasificaci\xF3n</th><th>Atributos</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Clasificación</th><th>Atributos</th><th>Acciones</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -9829,25 +10011,25 @@ ${hints.map(escape).join(";")}
         const refCount = countEntitiesReferencingEntity(state, id);
         if (refCount > 0) {
           toast(
-            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${refCount} ${refCount === 1 ? "entidad la referencia" : "entidades la referencian"}.`
+            `No podés eliminar «${item.name}»: ${refCount} ${refCount === 1 ? "entidad la referencia" : "entidades la referencian"}.`
           );
           return;
         }
         const extCount = countEntitiesExtendingBase(state, id);
         if (extCount > 0) {
           toast(
-            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${extCount} ${extCount === 1 ? "entidad la extiende" : "entidades la extienden"}.`
+            `No podés eliminar «${item.name}»: ${extCount} ${extCount === 1 ? "entidad la extiende" : "entidades la extienden"}.`
           );
           return;
         }
         const defCount = countMasterDefinitionsUsingEntity(state, id);
         if (defCount > 0) {
           toast(
-            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${defCount} ${defCount === 1 ? "definici\xF3n de maestros la usa" : "definiciones de maestros la usan"}.`
+            `No podés eliminar «${item.name}»: ${defCount} ${defCount === 1 ? "definición de maestros la usa" : "definiciones de maestros la usan"}.`
           );
           return;
         }
-        if (!window.confirm(`\xBFEliminar la entidad \xAB${item.name}\xBB?`)) return;
+        if (!window.confirm(`¿Eliminar la entidad «${item.name}»?`)) return;
         recordMasterAudit(state, {
           area: "entity",
           action: "delete",
@@ -9863,7 +10045,7 @@ ${hints.map(escape).join(";")}
   }
   function renderEntityAttributesEditorRows(state, excludeEntityId, draftAttributes, readOnly) {
     if (!draftAttributes.length) {
-      return `<tr class="entity-attr-row entity-attr-row--empty"><td colspan="6"><p class="gestion-empty">Sin atributos. Agreg\xE1 al menos uno con \xAB+ Agregar atributo\xBB.</p></td></tr>`;
+      return `<tr class="entity-attr-row entity-attr-row--empty"><td colspan="6"><p class="gestion-empty">Sin atributos. Agregá al menos uno con «+ Agregar atributo».</p></td></tr>`;
     }
     const refCandidates = (state.entities ?? []).filter((e) => e.id !== excludeEntityId);
     return draftAttributes.map((attr, index) => {
@@ -9878,16 +10060,16 @@ ${hints.map(escape).join(";")}
         } else if (norm.type === ENTITY_DATE_EXECUTION_TYPE) {
           autoHint = `<span class="entity-uuid-auto-hint" title="Se asigna al crear instancias en UTC (GETUTCDATE, ISO 8601 con Z)">UTC</span>`;
         } else if (norm.type === ENTITY_USER_CONNECTED_TYPE) {
-          autoHint = `<span class="entity-uuid-auto-hint" title="Usuario logueado; sin sesi\xF3n usa prueabaomigracion (sistema)">Sesi\xF3n</span>`;
+          autoHint = `<span class="entity-uuid-auto-hint" title="Usuario logueado; sin sesión usa prueabaomigracion (sistema)">Sesión</span>`;
         } else {
           autoHint = `<span class="entity-uuid-auto-hint">Autogenerada</span>`;
         }
       }
       const requiredCell = isAuto ? autoHint : `<label><input type="checkbox" data-field="required" ${norm.required ? "checked" : ""}${dis} /> Obligatorio</label>`;
-      let refCell = `<span class="catalog-muted">\u2014</span>`;
+      let refCell = `<span class="catalog-muted">—</span>`;
       if (isRef) {
         if (!refCandidates.length) {
-          refCell = `<span class="form-hint">Cre\xE1 otra entidad primero</span>`;
+          refCell = `<span class="form-hint">Creá otra entidad primero</span>`;
         } else {
           refCell = `<select class="entity-attr-input" data-field="refEntityId" ${dis}>${renderEntityRefSelectOptions(state, excludeEntityId, norm.refEntityId)}</select>`;
         }
@@ -9898,7 +10080,7 @@ ${hints.map(escape).join(";")}
         <td><select class="entity-attr-input" data-field="type" ${dis}>${renderEntityDataTypeOptions(norm.type)}</select></td>
         <td class="entity-attr-ref">${refCell}</td>
         <td class="entity-attr-required">${requiredCell}</td>
-        <td class="catalog-actions">${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-attr-row="${index}">Quitar</button>`}</td>
+        <td class="catalog-actions">${readOnly ? "" : renderActionButton({ icon: "delete", label: "Quitar atributo", variant: "danger", data: { "rm-attr-row": index } })}</td>
       </tr>`;
     }).join("");
   }
@@ -9926,10 +10108,10 @@ ${hints.map(escape).join(";")}
       mainEl.innerHTML = `
       <section class="gestion-hero entity-editor-hero panel">
         <header class="gestion-hero-header">
-          <button type="button" class="btn btn-sm gestion-hero-back" data-entity-editor-back>Volver al listado</button>
+          ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-entity-editor-back" })}
           <div class="gestion-hero-heading">
             <h2>${title}</h2>
-            <p class="gestion-hero-subtitle">Defin\xED nombre, si es entidad base o extiende otra base, y los atributos del modelo.</p>
+            <p class="gestion-hero-subtitle">Definí nombre, si es entidad base o extiende otra base, y los atributos del modelo.</p>
           </div>
         </header>
         <div class="entity-editor-body">
@@ -9939,26 +10121,26 @@ ${hints.map(escape).join(";")}
               <input id="field-entity-name" name="entityName" required maxlength="120" value="${escapeHtml(draft.name)}" placeholder="Ej. Gasto, Cliente, Orden" autocomplete="off" />
             </div>
             <section class="entity-meta-panel" aria-labelledby="entity-meta-heading">
-              <h3 id="entity-meta-heading" class="entity-meta-title">Clasificaci\xF3n</h3>
+              <h3 id="entity-meta-heading" class="entity-meta-title">Clasificación</h3>
               <div class="form-grid entity-meta-grid">
                 <div class="form-row entity-meta-base">
                   <label class="entity-check-label" for="field-entity-is-base">
                     <input type="checkbox" id="field-entity-is-base" name="entityIsBase" ${draft.isBase ? "checked" : ""} />
                     Entidad base
                   </label>
-                  <p class="form-hint">Marc\xE1 esta opci\xF3n si otras entidades van a extender este modelo. Una base no extiende otra entidad.</p>
+                  <p class="form-hint">Marcá esta opción si otras entidades van a extender este modelo. Una base no extiende otra entidad.</p>
                 </div>
                 <div class="form-row entity-meta-extends"${draft.isBase ? " hidden" : ""}>
                   <label for="field-extends-base">Extiende de (entidad base)</label>
                   <select id="field-extends-base" name="extendsBaseEntityId">${renderEntityBaseSelectOptions(state, draft.entityId, draft.extendsBaseEntityId)}</select>
-                  <p class="form-hint">Solo aparecen entidades marcadas como base. Dej\xE1 \xABNinguna\xBB si no hereda de otra.</p>
+                  <p class="form-hint">Solo aparecen entidades marcadas como base. Dejá «Ninguna» si no hereda de otra.</p>
                 </div>
               </div>
             </section>
           </form>
           <div class="entity-attr-toolbar">
             <h3 class="entity-attr-title">Atributos</h3>
-            <button type="button" class="btn btn-sm btn-primary" id="btn-add-entity-attr">+ Agregar atributo</button>
+            ${renderActionButton({ icon: "add", label: "Agregar atributo", variant: "primary", id: "btn-add-entity-attr" })}
           </div>
           <div class="table-wrap table-wrap--modern">
             <table class="table-modern entity-attr-table">
@@ -9970,8 +10152,10 @@ ${hints.map(escape).join(";")}
           </div>
         </div>
         <footer class="component-attr-hero-footer">
-          <button type="button" class="btn btn-sm" data-entity-editor-back>Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-save-entity">Guardar entidad</button>
+          <div class="action-icon-group">
+            ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-entity-editor-back" })}
+            ${renderActionButton({ icon: "save", label: "Guardar entidad", variant: "primary", id: "btn-save-entity" })}
+          </div>
         </footer>
       </section>`;
       const goBack = () => {
@@ -10089,7 +10273,7 @@ ${hints.map(escape).join(";")}
           }
         }
         if (isEntityNameTaken(state, draft.name, draft.entityId ?? void 0)) {
-          toast(`Ya existe una entidad con el nombre \xAB${draft.name}\xBB.`);
+          toast(`Ya existe una entidad con el nombre «${draft.name}».`);
           return;
         }
         const payload = normalizeEntityRecord(
@@ -10147,7 +10331,7 @@ ${hints.map(escape).join(";")}
   }
   function syncToggleA11y(toggle, open) {
     toggle?.setAttribute("aria-expanded", open ? "true" : "false");
-    toggle?.setAttribute("aria-label", open ? "Cerrar men\xFA" : "Abrir men\xFA");
+    toggle?.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
   }
   function bindNavDrawer(onNavigate) {
     const shell = document.getElementById("app-shell");
@@ -10296,7 +10480,7 @@ ${hints.map(escape).join(";")}
   </span>`;
   }
   function formatSessionDate(iso) {
-    if (!iso) return "\u2014";
+    if (!iso) return "—";
     try {
       return new Date(iso).toLocaleString("es-AR");
     } catch {
@@ -10306,33 +10490,33 @@ ${hints.map(escape).join(";")}
   function renderUserFieldsTableRows(user, opts = {}) {
     const statusBadge = user.active ? `<span class="badge badge-listo">Activo</span>` : `<span class="badge badge-borrador">Inactivo</span>`;
     const systemBadge = isSystemAuthUser(user) ? `<span class="badge badge-borrador">Usuario de sistema</span>` : `<span class="catalog-muted">Cuenta interactiva</span>`;
-    const loginBadge = canUserLogin(user) ? `<span class="badge badge-listo">Puede iniciar sesi\xF3n</span>` : `<span class="badge badge-borrador">Sin login</span>`;
+    const loginBadge = canUserLogin(user) ? `<span class="badge badge-listo">Puede iniciar sesión</span>` : `<span class="badge badge-borrador">Sin login</span>`;
     const rows = [
       ["Nombre para mostrar", escapeHtml(user.displayName)],
       ["Usuario (login)", `@${escapeHtml(user.username)}`],
       ["Id interno", `<code>${escapeHtml(user.id)}</code>`],
       ["Avatar (seed)", `<code>${escapeHtml(user.avatarSeed)}</code>`],
       ["URL del avatar", `<code class="user-detail-url">${escapeHtml(getUserAvatarImageUrl(user))}</code>`],
-      ["Clasificaci\xF3n", systemBadge],
-      ["Inicio de sesi\xF3n", loginBadge],
+      ["Clasificación", systemBadge],
+      ["Inicio de sesión", loginBadge],
       ["Estado", statusBadge],
       ["Proveedor de auth", escapeHtml(AUTH_PROVIDER_LOCAL)]
     ];
     if (opts.includePasswordHint && !isSystemAuthUser(user)) {
       rows.push([
         "Clave (mock)",
-        `<span class="catalog-muted">Almacenada en localStorage del navegador.</span> Valor demo del cat\xE1logo: <code>1234</code>`
+        `<span class="catalog-muted">Almacenada en localStorage del navegador.</span> Valor demo del catálogo: <code>1234</code>`
       ]);
     }
     if (isSystemAuthUser(user)) {
       rows.push([
         "Uso",
-        `<span class="catalog-muted">Reservado para procesos autom\xE1ticos (p. ej. atributo <code>userconnected</code> sin sesi\xF3n).</span>`
+        `<span class="catalog-muted">Reservado para procesos automáticos (p. ej. atributo <code>userconnected</code> sin sesión).</span>`
       ]);
     }
     if (opts.session) {
-      rows.push(["Sesi\xF3n actual \u2014 inicio", escapeHtml(formatSessionDate(opts.session.at))]);
-      rows.push(["Sesi\xF3n actual \u2014 proveedor", escapeHtml(opts.session.provider ?? AUTH_PROVIDER_LOCAL)]);
+      rows.push(["Sesión actual — inicio", escapeHtml(formatSessionDate(opts.session.at))]);
+      rows.push(["Sesión actual — proveedor", escapeHtml(opts.session.provider ?? AUTH_PROVIDER_LOCAL)]);
     }
     return rows.map(([label, value]) => `<tr><th scope="row">${label}</th><td>${value}</td></tr>`).join("");
   }
@@ -10340,7 +10524,7 @@ ${hints.map(escape).join(";")}
     mainEl.innerHTML = `
     <section class="gestion-hero user-profile-hero panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-user-detail-back>Volver</button>
+        ${renderActionButton({ icon: "back", label: "Volver", className: "gestion-hero-back", extraAttrs: "data-user-detail-back" })}
         <div class="gestion-hero-heading">
           <h2>${escapeHtml(config.title)}</h2>
           <p class="gestion-hero-subtitle">${escapeHtml(config.subtitle)}</p>
@@ -10373,7 +10557,7 @@ ${hints.map(escape).join(";")}
       <form class="auth-user-card__form" data-auth-form="${escapeHtml(u.username)}">
         <label class="auth-user-card__label">Clave</label>
         <input type="password" name="password" class="auth-user-card__input" autocomplete="current-password" placeholder="Clave" required />
-        <button type="submit" class="btn btn-primary btn-sm auth-user-card__submit">Entrar</button>
+        ${renderActionButton({ icon: "arrowRight", label: "Entrar", variant: "primary", type: "submit", className: "auth-user-card__submit" })}
       </form>
     </article>`
     ).join("");
@@ -10381,11 +10565,11 @@ ${hints.map(escape).join(";")}
     <section class="auth-gate panel">
       <div class="auth-gate__inner">
         <header class="auth-gate__header">
-          <h2>Iniciar sesi\xF3n</h2>
-          <p class="auth-gate__subtitle">Eleg\xED tu usuario e ingres\xE1 la clave. Mock local \u2014 integrable con Supabase u otro proveedor.</p>
+          <h2>Iniciar sesión</h2>
+          <p class="auth-gate__subtitle">Elegí tu usuario e ingresá la clave. Mock local — integrable con Supabase u otro proveedor.</p>
         </header>
         <div class="auth-user-grid">${cards || `<p class="gestion-empty">No hay usuarios configurados.</p>`}</div>
-        <p class="form-hint auth-gate__hint">Demo: los 5 usuarios del cat\xE1logo usan la clave <code>1234</code>.</p>
+        <p class="form-hint auth-gate__hint">Demo: los 5 usuarios del catálogo usan la clave <code>1234</code>.</p>
       </div>
     </section>`;
     mainEl.querySelectorAll("[data-auth-form]").forEach((form) => {
@@ -10410,11 +10594,11 @@ ${hints.map(escape).join(";")}
     const rows = users.map(
       (u) => `<tr class="auth-user-row" data-auth-user-row="${escapeHtml(u.id)}">
         <td class="auth-user-row__avatar">${renderUserAvatarHtml(u, { size: 40, className: "user-avatar user-avatar--table" })}</td>
-        <td><strong>${escapeHtml(u.displayName)}</strong><div class="form-hint">@${escapeHtml(u.username)} \xB7 <code>${escapeHtml(u.id)}</code></div></td>
+        <td><strong>${escapeHtml(u.displayName)}</strong><div class="form-hint">@${escapeHtml(u.username)} · <code>${escapeHtml(u.id)}</code></div></td>
         <td>${u.active ? `<span class="badge badge-listo">Activo</span>` : `<span class="badge badge-borrador">Inactivo</span>`}${isSystemAuthUser(u) ? ` <span class="badge badge-borrador">Sistema</span>` : ""}</td>
         <td><span class="catalog-muted">${escapeHtml(AUTH_PROVIDER_LOCAL)} (mock)</span>${canUserLogin(u) ? "" : `<div class="form-hint">Sin login</div>`}</td>
         <td class="auth-user-row__actions">
-          <button type="button" class="btn btn-sm" data-auth-user-detail="${escapeHtml(u.id)}">Ver detalle</button>
+          ${renderActionButton({ icon: "view", label: "Ver detalle de usuario", data: { "auth-user-detail": u.id } })}
         </td>
       </tr>`
     ).join("");
@@ -10422,11 +10606,11 @@ ${hints.map(escape).join(";")}
     <section class="panel panel--catalog">
       ${renderPageHeader(
       "Usuarios del sistema",
-      "Cat\xE1logo mock para login. Abr\xED el detalle para ver avatar y datos completos. Sustituir por directorio corporativo o Supabase Auth en producci\xF3n."
+      "Catálogo mock para login. Abrí el detalle para ver avatar y datos completos. Sustituir por directorio corporativo o Supabase Auth en producción."
     )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern auth-users-table">
-          <thead><tr><th></th><th>Usuario</th><th>Estado</th><th>Autenticaci\xF3n</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Usuario</th><th>Estado</th><th>Autenticación</th><th></th></tr></thead>
           <tbody>${rows || `<tr><td colspan="5" class="gestion-empty">No hay usuarios.</td></tr>`}</tbody>
         </table>
       </div>
@@ -10445,8 +10629,8 @@ ${hints.map(escape).join(";")}
     if (!user) {
       mainEl.innerHTML = `
       <section class="panel">
-        <p class="empty-state">No se encontr\xF3 el usuario.</p>
-        <button type="button" class="btn btn-sm" data-user-detail-back>Volver al listado</button>
+        <p class="empty-state">No se encontró el usuario.</p>
+        ${renderActionButton({ icon: "back", label: "Volver al listado", extraAttrs: "data-user-detail-back" })}
       </section>`;
       mainEl.querySelector("[data-user-detail-back]")?.addEventListener("click", onBack);
       return;
@@ -10454,8 +10638,8 @@ ${hints.map(escape).join(";")}
     const session = getSession();
     const isSelf = session?.userId === user.id;
     renderUserDetailShell(mainEl, user, {
-      title: isSelf ? "Detalle \u2014 tu cuenta" : "Detalle de usuario",
-      subtitle: isSelf ? "Mismos datos del cat\xE1logo; la fila de sesi\xF3n aplica solo porque est\xE1s logueado como este usuario." : "Datos completos del registro mock en localStorage.",
+      title: isSelf ? "Detalle — tu cuenta" : "Detalle de usuario",
+      subtitle: isSelf ? "Mismos datos del catálogo; la fila de sesión aplica solo porque estás logueado como este usuario." : "Datos completos del registro mock en localStorage.",
       tableRowsHtml: renderUserFieldsTableRows(user, {
         includePasswordHint: true,
         session: isSelf ? session : null
@@ -10480,15 +10664,15 @@ ${hints.map(escape).join(";")}
         <span class="auth-header-chip__name">${escapeHtml(session.displayName)}</span>
         <span class="auth-header-chip__user">@${escapeHtml(session.username)}</span>
       </div>
-      <button type="button" class="btn btn-sm" id="btn-auth-profile">Ver perfil</button>
-      <button type="button" class="btn btn-sm btn-ghost" id="btn-auth-logout">Salir</button>
+      ${renderActionButton({ icon: "user", label: "Ver perfil", id: "btn-auth-profile" })}
+      ${renderActionButton({ icon: "logout", label: "Salir", className: "action-icon-btn--ghost", id: "btn-auth-logout" })}
     </div>`;
     host.querySelector("#btn-auth-profile")?.addEventListener("click", () => {
       opts.onOpenProfile?.();
     });
     host.querySelector("#btn-auth-logout")?.addEventListener("click", () => {
       logout();
-      toast("Sesi\xF3n cerrada.", 2200, "success");
+      toast("Sesión cerrada.", 2200, "success");
       window.dispatchEvent(new CustomEvent("gestor:auth-changed"));
     });
     bindAvatarImageFallback(host);
@@ -10496,7 +10680,7 @@ ${hints.map(escape).join(";")}
   function renderUserProfilePage(mainEl, onBack) {
     const profile = getCurrentUserProfile();
     if (!profile) {
-      mainEl.innerHTML = `<section class="panel"><p class="empty-state">No hay sesi\xF3n activa.</p></section>`;
+      mainEl.innerHTML = `<section class="panel"><p class="empty-state">No hay sesión activa.</p></section>`;
       return;
     }
     const { session, user } = profile;
@@ -10521,12 +10705,12 @@ ${hints.map(escape).join(";")}
   }
 
   // js/app.js
-  var MOCK_BUNDLE_VERSION = "testing-env-2";
+  var MOCK_BUNDLE_VERSION = "gestion-tabs-1";
   function safeSyncMasterRecordsAbmNav(state) {
     try {
       syncMasterRecordsAbmNav(state);
     } catch (err) {
-      console.warn("[mock] No se pudo sincronizar el men\xFA ABM maestros:", err);
+      console.warn("[mock] No se pudo sincronizar el menú ABM maestros:", err);
     }
   }
   function showBootError(message) {
@@ -10658,12 +10842,12 @@ ${hints.map(escape).join(";")}
       const config = loadAiConfig();
       const { close, root } = openModal(`
       <div class="modal-header">
-        <h2>Configuraci\xF3n IA (Mock)</h2>
+        <h2>Configuración IA (Mock)</h2>
         <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
       </div>
       <form id="form-ai-config" class="form-grid">
         <p class="form-hint" style="margin-top:0;margin-bottom:0.5rem">
-          En este prototipo est\xE1tico no se hacen llamadas reales a las APIs. La configuraci\xF3n habilita la UI del Copilot y los Nodos Agente.
+          En este prototipo estático no se hacen llamadas reales a las APIs. La configuración habilita la UI del Copilot y los Nodos Agente.
         </p>
         <div class="form-row">
           <label>Proveedor</label>
@@ -10679,7 +10863,7 @@ ${hints.map(escape).join(";")}
         <div class="form-row">
           <label>Modelo por defecto</label>
           <select name="model" id="ai-model-select">
-            <!-- Se llena din\xE1micamente -->
+            <!-- Se llena dinámicamente -->
           </select>
           <input type="text" name="customModel" id="ai-custom-model" style="display:none; margin-top:0.5rem;" placeholder="Escribe el nombre del modelo..." />
         </div>
@@ -10689,7 +10873,7 @@ ${hints.map(escape).join(";")}
           <p class="form-hint">Se guarda en localStorage. Necesario para habilitar la IA.</p>
         </div>
         <div style="margin-top:0.5rem">
-          <button type="submit" class="btn btn-primary">Guardar configuraci\xF3n</button>
+          <button type="submit" class="btn btn-primary">Guardar configuración</button>
         </div>
       </form>
     `);
@@ -10743,7 +10927,7 @@ ${hints.map(escape).join(";")}
           model,
           apiKey: fd.get("apiKey")
         });
-        toast("Configuraci\xF3n IA guardada (Mock)", 2500, "success");
+        toast("Configuración IA guardada (Mock)", 2500, "success");
         close();
       });
     });

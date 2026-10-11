@@ -15,7 +15,7 @@ import { bindNavDrawer } from "./shell.js";
 import { escapeHtml, openModal, toast } from "./ui.js";
 
 /** Debe coincidir con el query de `index.html` (?v=...) para invalidar caché del bundle. */
-export const MOCK_BUNDLE_VERSION = "testing-env-2";
+export const MOCK_BUNDLE_VERSION = "gestion-tabs-1";
 
 function safeSyncMasterRecordsAbmNav(state) {
   try {

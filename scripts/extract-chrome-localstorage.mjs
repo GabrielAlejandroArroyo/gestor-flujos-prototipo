@@ -5,30 +5,82 @@
 import { ClassicLevel } from "classic-level";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { repairCatalogUnicode, repairCatalogUnicodeDeep } from "./repair-catalog-unicode.mjs";
 
 const dbPath = resolve(process.argv[2] ?? ".tmp-chrome-ls");
 const outPath = resolve(
   process.argv[3] ?? "prototipo/data/environments/testing-bootstrap.json",
 );
 
-/** @param {Buffer} value */
-function decodeChromeLocalStorageValue(value) {
-  let buf = Buffer.isBuffer(value) ? value : Buffer.from(value);
-  if (buf[0] === 0x01 && buf[1] === 0x7b) {
-    return buf.subarray(1).toString("utf8");
-  }
-  while (buf.length && buf[0] === 0x00) {
-    buf = buf.subarray(1);
+/**
+ * @param {Buffer} buf
+ */
+function utf16LeJson(buf) {
+  const evenLen = buf.length - (buf.length % 2);
+  return buf.subarray(0, evenLen).toString("utf16le");
+}
+
+/**
+ * @param {Buffer} buf
+ */
+function utf16BeJson(buf) {
+  const evenLen = buf.length - (buf.length % 2);
+  const copy = Buffer.from(buf.subarray(0, evenLen));
+  copy.swap16();
+  return copy.toString("utf16le");
+}
+
+/** @param {Buffer} buf @returns {string[]} */
+function decodeCandidates(buf) {
+  /** @type {string[]} */
+  const candidates = [];
+  if (buf.length >= 2 && buf[0] === 0x01 && buf[1] === 0x7b) {
+    candidates.push(buf.subarray(1).toString("utf8"));
   }
   if (buf.length >= 2 && buf[0] === 0x7b && buf[1] === 0x00) {
-    const evenLen = buf.length - (buf.length % 2);
-    return buf.subarray(0, evenLen).toString("utf16le");
+    candidates.push(utf16LeJson(buf));
+  }
+  if (buf.length >= 2 && buf[0] === 0x00 && buf[1] === 0x7b) {
+    candidates.push(utf16BeJson(buf));
+    candidates.push(utf16LeJson(buf));
+  }
+  const stripped = buf.toString("utf8").replace(/\0/g, "").trimStart();
+  if (stripped.startsWith("{") || stripped.startsWith("[")) {
+    candidates.push(stripped);
   }
   const asUtf8 = buf.toString("utf8").trimStart();
   if (asUtf8.startsWith("{") || asUtf8.startsWith("[")) {
-    return asUtf8;
+    candidates.push(asUtf8);
   }
-  throw new Error(`Valor no reconocido (len=${value.length}, head=${buf.subarray(0, 8).toString("hex")})`);
+  return [...new Set(candidates)];
+}
+
+/**
+ * Decodifica y normaliza JSON de Chrome Local Storage a UTF-8 legible.
+ * @param {Buffer} value
+ */
+function decodeChromeLocalStorageValue(value) {
+  const buf = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  /** @type {Error[]} */
+  const errors = [];
+  for (const candidate of decodeCandidates(buf)) {
+    const raw = repairCatalogUnicode(candidate);
+    try {
+      const parsed = repairCatalogUnicodeDeep(JSON.parse(raw));
+      return JSON.stringify(parsed);
+    } catch (err) {
+      try {
+        const stripped = raw.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+        const parsed = repairCatalogUnicodeDeep(JSON.parse(stripped));
+        return JSON.stringify(parsed);
+      } catch (err2) {
+        errors.push(err2 instanceof Error ? err2 : new Error(String(err2)));
+      }
+    }
+  }
+  throw new Error(
+    `Valor no reconocido (len=${value.length}, head=${buf.subarray(0, 8).toString("hex")}): ${errors[0]?.message ?? "sin candidatos"}`,
+  );
 }
 
 const db = new ClassicLevel(dbPath, { createIfMissing: false });

@@ -2,6 +2,7 @@
  * Vista de diagrama de flujo de instancia (solo lectura) + datos y traza.
  */
 
+import { renderActionButton } from "./action-icons.js";
 import { escapeHtml, formatDateTime } from "./ui.js";
 import {
   NODE_KINDS,
@@ -262,7 +263,7 @@ export function renderFlowPreviewPageHtml(instance) {
   return `
     <section class="gestion-hero gestion-hero--preview panel">
       <header class="gestion-hero-header">
-        <button type="button" class="btn btn-sm gestion-hero-back" data-gestion-back>Volver al listado</button>
+        ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-gestion-back" })}
         <div class="gestion-hero-heading">
           <h2>Visualizar flujo</h2>
           <p class="gestion-hero-subtitle">${escapeHtml(instance.flowName)} · ${statusBadge}</p>

@@ -9,6 +9,7 @@ import {
   parsePortableImportFile,
   PORTABLE_STORAGE_KEYS,
 } from "./state-portability.js";
+import { renderActionButton } from "./action-icons.js";
 import { isGitHubPagesHost } from "./deploy-environments.js";
 import { escapeHtml, renderPageHeader, toast } from "./ui.js";
 
@@ -49,7 +50,7 @@ export function renderDataBackupPage(mainEl, opts) {
           : ""
       }
       <div class="data-backup-actions">
-        <button type="button" class="btn btn-primary" id="btn-export-portable-data">Descargar respaldo (.json)</button>
+        ${renderActionButton({ icon: "download", label: "Descargar respaldo (.json)", variant: "primary", id: "btn-export-portable-data" })}
       </div>
       <div class="entity-meta-panel data-backup-import-panel">
         <h3 class="entity-meta-title">Importar respaldo</h3>

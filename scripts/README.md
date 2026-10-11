@@ -81,6 +81,20 @@ Levanta el mock en segundo plano y Next.js en la misma terminal.
 
 ---
 
+## Texto Unicode (catálogos y bootstrap)
+
+Regla del proyecto: [`prototipo/docs/unicode-text.md`](../prototipo/docs/unicode-text.md).
+
+```powershell
+node scripts/verify-unicode-text.mjs
+node scripts/repair-testing-bootstrap.mjs   # repara mojibake en JSON testing
+.\scripts\sync-local-to-pages.ps1             # extrae Chrome + repara al exportar
+```
+
+Tras cambiar `prototipo/js/`, `build-mock.ps1` usa esbuild `--charset=utf8`.
+
+---
+
 ## Resumen
 
 | Necesidad | Script |
@@ -88,3 +102,4 @@ Levanta el mock en segundo plano y Next.js en la misma terminal.
 | Probar el mock en tu PC | `mock-local.ps1` |
 | Subir cambios del mock a Pages | `mock-publish-github.ps1` |
 | Mock + motor Next local | `start-dev.ps1` |
+| Validar UTF-8 en mock/datos | `node scripts/verify-unicode-text.mjs` |

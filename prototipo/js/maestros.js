@@ -4,6 +4,7 @@
 
 import { createId } from "./ids.js";
 import { recordMasterAudit } from "./master-audit.js";
+import { renderActionButton, renderModalCloseButton } from "./action-icons.js";
 import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 import {
   countFlowsUsingFlowType,
@@ -145,9 +146,9 @@ function renderFlowTypesMaster(mainEl, state, persist) {
             return `<tr>
               <td><strong>${escapeHtml(t.name)}</strong><div class="form-hint">${usage}</div></td>
               <td>${escapeHtml(t.description || "—")}</td>
-              <td class="catalog-actions">
-                <button type="button" class="btn btn-sm" data-edit-flow-type="${escapeHtml(t.id)}">Editar</button>
-                <button type="button" class="btn btn-sm btn-danger" data-rm-flow-type="${escapeHtml(t.id)}">Eliminar</button>
+              <td class="catalog-actions action-icon-group">
+                ${renderActionButton({ icon: "edit", label: "Editar tipo de flujo", data: { "edit-flow-type": t.id } })}
+                ${renderActionButton({ icon: "delete", label: "Eliminar tipo de flujo", variant: "danger", data: { "rm-flow-type": t.id } })}
               </td>
             </tr>`;
           })
@@ -158,7 +159,7 @@ function renderFlowTypesMaster(mainEl, state, persist) {
       ${renderPageHeader(
         "Tipo de flujo",
         "Maestro de categorías para clasificar flujos en el catálogo. Nombre y descripción.",
-        `<button type="button" class="btn btn-primary btn-sm" id="btn-new-flow-type">+ Nuevo tipo</button>`,
+        renderActionButton({ icon: "add", label: "Nuevo tipo de flujo", variant: "primary", id: "btn-new-flow-type" }),
       )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
@@ -219,12 +220,12 @@ function openFlowTypeModal(state, persist, existing, onDone) {
   const { close, root } = openModal(`
     <div class="modal-header">
       <h2>${isEdit ? "Editar tipo de flujo" : "Nuevo tipo de flujo"}</h2>
-      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+      ${renderModalCloseButton()}
     </div>
     <form id="form-flow-type" class="form-grid">
       <div class="form-row"><label>Nombre</label><input name="name" required maxlength="120" value="${escapeHtml(existing?.name ?? "")}" placeholder="Ej. Aprobación" /></div>
       <div class="form-row"><label>Descripción</label><textarea name="description" rows="3" placeholder="Opcional">${escapeHtml(existing?.description ?? "")}</textarea></div>
-      <button type="submit" class="btn btn-primary">${isEdit ? "Guardar" : "Crear"}</button>
+      <div class="action-icon-group">${renderActionButton({ icon: isEdit ? "save" : "add", label: isEdit ? "Guardar tipo" : "Crear tipo", variant: "primary", type: "submit" })}</div>
     </form>
   `);
 
@@ -296,9 +297,9 @@ function renderMasterDefinitionsMaster(mainEl, state, persist) {
               <td><strong>${escapeHtml(d.name)}</strong><div class="form-hint"><code>${escapeHtml(d.id)}</code></div></td>
               <td>${escapeHtml(d.description || "—")}</td>
               <td><span class="catalog-tree-count">${count} ${count === 1 ? "entidad" : "entidades"}</span><div class="form-hint">${escapeHtml(entitySummary)}</div></td>
-              <td class="catalog-actions">
-                <button type="button" class="btn btn-sm" data-edit-master-def="${escapeHtml(d.id)}">Editar</button>
-                <button type="button" class="btn btn-sm btn-danger" data-rm-master-def="${escapeHtml(d.id)}">Eliminar</button>
+              <td class="catalog-actions action-icon-group">
+                ${renderActionButton({ icon: "edit", label: "Editar definición", data: { "edit-master-def": d.id } })}
+                ${renderActionButton({ icon: "delete", label: "Eliminar definición", variant: "danger", data: { "rm-master-def": d.id } })}
               </td>
             </tr>`;
           })
@@ -309,7 +310,7 @@ function renderMasterDefinitionsMaster(mainEl, state, persist) {
       ${renderPageHeader(
         "Definición de maestros",
         "Composiciones basadas en una o más entidades (Definiciones de entidad → Entidades).",
-        `<button type="button" class="btn btn-primary btn-sm" id="btn-new-master-def">+ Nueva definición</button>`,
+        renderActionButton({ icon: "add", label: "Nueva definición de maestro", variant: "primary", id: "btn-new-master-def" }),
       )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
@@ -396,7 +397,7 @@ function renderMasterDefinitionEditorHero(mainEl, state, persist) {
     mainEl.innerHTML = `
       <section class="gestion-hero master-def-editor-hero panel">
         <header class="gestion-hero-header">
-          <button type="button" class="btn btn-sm gestion-hero-back" data-master-def-editor-back>Volver al listado</button>
+          ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-master-def-editor-back" })}
           <div class="gestion-hero-heading">
             <h2>${title}</h2>
             <p class="gestion-hero-subtitle">Elegí una o más entidades del maestro como base de esta definición.</p>
@@ -422,8 +423,15 @@ function renderMasterDefinitionEditorHero(mainEl, state, persist) {
           </section>
         </div>
         <footer class="component-attr-hero-footer">
-          <button type="button" class="btn btn-sm" data-master-def-editor-back>Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-save-master-def">${session.mode === "edit" ? "Guardar definición" : "Crear definición"}</button>
+          <div class="action-icon-group">
+            ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-master-def-editor-back" })}
+            ${renderActionButton({
+              icon: "save",
+              label: session.mode === "edit" ? "Guardar definición" : "Crear definición",
+              variant: "primary",
+              id: "btn-save-master-def",
+            })}
+          </div>
         </footer>
       </section>`;
 
@@ -533,9 +541,9 @@ function renderEntitiesMaster(mainEl, state, persist) {
               <td><strong>${escapeHtml(e.name)}</strong><div class="form-hint">${attrHint}</div></td>
               <td>${formatEntityKindLabel(state, e)}</td>
               <td>${escapeHtml(summarizeEntityAttributesForList(state, e.attributes))}</td>
-              <td class="catalog-actions">
-                <button type="button" class="btn btn-sm" data-edit-entity="${escapeHtml(e.id)}">Editar</button>
-                <button type="button" class="btn btn-sm btn-danger" data-rm-entity="${escapeHtml(e.id)}">Eliminar</button>
+              <td class="catalog-actions action-icon-group">
+                ${renderActionButton({ icon: "edit", label: "Editar entidad", data: { "edit-entity": e.id } })}
+                ${renderActionButton({ icon: "delete", label: "Eliminar entidad", variant: "danger", data: { "rm-entity": e.id } })}
               </td>
             </tr>`;
           })
@@ -546,7 +554,7 @@ function renderEntitiesMaster(mainEl, state, persist) {
       ${renderPageHeader(
         "Definiciones de entidad",
         "ABM de entidades: atributos, entidad base y extensión sobre otras bases.",
-        `<button type="button" class="btn btn-primary btn-sm" id="btn-new-entity">+ Nueva entidad</button>`,
+        renderActionButton({ icon: "add", label: "Nueva entidad", variant: "primary", id: "btn-new-entity" }),
       )}
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
@@ -657,7 +665,7 @@ function renderEntityAttributesEditorRows(state, excludeEntityId, draftAttribute
         <td><select class="entity-attr-input" data-field="type" ${dis}>${renderEntityDataTypeOptions(norm.type)}</select></td>
         <td class="entity-attr-ref">${refCell}</td>
         <td class="entity-attr-required">${requiredCell}</td>
-        <td class="catalog-actions">${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-attr-row="${index}">Quitar</button>`}</td>
+        <td class="catalog-actions">${readOnly ? "" : renderActionButton({ icon: "delete", label: "Quitar atributo", variant: "danger", data: { "rm-attr-row": index } })}</td>
       </tr>`;
     })
     .join("");
@@ -700,7 +708,7 @@ function renderEntityEditorHero(mainEl, state, persist) {
     mainEl.innerHTML = `
       <section class="gestion-hero entity-editor-hero panel">
         <header class="gestion-hero-header">
-          <button type="button" class="btn btn-sm gestion-hero-back" data-entity-editor-back>Volver al listado</button>
+          ${renderActionButton({ icon: "back", label: "Volver al listado", className: "gestion-hero-back", extraAttrs: "data-entity-editor-back" })}
           <div class="gestion-hero-heading">
             <h2>${title}</h2>
             <p class="gestion-hero-subtitle">Definí nombre, si es entidad base o extiende otra base, y los atributos del modelo.</p>
@@ -732,7 +740,7 @@ function renderEntityEditorHero(mainEl, state, persist) {
           </form>
           <div class="entity-attr-toolbar">
             <h3 class="entity-attr-title">Atributos</h3>
-            <button type="button" class="btn btn-sm btn-primary" id="btn-add-entity-attr">+ Agregar atributo</button>
+            ${renderActionButton({ icon: "add", label: "Agregar atributo", variant: "primary", id: "btn-add-entity-attr" })}
           </div>
           <div class="table-wrap table-wrap--modern">
             <table class="table-modern entity-attr-table">
@@ -744,8 +752,10 @@ function renderEntityEditorHero(mainEl, state, persist) {
           </div>
         </div>
         <footer class="component-attr-hero-footer">
-          <button type="button" class="btn btn-sm" data-entity-editor-back>Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-save-entity">Guardar entidad</button>
+          <div class="action-icon-group">
+            ${renderActionButton({ icon: "cancel", label: "Cancelar", extraAttrs: "data-entity-editor-back" })}
+            ${renderActionButton({ icon: "save", label: "Guardar entidad", variant: "primary", id: "btn-save-entity" })}
+          </div>
         </footer>
       </section>`;
 
