@@ -3,6 +3,8 @@ import { migrateLegacyFlowInputToStart, normalizeFlowContracts } from "./contrac
 import { ensureFlowTypesState } from "./flow-types.js";
 import { ensureEntitiesState } from "./entities.js";
 import { ensureMasterAuditLog } from "./master-audit.js";
+import { ensureMasterDefinitionsState } from "./master-definitions.js";
+import { ensureMasterRecordsState } from "./master-records.js";
 import { normalizeFlowMeta } from "./flow-lifecycle.js";
 
 const STORAGE_KEY = "gestor_flujos_prototipo_v3";
@@ -14,6 +16,8 @@ const emptyState = () => ({
   flowTypes: [],
   entities: [],
   masterAuditLog: [],
+  masterDefinitions: [],
+  masterRecords: [],
 });
 
 function normalizeLoadedState(parsed) {
@@ -39,8 +43,11 @@ function normalizeLoadedState(parsed) {
     flowTypes: Array.isArray(parsed.flowTypes) ? parsed.flowTypes : [],
     entities: Array.isArray(parsed.entities) ? parsed.entities : [],
     masterAuditLog: Array.isArray(parsed.masterAuditLog) ? parsed.masterAuditLog : [],
+    masterDefinitions: Array.isArray(parsed.masterDefinitions) ? parsed.masterDefinitions : [],
+    masterRecords: Array.isArray(parsed.masterRecords) ? parsed.masterRecords : [],
   };
-  return ensureMasterAuditLog(ensureEntitiesState(ensureFlowTypesState(base)));
+  const withMasters = ensureMasterDefinitionsState(ensureEntitiesState(ensureFlowTypesState(base)));
+  return ensureMasterAuditLog(ensureMasterRecordsState(withMasters));
 }
 
 export function loadState() {

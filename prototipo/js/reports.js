@@ -2,7 +2,11 @@
  * Hub de reportes del mock — vistas de solo lectura sobre datos del sistema.
  */
 
-import { formatEntityKindLabel, summarizeEntityAttributesForList } from "./entities.js";
+import {
+  formatEntityKindLabel,
+  getEntityById,
+  summarizeEntityAttributesForList,
+} from "./entities.js";
 import { countFlowsUsingFlowType } from "./flow-types.js";
 import { masterAuditActionLabel, masterAuditAreaLabel } from "./master-audit.js";
 import { renderReporte } from "./reporte.js";
@@ -27,7 +31,12 @@ export const REPORT_NAV_ITEMS = [
   {
     id: "report-maestros-changes",
     title: "Cambios en maestros",
-    description: "Alta, baja y modificación de tipos de flujo y entidades.",
+    description: "Alta, baja y modificación de tipos de flujo (y filtro global).",
+  },
+  {
+    id: "report-entities-changes",
+    title: "Cambios de entidades",
+    description: "ABM del maestro Entidades: altas, bajas y modificaciones auditadas.",
   },
   {
     id: "report-flows",
@@ -67,6 +76,9 @@ export function renderReportView(mainEl, state, reportId) {
     case "report-maestros-changes":
       renderReportMaestrosChanges(mainEl, state);
       return;
+    case "report-entities-changes":
+      renderReportEntitiesChanges(mainEl, state);
+      return;
     case "report-flows":
       renderReportFlowsCatalog(mainEl, state);
       return;
@@ -98,46 +110,90 @@ function renderReportHubFallback(mainEl, reportId) {
 }
 
 /**
+ * @param {object} state
+ * @param {object} row
+ */
+function entityAuditCurrentStateCell(state, row) {
+  if (row.action === "delete") {
+    return `<span class="badge badge-borrador">Eliminada</span>`;
+  }
+  const entity = row.refId ? getEntityById(state, row.refId) : null;
+  if (!entity) {
+    return `<span class="catalog-muted">Ya no existe</span>`;
+  }
+  return `<span class="badge badge-listo">En catálogo</span>`;
+}
+
+/**
  * @param {HTMLElement} mainEl
  * @param {object} state
+ * @param {{
+ *   reportKey: string;
+ *   title: string;
+ *   subtitle: string;
+ *   fixedArea?: string | null;
+ *   showAreaFilter?: boolean;
+ *   emptyHint: string;
+ *   mode?: "default" | "entities";
+ * }} config
  */
-function renderReportMaestrosChanges(mainEl, state) {
-  const filterArea = mainEl.dataset.auditArea ?? "";
+function renderMasterAuditReport(mainEl, state, config) {
+  mainEl.dataset.auditReportKey = config.reportKey;
+  const filterArea = config.fixedArea ?? mainEl.dataset.auditArea ?? "";
   const filterAction = mainEl.dataset.auditAction ?? "";
   let rows = [...(state.masterAuditLog ?? [])];
   if (filterArea) rows = rows.filter((r) => r.area === filterArea);
   if (filterAction) rows = rows.filter((r) => r.action === filterAction);
 
+  const isEntitiesMode = config.mode === "entities";
+
   const tbody =
     rows.length === 0
-      ? `<tr><td colspan="5"><div class="empty-state empty-state--rich"><strong>Sin registros</strong><p>Los cambios en Maestros (tipos de flujo y entidades) aparecerán aquí.</p></div></td></tr>`
+      ? `<tr><td colspan="${isEntitiesMode ? 7 : 5}"><div class="empty-state empty-state--rich"><strong>Sin registros</strong><p>${escapeHtml(config.emptyHint)}</p></div></td></tr>`
       : rows
-          .map(
-            (r) => `<tr>
+          .map((r) => {
+            if (isEntitiesMode) {
+              return `<tr>
+        <td>${formatDateTime(r.at)}</td>
+        <td>${escapeHtml(r.userLabel ?? r.userId ?? "—")}</td>
+        <td><span class="badge badge-listo">${escapeHtml(masterAuditActionLabel(r.action))}</span></td>
+        <td><strong>${escapeHtml(r.label)}</strong></td>
+        <td><code>${escapeHtml(r.refId ?? "—")}</code></td>
+        <td>${r.detail ? escapeHtml(r.detail) : "—"}</td>
+        <td>${entityAuditCurrentStateCell(state, r)}</td>
+      </tr>`;
+            }
+            return `<tr>
         <td>${formatDateTime(r.at)}</td>
         <td>${escapeHtml(r.userLabel ?? r.userId ?? "—")}</td>
         <td>${escapeHtml(masterAuditAreaLabel(r.area))}</td>
         <td><span class="badge badge-listo">${escapeHtml(masterAuditActionLabel(r.action))}</span></td>
         <td><strong>${escapeHtml(r.label)}</strong>${r.detail ? `<div class="form-hint">${escapeHtml(r.detail)}</div>` : ""}</td>
-      </tr>`,
-          )
+      </tr>`;
+          })
           .join("");
 
-  mainEl.innerHTML = `
-    <section class="panel panel--catalog">
-      ${renderPageHeader(
-        "Gestión de cambios en maestros",
-        "Auditoría de altas, bajas y modificaciones en tipos de flujo y entidades.",
-      )}
-      <div class="filters">
-        <div class="form-row">
+  const areaFilterHtml = config.showAreaFilter
+    ? `<div class="form-row">
           <label>Área</label>
           <select id="filter-audit-area">
             <option value="">Todas</option>
             <option value="flowType" ${filterArea === "flowType" ? "selected" : ""}>Tipo de flujo</option>
             <option value="entity" ${filterArea === "entity" ? "selected" : ""}>Entidad</option>
+            <option value="masterDefinition" ${filterArea === "masterDefinition" ? "selected" : ""}>Definición de maestros</option>
           </select>
-        </div>
+        </div>`
+    : "";
+
+  const tableHead = isEntitiesMode
+    ? `<thead><tr><th>Fecha</th><th>Usuario</th><th>Acción ABM</th><th>Entidad</th><th>Id</th><th>Detalle</th><th>Estado actual</th></tr></thead>`
+    : `<thead><tr><th>Fecha</th><th>Usuario</th><th>Maestro</th><th>Acción</th><th>Detalle</th></tr></thead>`;
+
+  mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader(config.title, config.subtitle)}
+      <div class="filters">
+        ${areaFilterHtml}
         <div class="form-row">
           <label>Acción</label>
           <select id="filter-audit-action">
@@ -150,19 +206,54 @@ function renderReportMaestrosChanges(mainEl, state) {
       </div>
       <div class="table-wrap table-wrap--modern">
         <table class="table-modern">
-          <thead><tr><th>Fecha (UTC/local UI)</th><th>Usuario</th><th>Maestro</th><th>Acción</th><th>Detalle</th></tr></thead>
+          ${tableHead}
           <tbody>${tbody}</tbody>
         </table>
       </div>
     </section>`;
 
+  const rerender = () => {
+    if (config.reportKey === "entities-changes") renderReportEntitiesChanges(mainEl, state);
+    else renderReportMaestrosChanges(mainEl, state);
+  };
+
   mainEl.querySelector("#filter-audit-area")?.addEventListener("change", (e) => {
     mainEl.dataset.auditArea = e.target.value;
-    renderReportMaestrosChanges(mainEl, state);
+    rerender();
   });
   mainEl.querySelector("#filter-audit-action")?.addEventListener("change", (e) => {
     mainEl.dataset.auditAction = e.target.value;
-    renderReportMaestrosChanges(mainEl, state);
+    rerender();
+  });
+}
+
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ */
+function renderReportMaestrosChanges(mainEl, state) {
+  renderMasterAuditReport(mainEl, state, {
+    reportKey: "maestros-changes",
+    title: "Gestión de cambios en maestros",
+    subtitle: "Auditoría de tipos de flujo y, con el filtro, entidades.",
+    showAreaFilter: true,
+    emptyHint: "Los cambios en Maestros aparecerán aquí al crear, editar o eliminar registros.",
+  });
+}
+
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ */
+function renderReportEntitiesChanges(mainEl, state) {
+  renderMasterAuditReport(mainEl, state, {
+    reportKey: "entities-changes",
+    title: "Cambios de entidades",
+    subtitle: "Historial del ABM de entidades (Maestros → Entidades): altas, modificaciones y bajas.",
+    fixedArea: "entity",
+    showAreaFilter: false,
+    emptyHint: "Creá, editá o eliminá entidades en Maestros para ver el historial aquí.",
+    mode: "entities",
   });
 }
 

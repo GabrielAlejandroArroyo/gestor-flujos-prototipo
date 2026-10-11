@@ -4,8 +4,21 @@ import { renderDesigner, enterDesignerCatalog } from "./designer.js";
 import { enterGestionHub, renderGestion } from "./gestion.js";
 import { renderReportView } from "./reports.js";
 import { renderMaestros } from "./maestros.js";
+import { syncMasterRecordsAbmNav } from "./master-records-ui.js";
+import { masterRecordAbmMasterKey } from "./master-records-nav.js";
 import { bindNavDrawer } from "./shell.js";
-import { openModal, toast } from "./ui.js";
+import { escapeHtml, openModal, toast } from "./ui.js";
+
+/** Debe coincidir con el query de `index.html` (?v=...) para invalidar caché del bundle. */
+export const MOCK_BUNDLE_VERSION = "master-import-1";
+
+function safeSyncMasterRecordsAbmNav(state) {
+  try {
+    syncMasterRecordsAbmNav(state);
+  } catch (err) {
+    console.warn("[mock] No se pudo sincronizar el menú ABM maestros:", err);
+  }
+}
 import { isAuthenticated, loadAuthUsers, logout } from "./auth.js";
 import {
   renderAuthHeaderChip,
@@ -22,7 +35,7 @@ function showBootError(message) {
   mainEl.innerHTML = `
     <section class="panel">
       <h2 class="panel-title">No se pudo iniciar el mock</h2>
-      <p style="color:var(--danger)">${message}</p>
+      <p style="color:var(--danger)">${escapeHtml(message)}</p>
       <p style="font-size:0.9rem;color:var(--muted)">Pruebe abrir con un servidor local, por ejemplo: <code>python -m http.server 8765</code> en la carpeta <code>prototipo</code>.</p>
     </section>`;
 }
@@ -37,6 +50,7 @@ try {
   loadAuthUsers();
 
   let state = ensureSeed(loadState());
+  console.info(`[mock] Bundle ${MOCK_BUNDLE_VERSION}`);
   let currentView = "designer";
   let currentMaster = "flowTypes";
   /** @type {string | null} */
@@ -44,6 +58,7 @@ try {
 
   function persist() {
     saveState(state);
+    safeSyncMasterRecordsAbmNav(state);
   }
 
   function renderAppView() {
@@ -97,6 +112,7 @@ try {
       onOpenProfile: openUserProfile,
     });
     renderAppView();
+    safeSyncMasterRecordsAbmNav(state);
   }
 
   let resizeTimer = null;
@@ -123,6 +139,19 @@ try {
     if (view === "designer" && catalog) {
       enterDesignerCatalog(catalog);
     }
+    renderAppView();
+  });
+
+  window.addEventListener("gestor:nav-maestros", (event) => {
+    if (!isAuthenticated()) return;
+    const detail = event.detail ?? {};
+    currentView = "maestros";
+    if (detail.masterRecordDefId) {
+      currentMaster = masterRecordAbmMasterKey(String(detail.masterRecordDefId));
+    } else if (detail.master) {
+      currentMaster = detail.master;
+    }
+    navApi.setNavActive("maestros", null, currentMaster);
     renderAppView();
   });
 

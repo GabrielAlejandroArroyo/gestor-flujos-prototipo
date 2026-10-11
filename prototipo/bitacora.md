@@ -209,6 +209,7 @@ Documentación (`documentacion.md` / `documentacion.html`) y bitácora (`bitacor
 
 ## 2026-10-10 — Menú Operaciones
 
+- **Maestros:** submenús *Definiciones de entidad* (Entidades) y *Definición de maestros* (`masterDefinitions` + auditoría).
 - Menú **Reportes** (grupo propio): ejecución de actividades, auditoría de maestros (`masterAuditLog`), catálogos. **Operaciones** queda con gestión, usuarios y perfil.
 
 ## 2026-10-10 — Maestros: tipo de flujo (ABM)

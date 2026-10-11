@@ -117,8 +117,9 @@ export function ensureSeed(state) {
 
   if (state.flows.length > 0) return state;
 
+  const gastoEntityId = createId("entity");
   state.entities.push({
-    id: createId("entity"),
+    id: gastoEntityId,
     name: "Gasto",
     isBase: true,
     extendsBaseEntityId: null,
@@ -126,6 +127,31 @@ export function ensureSeed(state) {
       { id: createId("entityAttr"), key: "titulo", label: "Título del gasto", type: "texto", required: true },
       { id: createId("entityAttr"), key: "monto", label: "Monto", type: "numero", required: true },
     ],
+  });
+
+  if (!Array.isArray(state.masterDefinitions)) state.masterDefinitions = [];
+  const masterDefId = createId("masterDef");
+  state.masterDefinitions.push({
+    id: masterDefId,
+    name: "Maestro de gastos",
+    description: "Definición basada en la entidad Gasto.",
+    entityIds: [gastoEntityId],
+  });
+  if (!Array.isArray(state.masterRecords)) state.masterRecords = [];
+  const seedRecordId = createId("masterRecord");
+  const seedNow = new Date().toISOString();
+  state.masterRecords.push({
+    id: seedRecordId,
+    lineageId: seedRecordId,
+    definitionId: masterDefId,
+    values: {
+      [gastoEntityId]: { titulo: "Gasto demo seed", monto: 1500 },
+    },
+    status: "vigente",
+    version: 1,
+    history: [],
+    createdAt: seedNow,
+    updatedAt: seedNow,
   });
 
   const approvalTypeId = createId("flowType");

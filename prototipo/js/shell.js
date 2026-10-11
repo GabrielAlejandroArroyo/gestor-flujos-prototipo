@@ -1,3 +1,5 @@
+import { MASTER_RECORD_ABM_PREFIX, parseMasterRecordAbmDefinitionId } from "./master-records-nav.js";
+
 const DOCKED_MQ = window.matchMedia("(min-width: 768px)");
 
 function isDockedNav() {
@@ -79,10 +81,40 @@ export function bindNavDrawer(onNavigate) {
         b.classList.toggle("is-active", b.dataset.catalog === cat);
       });
     } else if (view === "maestros") {
-      const m = master === "entities" ? "entities" : "flowTypes";
+      const abmDefId = parseMasterRecordAbmDefinitionId(master);
       maestrosGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
-      maestrosGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
-        b.classList.toggle("is-active", b.dataset.master === m);
+      maestrosGroup?.querySelectorAll(".nav-sub-btn[data-master]").forEach((b) => {
+        const btnDefId = b.dataset.masterDefId ?? "";
+        let active = false;
+        if (abmDefId) {
+          active = b.dataset.master === "masterRecordAbm" && btnDefId === abmDefId;
+        } else if (master === "masterRecords") {
+          active = b.dataset.master === "masterRecords" && !btnDefId;
+        } else {
+          const m =
+            master === "entities"
+              ? "entities"
+              : master === "masterDefinitions"
+                ? "masterDefinitions"
+                : master === "flowTypes"
+                  ? "flowTypes"
+                  : "flowTypes";
+          active = b.dataset.master === m && !btnDefId;
+        }
+        b.classList.toggle("is-active", active);
+      });
+      maestrosGroup?.querySelectorAll(".nav-sub-group").forEach((group) => {
+        const section = group.dataset.maestrosSection ?? "";
+        if (section === "masterRecordsAbm") {
+          group.classList.toggle(
+            "is-active",
+            master === "masterRecords" || abmDefId != null,
+          );
+          return;
+        }
+        const btn = group.querySelector(".nav-sub-btn[data-master]:not([data-master-def-id])");
+        const btnMaster = btn?.dataset.master ?? "";
+        group.classList.toggle("is-active", !abmDefId && master === btnMaster);
       });
     } else if (
       view === "gestion" ||
@@ -113,21 +145,25 @@ export function bindNavDrawer(onNavigate) {
     }
   }
 
-  document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const view = btn.dataset.view;
-      const catalog = btn.dataset.catalog ?? "flows";
-      const master = btn.dataset.master ?? "flowTypes";
-      setNavActive(view, catalog, master);
-      if (view === "designer") {
-        onNavigate(view, catalog, null);
-      } else if (view === "maestros") {
-        onNavigate(view, null, master);
-      } else {
-        onNavigate(view, null, null);
-      }
-      if (!isDockedNav()) close();
-    });
+  drawer?.addEventListener("click", (e) => {
+    const btn = e.target instanceof Element ? e.target.closest(".nav-btn[data-view]") : null;
+    if (!btn || !drawer.contains(btn)) return;
+    const view = btn.dataset.view;
+    const catalog = btn.dataset.catalog ?? "flows";
+    let master = btn.dataset.master ?? "flowTypes";
+    const masterDefId = btn.dataset.masterDefId ?? "";
+    if (masterDefId) {
+      master = `${MASTER_RECORD_ABM_PREFIX}${masterDefId}`;
+    }
+    setNavActive(view, catalog, master);
+    if (view === "designer") {
+      onNavigate(view, catalog, null);
+    } else if (view === "maestros") {
+      onNavigate(view, null, master);
+    } else {
+      onNavigate(view, null, null);
+    }
+    if (!isDockedNav()) close();
   });
 
   return { close, open, setNavActive };

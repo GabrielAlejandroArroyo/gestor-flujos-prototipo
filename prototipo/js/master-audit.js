@@ -5,7 +5,7 @@
 import { createId } from "./ids.js";
 import { getUserById, resolveConnectedAuthUserId } from "./auth.js";
 
-/** @typedef {"flowType" | "entity"} MasterAuditArea */
+/** @typedef {"flowType" | "entity" | "masterDefinition" | "masterRecord"} MasterAuditArea */
 /** @typedef {"create" | "update" | "delete"} MasterAuditAction */
 
 /**
@@ -47,6 +47,8 @@ export function recordMasterAudit(state, entry) {
 export function masterAuditAreaLabel(area) {
   if (area === "flowType") return "Tipo de flujo";
   if (area === "entity") return "Entidad";
+  if (area === "masterDefinition") return "Definición de maestros";
+  if (area === "masterRecord") return "Registro de maestro";
   return area;
 }
 

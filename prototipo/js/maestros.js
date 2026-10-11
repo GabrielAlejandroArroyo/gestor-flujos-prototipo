@@ -32,12 +32,41 @@ import {
   validateEntityExtensionRules,
   validateEntityRefRules,
 } from "./entities.js";
+import {
+  countMasterDefinitionsUsingEntity,
+  ensureMasterDefinitionsState,
+  normalizeMasterDefinition,
+  renderMasterDefinitionEntityChecklist,
+  summarizeMasterDefinitionEntities,
+  validateMasterDefinition,
+} from "./master-definitions.js";
+import { ensureMasterRecordsState } from "./master-records.js";
+import { countMasterRecordsForDefinition } from "./master-records.js";
+import { isMasterRecordsNavScope, parseMasterRecordAbmDefinitionId } from "./master-records-nav.js";
+import {
+  exitMasterRecordEditor,
+  exitMasterRecordImportSession,
+  hasMasterRecordEditorSession,
+  hasMasterRecordImportSession,
+  renderMasterRecordEditorHero,
+  renderMasterRecordImportHero,
+  renderMasterRecordsForDefinition,
+  renderMasterRecordsHub,
+  syncMasterRecordsAbmNav,
+} from "./master-records-ui.js";
 
 /** @type {{ mode: "create" } | { mode: "edit"; entityId: string } | null} */
 let entityEditorSession = null;
 
+/** @type {{ mode: "create" } | { mode: "edit"; definitionId: string } | null} */
+let masterDefinitionEditorSession = null;
+
 export function exitEntityEditor() {
   entityEditorSession = null;
+}
+
+function exitMasterDefinitionEditor() {
+  masterDefinitionEditorSession = null;
 }
 
 /**
@@ -50,6 +79,13 @@ export function renderMaestros(mainEl, state, persist, masterKey = "flowTypes") 
   if (masterKey !== "entities") {
     exitEntityEditor();
   }
+  if (masterKey !== "masterDefinitions") {
+    exitMasterDefinitionEditor();
+  }
+  if (!isMasterRecordsNavScope(masterKey)) {
+    exitMasterRecordEditor();
+    exitMasterRecordImportSession();
+  }
   if (masterKey === "flowTypes") {
     renderFlowTypesMaster(mainEl, state, persist);
     return;
@@ -59,6 +95,30 @@ export function renderMaestros(mainEl, state, persist, masterKey = "flowTypes") 
       renderEntityEditorHero(mainEl, state, persist);
     } else {
       renderEntitiesMaster(mainEl, state, persist);
+    }
+    return;
+  }
+  if (masterKey === "masterDefinitions") {
+    if (masterDefinitionEditorSession) {
+      renderMasterDefinitionEditorHero(mainEl, state, persist);
+    } else {
+      renderMasterDefinitionsMaster(mainEl, state, persist);
+    }
+    return;
+  }
+  const masterRecordDefId = parseMasterRecordAbmDefinitionId(masterKey);
+  if (masterKey === "masterRecords" || masterRecordDefId) {
+    ensureMasterDefinitionsState(state);
+    ensureMasterRecordsState(state);
+    syncMasterRecordsAbmNav(state);
+    if (hasMasterRecordImportSession()) {
+      renderMasterRecordImportHero(mainEl, state, persist);
+    } else if (hasMasterRecordEditorSession()) {
+      renderMasterRecordEditorHero(mainEl, state, persist);
+    } else if (masterRecordDefId) {
+      renderMasterRecordsForDefinition(mainEl, state, persist, masterRecordDefId);
+    } else {
+      renderMasterRecordsHub(mainEl, state, persist);
     }
     return;
   }
@@ -215,6 +275,240 @@ function openFlowTypeModal(state, persist, existing, onDone) {
 }
 
 // =============================================================================
+// MAESTROS DEFINITION
+// =============================================================================
+
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ * @param {() => void} persist
+ */
+function renderMasterDefinitionsMaster(mainEl, state, persist) {
+  const defs = state.masterDefinitions ?? [];
+  const rows =
+    defs.length === 0
+      ? `<tr><td colspan="4"><p class="gestion-empty">No hay definiciones. Creá una con «+ Nueva definición» (requiere entidades en el maestro).</p></td></tr>`
+      : defs
+          .map((d) => {
+            const entitySummary = summarizeMasterDefinitionEntities(state, d);
+            const count = (d.entityIds ?? []).length;
+            return `<tr>
+              <td><strong>${escapeHtml(d.name)}</strong><div class="form-hint"><code>${escapeHtml(d.id)}</code></div></td>
+              <td>${escapeHtml(d.description || "—")}</td>
+              <td><span class="catalog-tree-count">${count} ${count === 1 ? "entidad" : "entidades"}</span><div class="form-hint">${escapeHtml(entitySummary)}</div></td>
+              <td class="catalog-actions">
+                <button type="button" class="btn btn-sm" data-edit-master-def="${escapeHtml(d.id)}">Editar</button>
+                <button type="button" class="btn btn-sm btn-danger" data-rm-master-def="${escapeHtml(d.id)}">Eliminar</button>
+              </td>
+            </tr>`;
+          })
+          .join("");
+
+  mainEl.innerHTML = `
+    <section class="panel panel--catalog maestros-panel">
+      ${renderPageHeader(
+        "Definición de maestros",
+        "Composiciones basadas en una o más entidades (Definiciones de entidad → Entidades).",
+        `<button type="button" class="btn btn-primary btn-sm" id="btn-new-master-def">+ Nueva definición</button>`,
+      )}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Nombre</th><th>Descripción</th><th>Entidades base</th><th>Acciones</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+
+  mainEl.querySelector("#btn-new-master-def")?.addEventListener("click", () => {
+    masterDefinitionEditorSession = { mode: "create" };
+    renderMasterDefinitionEditorHero(mainEl, state, persist);
+  });
+
+  mainEl.querySelectorAll("[data-edit-master-def]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-edit-master-def");
+      if (!state.masterDefinitions?.some((d) => d.id === id)) return;
+      masterDefinitionEditorSession = { mode: "edit", definitionId: id };
+      renderMasterDefinitionEditorHero(mainEl, state, persist);
+    });
+  });
+
+  mainEl.querySelectorAll("[data-rm-master-def]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-rm-master-def");
+      const item = state.masterDefinitions?.find((d) => d.id === id);
+      if (!item) return;
+      const recordCount = countMasterRecordsForDefinition(state, id);
+      if (recordCount > 0) {
+        toast(
+          `No podés eliminar «${item.name}»: ${recordCount} ${recordCount === 1 ? "registro de maestro la usa" : "registros de maestro la usan"}.`,
+        );
+        return;
+      }
+      if (!window.confirm(`¿Eliminar la definición «${item.name}»?`)) return;
+      recordMasterAudit(state, {
+        area: "masterDefinition",
+        action: "delete",
+        refId: id,
+        label: item.name,
+        detail: summarizeMasterDefinitionEntities(state, item),
+      });
+      state.masterDefinitions = (state.masterDefinitions ?? []).filter((d) => d.id !== id);
+      persist();
+      toast("Definición eliminada.", 2200, "success");
+      renderMasterDefinitionsMaster(mainEl, state, persist);
+    });
+  });
+}
+
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ * @param {() => void} persist
+ */
+function renderMasterDefinitionEditorHero(mainEl, state, persist) {
+  const session = masterDefinitionEditorSession;
+  if (!session) {
+    renderMasterDefinitionsMaster(mainEl, state, persist);
+    return;
+  }
+
+  const existing =
+    session.mode === "edit"
+      ? state.masterDefinitions?.find((d) => d.id === session.definitionId) ?? null
+      : null;
+  if (session.mode === "edit" && !existing) {
+    exitMasterDefinitionEditor();
+    renderMasterDefinitionsMaster(mainEl, state, persist);
+    return;
+  }
+
+  const draft = {
+    name: existing?.name ?? "",
+    description: existing?.description ?? "",
+    definitionId: existing?.id ?? null,
+    entityIds: [...(existing?.entityIds ?? [])],
+  };
+
+  const title = session.mode === "edit" ? "Editar definición de maestros" : "Nueva definición de maestros";
+
+  const paint = () => {
+    mainEl.innerHTML = `
+      <section class="gestion-hero master-def-editor-hero panel">
+        <header class="gestion-hero-header">
+          <button type="button" class="btn btn-sm gestion-hero-back" data-master-def-editor-back>Volver al listado</button>
+          <div class="gestion-hero-heading">
+            <h2>${title}</h2>
+            <p class="gestion-hero-subtitle">Elegí una o más entidades del maestro como base de esta definición.</p>
+          </div>
+        </header>
+        <div class="entity-editor-body master-def-editor-body">
+          <form id="form-master-def" class="entity-editor-form form-grid">
+            <div class="form-row form-row--entity-name">
+              <label for="field-master-def-name">Nombre</label>
+              <input id="field-master-def-name" name="name" required maxlength="120" value="${escapeHtml(draft.name)}" placeholder="Ej. Maestro de proveedores" autocomplete="off" />
+            </div>
+            <div class="form-row form-row--full">
+              <label for="field-master-def-desc">Descripción</label>
+              <textarea id="field-master-def-desc" name="description" rows="3" placeholder="Opcional">${escapeHtml(draft.description)}</textarea>
+            </div>
+          </form>
+          <section class="entity-meta-panel master-def-entities-panel" aria-labelledby="master-def-entities-heading">
+            <h3 id="master-def-entities-heading" class="entity-meta-title">Entidades del maestro</h3>
+            <p class="form-hint">Marcá todas las entidades que componen esta definición (mínimo una).</p>
+            <div id="master-def-entity-checklist-host">
+              ${renderMasterDefinitionEntityChecklist(state, draft.entityIds)}
+            </div>
+          </section>
+        </div>
+        <footer class="component-attr-hero-footer">
+          <button type="button" class="btn btn-sm" data-master-def-editor-back>Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-save-master-def">${session.mode === "edit" ? "Guardar definición" : "Crear definición"}</button>
+        </footer>
+      </section>`;
+
+    const syncDraftFromDom = () => {
+      draft.name = String(mainEl.querySelector("#field-master-def-name")?.value ?? "").trim();
+      draft.description = String(mainEl.querySelector("#field-master-def-desc")?.value ?? "").trim();
+      draft.entityIds = [...mainEl.querySelectorAll('#master-def-entity-checklist-host input[name="entityIds"]:checked')].map(
+        (el) => String(el.value),
+      );
+    };
+
+    const goBack = () => {
+      exitMasterDefinitionEditor();
+      renderMasterDefinitionsMaster(mainEl, state, persist);
+    };
+
+    mainEl.querySelectorAll("[data-master-def-editor-back]").forEach((btn) => {
+      btn.addEventListener("click", goBack);
+    });
+
+    mainEl.querySelectorAll('#master-def-entity-checklist-host input[name="entityIds"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        syncDraftFromDom();
+      });
+    });
+
+    mainEl.querySelector("#btn-save-master-def")?.addEventListener("click", () => {
+      syncDraftFromDom();
+      const validation = validateMasterDefinition(
+        state,
+        draft.name,
+        draft.entityIds,
+        draft.definitionId ?? undefined,
+      );
+      if (!validation.ok) {
+        toast(validation.message);
+        return;
+      }
+      const validIds = new Set((state.entities ?? []).map((en) => en.id));
+      if (session.mode === "edit" && existing) {
+        existing.name = draft.name;
+        existing.description = draft.description;
+        existing.entityIds = [...new Set(draft.entityIds)];
+        normalizeMasterDefinition(existing, validIds);
+        recordMasterAudit(state, {
+          area: "masterDefinition",
+          action: "update",
+          refId: existing.id,
+          label: draft.name,
+          detail: summarizeMasterDefinitionEntities(state, existing),
+        });
+      } else {
+        const newId = createId("masterDef");
+        const created = normalizeMasterDefinition(
+          {
+            id: newId,
+            name: draft.name,
+            description: draft.description,
+            entityIds: draft.entityIds,
+          },
+          validIds,
+        );
+        if (!Array.isArray(state.masterDefinitions)) state.masterDefinitions = [];
+        state.masterDefinitions.push(created);
+        recordMasterAudit(state, {
+          area: "masterDefinition",
+          action: "create",
+          refId: newId,
+          label: draft.name,
+          detail: summarizeMasterDefinitionEntities(state, created),
+        });
+      }
+      persist();
+      toast(session.mode === "edit" ? "Definición actualizada." : "Definición creada.", 2200, "success");
+      exitMasterDefinitionEditor();
+      renderMasterDefinitionsMaster(mainEl, state, persist);
+    });
+
+    mainEl.querySelector("#field-master-def-name")?.focus();
+  };
+
+  paint();
+}
+
+// =============================================================================
 // ENTIDADES
 // =============================================================================
 
@@ -250,8 +544,8 @@ function renderEntitiesMaster(mainEl, state, persist) {
   mainEl.innerHTML = `
     <section class="panel panel--catalog maestros-panel">
       ${renderPageHeader(
-        "Entidades",
-        "Entidades con atributos, marca de entidad base y extensión sobre otras bases.",
+        "Definiciones de entidad",
+        "ABM de entidades: atributos, entidad base y extensión sobre otras bases.",
         `<button type="button" class="btn btn-primary btn-sm" id="btn-new-entity">+ Nueva entidad</button>`,
       )}
       <div class="table-wrap table-wrap--modern">
@@ -292,6 +586,13 @@ function renderEntitiesMaster(mainEl, state, persist) {
       if (extCount > 0) {
         toast(
           `No podés eliminar «${item.name}»: ${extCount} ${extCount === 1 ? "entidad la extiende" : "entidades la extienden"}.`,
+        );
+        return;
+      }
+      const defCount = countMasterDefinitionsUsingEntity(state, id);
+      if (defCount > 0) {
+        toast(
+          `No podés eliminar «${item.name}»: ${defCount} ${defCount === 1 ? "definición de maestros la usa" : "definiciones de maestros la usan"}.`,
         );
         return;
       }

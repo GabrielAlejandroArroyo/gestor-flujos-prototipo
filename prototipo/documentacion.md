@@ -20,7 +20,7 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 - **Operaciones → Usuarios:** catálogo mock de login (5 usuarios demo, clave `1234`). Autenticación local preparada para reemplazar por Supabase/OIDC.
 - **Acceso:** al abrir la app se muestra pantalla de login por usuario; sesión en memoria del tab (cada recarga pide login de nuevo).
 - **Operaciones → Gestión de actividades:** KPIs (listos, en curso, finalizados); tablas de instancias con **Gestionar** / **Visualizar** a pantalla completa en el área principal (no popup); **Visualizar** con pestañas **Datos**, **Traza** y **Diagrama**; botón **Iniciar instancia** (modal).
-- **Reportes:** actividades (ejecución), cambios en maestros, catálogos de flujos/tipos/entidades/actividades.
+- **Reportes:** actividades (ejecución), cambios en maestros, **cambios de entidades** (ABM auditado), catálogos de flujos/tipos/entidades/actividades.
 - **Operaciones → Gestión de actividades:** instanciación y ejecución (sin reportes duplicados aquí).
 
 ## Entidades (modelo conceptual)
@@ -28,6 +28,8 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 | Entidad | Descripción |
 |---------|-------------|
 | **TipoFlujo** | Maestro en `flowTypes` (`id`, `name`, `description`). Cada flujo guarda `flowTypeId` y `type` (nombre denormalizado para tablas). Migración al cargar: flujos viejos con solo `type` se enlazan o crean entrada maestro por nombre. |
+| **Definición de maestros** | `masterDefinitions[]`: `name`, `description`, `entityIds[]` (entidades de Definiciones de entidad). |
+| **ABM maestros** | Resumen + ABM por definición; registros **vigentes** (v1); historial al editar; **Importar CSV/Excel** con reporte de columnas/filas sin match y normalizaciones sugeridas. |
 | **Entidad (maestro)** | `entities[]`: … **dateexecution**: valor ISO 8601 **UTC** (`…Z`, `timezone: "UTC"`, GETUTCDATE mock). **userconnected**: id de sesión o `prueabaomigracion`. |
 | **Auth (mock)** | Usuarios demo con login; **`prueabaomigracion`**: `isSystem`, `loginAllowed: false`, visible en Operaciones → Usuarios, excluido del login. |
 | **Flujo** | Tipo, nombre, descripción, estado (borrador \| listo \| deprecado), versión (asignada al confirmar), `lineageId` (misma familia de versiones), `supersedesFlowId` (borrador que reemplaza un listo). |
