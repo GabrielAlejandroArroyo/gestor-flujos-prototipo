@@ -25,6 +25,11 @@ import {
 } from "./designer-viewport.js";
 import { escapeHtml, openModal, renderPageHeader, toast } from "./ui.js";
 import { normalizeFlowContracts } from "./contracts.js";
+import {
+  applyFlowTypeToFlow,
+  bindFlowTypeGotoButton,
+  renderFlowTypeFormRow,
+} from "./flow-types.js";
 import { COMPONENTS_WITH_INPUT_ATTRIBUTES } from "./component-input-attributes.js";
 import {
   mountComponentAttributesEditor,
@@ -75,10 +80,28 @@ let designerContext = {
   readOnly: false,
   /** @type {{ flowId: string; nodeId: string; initialTab: string } | null} */
   componentAttrsEditor: null,
+  /** Pantalla hero «Nuevo flujo» en el catálogo (sin modal). */
+  newFlowScreen: false,
 };
 
 export function exitComponentAttributesEditor() {
   designerContext.componentAttrsEditor = null;
+}
+
+export function exitNewFlowScreen() {
+  designerContext.newFlowScreen = false;
+}
+
+function enterNewFlowScreen(mainEl, state, persist) {
+  if (isCatalogActionsBlocked()) {
+    toast(designerBlockedMessage().body);
+    return;
+  }
+  exitComponentAttributesEditor();
+  designerContext.newFlowScreen = true;
+  designerContext.selectedFlowId = null;
+  designerContext.selectedNodeId = null;
+  renderDesigner(mainEl, state, persist);
 }
 
 /**
@@ -175,6 +198,7 @@ export function setDesignerCatalogView(view) {
  */
 export function enterDesignerCatalog(catalog) {
   exitComponentAttributesEditor();
+  exitNewFlowScreen();
   setDesignerCatalogView(catalog);
   designerContext.selectedFlowId = null;
   designerContext.selectedNodeId = null;
@@ -191,6 +215,11 @@ let activeDesignerSideBind = null;
 
 export function renderDesigner(mainEl, state, persist) {
   if (designerContext.componentAttrsEditor && renderComponentAttributesHero(mainEl, state, persist)) {
+    return;
+  }
+
+  if (designerContext.newFlowScreen && !designerContext.selectedFlowId) {
+    renderNewFlowHero(mainEl, state, persist);
     return;
   }
 
@@ -284,6 +313,27 @@ function renderStudioShell(flow, node, validation, mode) {
     }</div>`;
 }
 
+/**
+ * @param {object} flow
+ * @param {object} state
+ * @param {FormData} fd
+ * @returns {boolean}
+ */
+function applyFlowMetaFromForm(flow, state, fd) {
+  const flowTypeId = String(fd.get("flowTypeId") ?? "");
+  if (!applyFlowTypeToFlow(flow, state, flowTypeId)) {
+    toast("Seleccioná un tipo de flujo válido.");
+    return false;
+  }
+  flow.name = String(fd.get("name") ?? "").trim();
+  flow.description = String(fd.get("description") ?? "").trim();
+  if (!flow.name) {
+    toast("El nombre del flujo es obligatorio.");
+    return false;
+  }
+  return true;
+}
+
 function bindStudioShell(mainEl, flow, node, state, persist) {
   bindStudioTabs(mainEl, state, persist);
   mainEl.querySelector("#btn-back-catalog")?.addEventListener("click", () => {
@@ -294,12 +344,13 @@ function bindStudioShell(mainEl, flow, node, state, persist) {
     const { close, root } = openModal(`
       <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
       <form id="form-meta" class="form-grid">
-        <div class="form-row"><label>Tipo</label><input name="type" value="${escapeHtml(flow.type)}" required /></div>
+        ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
         <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
       </form>
     `);
+    bindFlowTypeGotoButton(root, close);
     root.querySelector("#form-meta")?.addEventListener("submit", (e) => {
       e.preventDefault();
       if (!isFlowEditable(flow)) {
@@ -307,9 +358,7 @@ function bindStudioShell(mainEl, flow, node, state, persist) {
         return;
       }
       const fd = new FormData(e.target);
-      flow.type = String(fd.get("type")).trim();
-      flow.name = String(fd.get("name")).trim();
-      flow.description = String(fd.get("description")).trim();
+      if (!applyFlowMetaFromForm(flow, state, fd)) return;
       persist();
       close();
       renderDesigner(mainEl, state, persist);
@@ -853,96 +902,143 @@ function bindActivityCatalog(mainEl, state, persist) {
   });
 }
 
-function openNewFlowModal(mainEl, state, persist) {
-  if (isCatalogActionsBlocked()) {
-    toast(designerBlockedMessage().body);
-    return;
+/**
+ * @param {FormData} fd
+ * @param {object} state
+ * @returns {{ flow: object; startId: string } | null}
+ */
+function buildNewFlowFromForm(fd, state) {
+  const flowTypeId = String(fd.get("flowTypeId") ?? "");
+  const startId = createId("node");
+  const endId = createId("node");
+  const flow = {
+    id: createId("flow"),
+    type: "",
+    flowTypeId: null,
+    name: String(fd.get("name")).trim(),
+    description: String(fd.get("description")).trim(),
+    status: "borrador",
+    version: null,
+    lineageId: null,
+    supersedesFlowId: null,
+    inputParams: [],
+    nodes: [
+      {
+        id: startId,
+        kind: NODE_KINDS.INICIO,
+        name: "Start",
+        description: "",
+        x: 80,
+        y: 220,
+        usedParamIds: [],
+      },
+      {
+        id: endId,
+        kind: NODE_KINDS.FIN,
+        name: "End",
+        description: "",
+        x: 520,
+        y: 220,
+        usedParamIds: [],
+      },
+    ],
+    transitions: [],
+    screens: {},
+    lanes: [{ id: createId("lane"), name: "General", height: 220 }],
+  };
+  if (!applyFlowTypeToFlow(flow, state, flowTypeId)) {
+    toast("Seleccioná un tipo de flujo válido.");
+    return null;
   }
-  const { close, root } = openModal(`
-      <div class="modal-header">
-        <h2>Nuevo flujo</h2>
-        <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
-      </div>
-      <form id="form-new-flow" class="form-grid">
-        <div class="form-row"><label>Tipo</label><input name="type" required placeholder="Ej. Aprobación" /></div>
-        <div class="form-row"><label>Nombre</label><input name="name" required /></div>
-        <div class="form-row"><label>Descripción</label><textarea name="description"></textarea></div>
-        <button type="submit" class="btn btn-primary">Crear</button>
-      </form>
-    `);
+  if (!flow.name) {
+    toast("El nombre del flujo es obligatorio.");
+    return null;
+  }
+  flow.lineageId = flow.id;
+  ensureFlowDiagram(flow);
+  const laneId = flow.lanes[0].id;
+  const layout = getLaneLayout(flow);
+  const startNode = flow.nodes.find((n) => n.id === startId);
+  const endNode = flow.nodes.find((n) => n.id === endId);
+  if (startNode) {
+    startNode.laneId = laneId;
+    startNode.x = layout.lanes[0].left + 48;
+    startNode.y = centerYInLane(flow, laneId, startNode.kind);
+  }
+  if (endNode) {
+    endNode.laneId = laneId;
+    endNode.x = layout.lanes[0].left + 320;
+    endNode.y = centerYInLane(flow, laneId, endNode.kind);
+  }
+  return { flow, startId };
+}
 
-  root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ * @param {() => void} persist
+ */
+function renderNewFlowHero(mainEl, state, persist) {
+  const hasTypes = (state.flowTypes ?? []).length > 0;
+  mainEl.innerHTML = `
+    <section class="gestion-hero new-flow-hero panel">
+      <header class="gestion-hero-header">
+        <button type="button" class="btn btn-sm gestion-hero-back" data-new-flow-back>Volver al catálogo</button>
+        <div class="gestion-hero-heading">
+          <h2>Nuevo flujo</h2>
+          <p class="gestion-hero-subtitle">Definí tipo, nombre y descripción. Al crear se abre el lienzo en borrador con Start y End.</p>
+        </div>
+      </header>
+      <div class="new-flow-hero-body">
+        <form id="form-new-flow" class="form-grid new-flow-form">
+          ${renderFlowTypeFormRow(state, null)}
+          <div class="form-row"><label>Nombre</label><input name="name" required autocomplete="off" ${hasTypes ? "" : "disabled"} /></div>
+          <div class="form-row"><label>Descripción</label><textarea name="description" rows="4" ${hasTypes ? "" : "disabled"}></textarea></div>
+        </form>
+      </div>
+      <footer class="component-attr-hero-footer">
+        <button type="button" class="btn btn-sm" data-new-flow-back>Cancelar</button>
+        <button type="submit" form="form-new-flow" class="btn btn-primary" ${hasTypes ? "" : "disabled"}>Crear flujo</button>
+      </footer>
+    </section>`;
+
+  bindFlowTypeGotoButton(mainEl, () => exitNewFlowScreen());
+
+  const goBack = () => {
+    exitNewFlowScreen();
+    renderDesigner(mainEl, state, persist);
+  };
+  mainEl.querySelectorAll("[data-new-flow-back]").forEach((btn) => {
+    btn.addEventListener("click", goBack);
+  });
+
+  mainEl.querySelector("#form-new-flow")?.addEventListener("submit", (e) => {
     e.preventDefault();
     if (isCatalogActionsBlocked()) {
       toast(designerBlockedMessage().body);
       return;
     }
     const fd = new FormData(e.target);
-    const startId = createId("node");
-    const endId = createId("node");
-    const flow = {
-      id: createId("flow"),
-      type: String(fd.get("type")).trim(),
-      name: String(fd.get("name")).trim(),
-      description: String(fd.get("description")).trim(),
-      status: "borrador",
-      version: null,
-      lineageId: null,
-      supersedesFlowId: null,
-      inputParams: [],
-      nodes: [
-        {
-          id: startId,
-          kind: NODE_KINDS.INICIO,
-          name: "Start",
-          description: "",
-          x: 80,
-          y: 220,
-          usedParamIds: [],
-        },
-        {
-          id: endId,
-          kind: NODE_KINDS.FIN,
-          name: "End",
-          description: "",
-          x: 520,
-          y: 220,
-          usedParamIds: [],
-        },
-      ],
-      transitions: [],
-      screens: {},
-      lanes: [{ id: createId("lane"), name: "General", height: 220 }],
-    };
-    flow.lineageId = flow.id;
-    ensureFlowDiagram(flow);
-    const laneId = flow.lanes[0].id;
-    const layout = getLaneLayout(flow);
-    const startNode = flow.nodes.find((n) => n.id === startId);
-    const endNode = flow.nodes.find((n) => n.id === endId);
-    if (startNode) {
-      startNode.laneId = laneId;
-      startNode.x = layout.lanes[0].left + 48;
-      startNode.y = centerYInLane(flow, laneId, startNode.kind);
-    }
-    if (endNode) {
-      endNode.laneId = laneId;
-      endNode.x = layout.lanes[0].left + 320;
-      endNode.y = centerYInLane(flow, laneId, endNode.kind);
-    }
+    const built = buildNewFlowFromForm(fd, state);
+    if (!built) return;
+    const { flow, startId } = built;
     state.flows.push(flow);
     persist();
+    exitNewFlowScreen();
     designerContext.selectedFlowId = flow.id;
     designerContext.selectedNodeId = startId;
     designerContext._viewFitForFlowId = null;
-    close();
     renderDesigner(mainEl, state, persist);
     toast("Flujo creado con Start y End. Elegí un tipo de línea y conectá desde el puerto del nodo.", 3200, "success");
   });
+
+  if (hasTypes) {
+    mainEl.querySelector('#form-new-flow input[name="name"]')?.focus();
+  }
 }
 
 function bindCatalog(mainEl, state, persist) {
-  const onNew = () => openNewFlowModal(mainEl, state, persist);
+  const onNew = () => enterNewFlowScreen(mainEl, state, persist);
   mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
   mainEl.querySelector("#btn-new-flow-table")?.addEventListener("click", onNew);
 
@@ -2479,19 +2575,18 @@ function bindFlowEditor(mainEl, flow, state, persist, flowPersist) {
     const { close, root } = openModal(`
       <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
       <form id="form-meta" class="form-grid">
-        <div class="form-row"><label>Tipo</label><input name="type" value="${escapeHtml(flow.type)}" required /></div>
+        ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
         <div class="form-row"><label>Descripción</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
       </form>
     `);
+    bindFlowTypeGotoButton(root, close);
     root.querySelector("#form-meta").addEventListener("submit", (e) => {
       e.preventDefault();
       if (!isFlowEditable(flow)) return;
       const fd = new FormData(e.target);
-      flow.type = String(fd.get("type")).trim();
-      flow.name = String(fd.get("name")).trim();
-      flow.description = String(fd.get("description")).trim();
+      if (!applyFlowMetaFromForm(flow, state, fd)) return;
       saveFlow();
       close();
       renderDesigner(mainEl, state, persist);

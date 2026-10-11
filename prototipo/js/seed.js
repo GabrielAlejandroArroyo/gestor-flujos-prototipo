@@ -1,5 +1,15 @@
 import { createId } from "./ids.js";
 
+/** @type {string | null} */
+let sampleFlowTypeId = null;
+
+/**
+ * @param {string} flowTypeId
+ */
+export function setSampleFlowTypeId(flowTypeId) {
+  sampleFlowTypeId = flowTypeId;
+}
+
 export function createSampleFlow() {
   const flowId = createId("flow");
   const pTitulo = createId("param");
@@ -15,6 +25,7 @@ export function createSampleFlow() {
     id: flowId,
     lineageId: flowId,
     type: "Aprobación",
+    flowTypeId: sampleFlowTypeId ?? undefined,
     name: "Aprobación de gasto",
     description: "Ejemplo BPMN: Start → User Task → XOR Gateway → Service Task / End.",
     status: "listo",
@@ -101,6 +112,29 @@ export function createSampleFlow() {
 }
 
 export function ensureSeed(state) {
+  if (!Array.isArray(state.flowTypes)) state.flowTypes = [];
+  if (!Array.isArray(state.entities)) state.entities = [];
+
   if (state.flows.length > 0) return state;
-  return { ...state, flows: [createSampleFlow()] };
+
+  state.entities.push({
+    id: createId("entity"),
+    name: "Gasto",
+    isBase: true,
+    extendsBaseEntityId: null,
+    attributes: [
+      { id: createId("entityAttr"), key: "titulo", label: "Título del gasto", type: "texto", required: true },
+      { id: createId("entityAttr"), key: "monto", label: "Monto", type: "numero", required: true },
+    ],
+  });
+
+  const approvalTypeId = createId("flowType");
+  state.flowTypes.push({
+    id: approvalTypeId,
+    name: "Aprobación",
+    description: "Flujos de aprobación y validación (ejemplo del mock).",
+  });
+  setSampleFlowTypeId(approvalTypeId);
+  state.flows.push(createSampleFlow());
+  return state;
 }

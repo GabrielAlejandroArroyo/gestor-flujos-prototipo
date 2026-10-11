@@ -61,8 +61,15 @@ export function bindNavDrawer(onNavigate) {
     setOpen(openNow);
   });
 
-  function setNavActive(view, catalog) {
+  function isReportView(view) {
+    return typeof view === "string" && view.startsWith("report-");
+  }
+
+  function setNavActive(view, catalog, master) {
     const designerGroup = document.querySelector('[data-nav-group="designer"]');
+    const maestrosGroup = document.querySelector('[data-nav-group="maestros"]');
+    const operacionesGroup = document.querySelector('[data-nav-group="operaciones"]');
+    const reportesGroup = document.querySelector('[data-nav-group="reportes"]');
     document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.remove("is-active"));
 
     if (view === "designer") {
@@ -71,8 +78,38 @@ export function bindNavDrawer(onNavigate) {
       designerGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
         b.classList.toggle("is-active", b.dataset.catalog === cat);
       });
+    } else if (view === "maestros") {
+      const m = master === "entities" ? "entities" : "flowTypes";
+      maestrosGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+      maestrosGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+        b.classList.toggle("is-active", b.dataset.master === m);
+      });
+    } else if (
+      view === "gestion" ||
+      view === "auth-users" ||
+      view === "auth-user-detail" ||
+      view === "user-profile"
+    ) {
+      operacionesGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+      operacionesGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+        const navView = b.dataset.view;
+        const active =
+          navView === view ||
+          (view === "auth-user-detail" && navView === "auth-users");
+        b.classList.toggle("is-active", active);
+      });
+    } else if (isReportView(view) || view === "reporte") {
+      const reportView = view === "reporte" ? "report-activities" : view;
+      reportesGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+      reportesGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+        b.classList.toggle("is-active", b.dataset.view === reportView);
+      });
     } else {
-      document.querySelector(`.nav-btn[data-view="${view}"]:not([data-catalog])`)?.classList.add("is-active");
+      document
+        .querySelector(
+          `.nav-btn[data-view="${view}"]:not([data-catalog]):not([data-master]):not(.nav-sub-btn)`,
+        )
+        ?.classList.add("is-active");
     }
   }
 
@@ -80,11 +117,18 @@ export function bindNavDrawer(onNavigate) {
     btn.addEventListener("click", () => {
       const view = btn.dataset.view;
       const catalog = btn.dataset.catalog ?? "flows";
-      setNavActive(view, catalog);
-      onNavigate(view, view === "designer" ? catalog : null);
+      const master = btn.dataset.master ?? "flowTypes";
+      setNavActive(view, catalog, master);
+      if (view === "designer") {
+        onNavigate(view, catalog, null);
+      } else if (view === "maestros") {
+        onNavigate(view, null, master);
+      } else {
+        onNavigate(view, null, null);
+      }
       if (!isDockedNav()) close();
     });
   });
 
-  return { close, open };
+  return { close, open, setNavActive };
 }

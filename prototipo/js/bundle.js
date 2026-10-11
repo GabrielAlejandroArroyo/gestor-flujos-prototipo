@@ -982,6 +982,708 @@
     return JSON.parse(JSON.stringify(flow));
   }
 
+  // js/flow-types.js
+  function ensureFlowTypesState(state) {
+    if (!state) return state;
+    if (!Array.isArray(state.flowTypes)) state.flowTypes = [];
+    for (const flow of state.flows ?? []) {
+      if (!flow || typeof flow !== "object") continue;
+      if (flow.flowTypeId) {
+        const ft2 = state.flowTypes.find((t) => t.id === flow.flowTypeId);
+        if (ft2) flow.type = String(ft2.name ?? "").trim() || flow.type;
+        continue;
+      }
+      const typeName = String(flow.type ?? "").trim();
+      if (!typeName) continue;
+      let ft = state.flowTypes.find((t) => String(t.name ?? "").trim() === typeName);
+      if (!ft) {
+        ft = {
+          id: createId("flowType"),
+          name: typeName,
+          description: ""
+        };
+        state.flowTypes.push(ft);
+      }
+      flow.flowTypeId = ft.id;
+      flow.type = ft.name;
+    }
+    return state;
+  }
+  function countFlowsUsingFlowType(state, flowTypeId) {
+    return (state.flows ?? []).filter((f) => f.flowTypeId === flowTypeId).length;
+  }
+  function syncFlowTypeLabelOnFlows(state, flowTypeId, newName) {
+    const name = String(newName ?? "").trim();
+    for (const flow of state.flows ?? []) {
+      if (flow.flowTypeId === flowTypeId) flow.type = name;
+    }
+  }
+  function renderFlowTypeSelectOptions(state, selectedId) {
+    const types = state.flowTypes ?? [];
+    if (!types.length) {
+      return `<option value="">\u2014 Sin tipos definidos \u2014</option>`;
+    }
+    return types.map((t) => {
+      const sel = t.id === selectedId ? " selected" : "";
+      return `<option value="${escapeHtmlAttr(t.id)}"${sel}>${escapeHtmlText(t.name)}</option>`;
+    }).join("");
+  }
+  function applyFlowTypeToFlow(flow, state, flowTypeId) {
+    const ft = state.flowTypes?.find((t) => t.id === flowTypeId);
+    if (!ft) return false;
+    flow.flowTypeId = ft.id;
+    flow.type = String(ft.name ?? "").trim();
+    return true;
+  }
+  function isFlowTypeNameTaken(state, name, excludeId) {
+    const n = String(name ?? "").trim().toLowerCase();
+    if (!n) return false;
+    return (state.flowTypes ?? []).some(
+      (t) => t.id !== excludeId && String(t.name ?? "").trim().toLowerCase() === n
+    );
+  }
+  function escapeHtmlText(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function escapeHtmlAttr(value) {
+    return escapeHtmlText(value);
+  }
+  function navigateToFlowTypesMaster() {
+    document.querySelector('[data-nav-group="maestros"] [data-master="flowTypes"]')?.click();
+  }
+  function renderFlowTypeFormRow(state, flow) {
+    const types = state.flowTypes ?? [];
+    const selectedId = flow?.flowTypeId ?? types.find((t) => String(t.name ?? "").trim() === String(flow?.type ?? "").trim())?.id ?? "";
+    if (!types.length) {
+      return `<div class="form-row form-row--flow-type-empty">
+      <label>Tipo de flujo</label>
+      <p class="form-hint" style="margin:0">No hay tipos definidos en Maestros.</p>
+      <button type="button" class="btn btn-sm" data-goto-flow-types style="margin-top:0.5rem">Ir a Tipo de flujo</button>
+    </div>`;
+    }
+    return `<div class="form-row"><label>Tipo de flujo</label><select name="flowTypeId" required>${renderFlowTypeSelectOptions(state, selectedId)}</select></div>`;
+  }
+  function bindFlowTypeGotoButton(root, onNavigate) {
+    root.querySelector("[data-goto-flow-types]")?.addEventListener("click", () => {
+      onNavigate?.();
+      navigateToFlowTypesMaster();
+    });
+  }
+
+  // js/auth.js
+  var AUTH_USERS_KEY = "gestor_flujos_auth_users_v1";
+  var AUTH_SESSION_KEY = "gestor_flujos_session_v1";
+  var AUTH_PROVIDER_LOCAL = "local";
+  var cachedSession = null;
+  var DEMO_USERS = [
+    { username: "luna", displayName: "Luna Rivera", avatarSeed: "luna-aurora" },
+    { username: "mateo", displayName: "Mateo D\xEDaz", avatarSeed: "mateo-bosque" },
+    { username: "sofia", displayName: "Sof\xEDa Luna", avatarSeed: "sofia-brillo" },
+    { username: "bruno", displayName: "Bruno Paz", avatarSeed: "bruno-roca" },
+    { username: "clara", displayName: "Clara Mora", avatarSeed: "clara-marea" }
+  ];
+  var DEMO_PASSWORD = "1234";
+  var SYSTEM_MIGRATION_USER_ID = "user_sys_prueabaomigracion";
+  var SYSTEM_MIGRATION_USERNAME = "prueabaomigracion";
+  function createSystemMigrationUserRecord() {
+    return {
+      id: SYSTEM_MIGRATION_USER_ID,
+      username: SYSTEM_MIGRATION_USERNAME,
+      displayName: "Usuario gen\xE9rico de migraci\xF3n",
+      password: "",
+      active: true,
+      avatarSeed: "system-prueabaomigracion",
+      isSystem: true,
+      loginAllowed: false
+    };
+  }
+  function ensureSystemMigrationUser(users) {
+    const list = [...users];
+    const idx = list.findIndex((u) => u.username === SYSTEM_MIGRATION_USERNAME);
+    const canonical = createSystemMigrationUserRecord();
+    if (idx === -1) {
+      list.push(canonical);
+      return list;
+    }
+    list[idx] = {
+      ...list[idx],
+      ...canonical,
+      id: list[idx].id || canonical.id,
+      displayName: list[idx].displayName || canonical.displayName,
+      isSystem: true,
+      loginAllowed: false,
+      active: list[idx].active !== false
+    };
+    return list;
+  }
+  function isSystemAuthUser(user) {
+    return !!user?.isSystem;
+  }
+  function canUserLogin(user) {
+    if (!user?.active) return false;
+    if (user.isSystem) return false;
+    if (user.loginAllowed === false) return false;
+    return true;
+  }
+  function getSystemMigrationUser() {
+    return loadAuthUsers().find((u) => u.username === SYSTEM_MIGRATION_USERNAME) ?? createSystemMigrationUserRecord();
+  }
+  function resolveConnectedAuthUserId() {
+    const session = getSession();
+    if (session?.userId) return session.userId;
+    return getSystemMigrationUser().id;
+  }
+  var listeners = /* @__PURE__ */ new Set();
+  function notifyAuthChange(session) {
+    for (const fn of listeners) {
+      try {
+        fn(session);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+  function loadAuthUsers() {
+    let users;
+    try {
+      const raw = localStorage.getItem(AUTH_USERS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.users)) users = normalizeAuthUsers(parsed.users);
+      }
+    } catch {
+    }
+    if (!users) users = seedAuthUsersIfEmpty();
+    const merged = ensureSystemMigrationUser(users);
+    if (merged.length !== users.length || merged.some((u, i) => u.isSystem !== users[i]?.isSystem)) {
+      saveAuthUsers(merged);
+    }
+    return merged;
+  }
+  function saveAuthUsers(users) {
+    localStorage.setItem(AUTH_USERS_KEY, JSON.stringify({ users: normalizeAuthUsers(users) }));
+  }
+  function seedAuthUsersIfEmpty() {
+    const users = DEMO_USERS.map((u) => ({
+      id: createId("user"),
+      username: u.username,
+      displayName: u.displayName,
+      password: DEMO_PASSWORD,
+      active: true,
+      avatarSeed: u.avatarSeed ?? u.username,
+      isSystem: false,
+      loginAllowed: true
+    }));
+    const withSystem = ensureSystemMigrationUser(users);
+    saveAuthUsers(withSystem);
+    return withSystem;
+  }
+  function normalizeAuthUsers(users) {
+    return (users ?? []).map((u) => {
+      const isSystem = !!u.isSystem || u.username === SYSTEM_MIGRATION_USERNAME;
+      const loginAllowed = isSystem ? false : u.loginAllowed !== false;
+      return {
+        id: String(u.id ?? createId("user")),
+        username: String(u.username ?? "").trim().toLowerCase(),
+        displayName: String(u.displayName ?? u.username ?? "").trim(),
+        password: String(u.password ?? ""),
+        active: u.active !== false,
+        avatarSeed: String(u.avatarSeed ?? u.username ?? u.id ?? "user"),
+        isSystem,
+        loginAllowed
+      };
+    });
+  }
+  function hashStringToInt(value) {
+    let h = 0;
+    const s = String(value ?? "");
+    for (let i = 0; i < s.length; i += 1) {
+      h = (h << 5) - h + s.charCodeAt(i);
+      h |= 0;
+    }
+    return Math.abs(h);
+  }
+  function getUserInitials(user) {
+    const name = String(user.displayName ?? user.username ?? "?").trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  function getUserAvatarImageUrl(user) {
+    const seed = encodeURIComponent(String(user.avatarSeed ?? user.username ?? user.id ?? "user"));
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+  }
+  function getUserById(userId) {
+    if (!userId) return null;
+    return loadAuthUsers().find((u) => u.id === userId) ?? null;
+  }
+  function getCurrentUserProfile() {
+    const session = getSession();
+    if (!session) return null;
+    const user = getUserById(session.userId);
+    if (!user) return null;
+    return { session, user };
+  }
+  function persistSession(session) {
+    cachedSession = session;
+    if (!session) {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      return;
+    }
+    sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  }
+  function restoreAuthSession() {
+    if (cachedSession) return cachedSession;
+    try {
+      const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.userId || !parsed?.username) return null;
+      cachedSession = {
+        userId: String(parsed.userId),
+        username: String(parsed.username),
+        displayName: String(parsed.displayName ?? parsed.username),
+        provider: String(parsed.provider ?? AUTH_PROVIDER_LOCAL),
+        at: String(parsed.at ?? (/* @__PURE__ */ new Date()).toISOString())
+      };
+      return cachedSession;
+    } catch {
+      return null;
+    }
+  }
+  function getSession() {
+    return cachedSession ?? restoreAuthSession();
+  }
+  function isAuthenticated() {
+    return !!getSession();
+  }
+  function authenticate(credentials) {
+    const username = String(credentials.username ?? "").trim().toLowerCase();
+    const password = String(credentials.password ?? "");
+    if (!username || !password) {
+      return { ok: false, message: "Ingres\xE1 usuario y clave." };
+    }
+    const users = loadAuthUsers();
+    const user = users.find((u) => u.username === username && u.active);
+    if (!user || !canUserLogin(user)) {
+      return { ok: false, message: "Usuario o clave incorrectos." };
+    }
+    if (user.password !== password) {
+      return { ok: false, message: "Usuario o clave incorrectos." };
+    }
+    const session = {
+      userId: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      provider: AUTH_PROVIDER_LOCAL,
+      at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    persistSession(session);
+    notifyAuthChange(session);
+    return { ok: true, session };
+  }
+  function logout() {
+    persistSession(null);
+    notifyAuthChange(null);
+  }
+  function listLoginUsers() {
+    return loadAuthUsers().filter((u) => canUserLogin(u));
+  }
+
+  // js/entities.js
+  var ENTITY_REF_TYPE = "referencia_entidad";
+  var ENTITY_UUID_TYPE = "uuid";
+  var ENTITY_DATE_EXECUTION_TYPE = "dateexecution";
+  var ENTITY_DATE_EXECUTION_TIMEZONE = "UTC";
+  var ENTITY_USER_CONNECTED_TYPE = "userconnected";
+  var AUTO_GENERATED_ENTITY_TYPES = /* @__PURE__ */ new Set([
+    ENTITY_UUID_TYPE,
+    ENTITY_DATE_EXECUTION_TYPE,
+    ENTITY_USER_CONNECTED_TYPE
+  ]);
+  var ENTITY_DATA_TYPES = [
+    { value: "texto", label: "Texto" },
+    { value: "numero", label: "N\xFAmero" },
+    { value: "fecha", label: "Fecha" },
+    { value: "si_no", label: "S\xED / No" },
+    { value: "texto_largo", label: "Texto largo" },
+    { value: ENTITY_UUID_TYPE, label: "UUID (autogenerada)" },
+    { value: ENTITY_DATE_EXECUTION_TYPE, label: "Date execution (GETUTCDATE / UTC)" },
+    { value: ENTITY_USER_CONNECTED_TYPE, label: "Usuario conectado (userconnected)" },
+    { value: ENTITY_REF_TYPE, label: "Referencia a entidad" }
+  ];
+  var TYPE_SET = new Set(ENTITY_DATA_TYPES.map((t) => t.value));
+  function getEntityById(state, entityId) {
+    if (!entityId) return null;
+    return state.entities?.find((e) => e.id === entityId) ?? null;
+  }
+  function ensureEntitiesState(state) {
+    if (!state) return state;
+    if (!Array.isArray(state.entities)) state.entities = [];
+    const validIds = new Set(state.entities.map((e) => e.id));
+    for (const entity of state.entities) {
+      if (!entity || typeof entity !== "object") continue;
+      entity.name = String(entity.name ?? "").trim();
+      if (!entity.id) entity.id = createId("entity");
+      validIds.add(entity.id);
+      if (!Array.isArray(entity.attributes)) entity.attributes = [];
+      entity.attributes = entity.attributes.map((a) => {
+        const norm = normalizeEntityAttribute(a);
+        if (norm.type === ENTITY_REF_TYPE && norm.refEntityId && !validIds.has(norm.refEntityId)) {
+          norm.refEntityId = null;
+        }
+        if (norm.type === ENTITY_REF_TYPE && norm.refEntityId === entity.id) {
+          norm.refEntityId = null;
+        }
+        return norm;
+      });
+    }
+    for (const entity of state.entities) {
+      normalizeEntityRecord(entity, state);
+    }
+    return state;
+  }
+  function normalizeEntityRecord(entity, state) {
+    entity.isBase = !!entity.isBase;
+    if (entity.isBase) {
+      entity.extendsBaseEntityId = null;
+      return entity;
+    }
+    const extId = entity.extendsBaseEntityId ? String(entity.extendsBaseEntityId) : "";
+    if (!extId) {
+      entity.extendsBaseEntityId = null;
+      return entity;
+    }
+    const base = getEntityById(state, extId);
+    if (!base?.isBase || base.id === entity.id) {
+      entity.extendsBaseEntityId = null;
+    } else {
+      entity.extendsBaseEntityId = extId;
+    }
+    return entity;
+  }
+  function isEntityAttributeAutoGenerated(attr) {
+    const type = attr?.type ?? "";
+    return AUTO_GENERATED_ENTITY_TYPES.has(type);
+  }
+  function normalizeEntityAttribute(attr) {
+    const type = TYPE_SET.has(attr?.type) ? attr.type : "texto";
+    const autoGenerated = AUTO_GENERATED_ENTITY_TYPES.has(type);
+    const base = {
+      id: attr?.id ? String(attr.id) : createId("entityAttr"),
+      key: String(attr?.key ?? "").trim(),
+      label: String(attr?.label ?? "").trim(),
+      type,
+      required: autoGenerated ? true : !!attr?.required,
+      autoGenerated
+    };
+    if (type === ENTITY_REF_TYPE) {
+      const ref = attr?.refEntityId ? String(attr.refEntityId) : "";
+      return { ...base, refEntityId: ref || null };
+    }
+    if (type === ENTITY_DATE_EXECUTION_TYPE) {
+      return {
+        ...base,
+        refEntityId: null,
+        timezone: ENTITY_DATE_EXECUTION_TIMEZONE,
+        valueFormat: "iso8601_utc"
+      };
+    }
+    return { ...base, refEntityId: null };
+  }
+  function isEntityNameTaken(state, name, excludeId) {
+    const n = String(name ?? "").trim().toLowerCase();
+    if (!n) return false;
+    return (state.entities ?? []).some(
+      (e) => e.id !== excludeId && String(e.name ?? "").trim().toLowerCase() === n
+    );
+  }
+  function countEntitiesReferencingEntity(state, targetEntityId) {
+    let count = 0;
+    for (const entity of state.entities ?? []) {
+      const refs = (entity.attributes ?? []).some(
+        (a) => a.type === ENTITY_REF_TYPE && a.refEntityId === targetEntityId
+      );
+      if (refs) count += 1;
+    }
+    return count;
+  }
+  function countEntitiesExtendingBase(state, baseEntityId) {
+    return (state.entities ?? []).filter(
+      (e) => !e.isBase && e.extendsBaseEntityId === baseEntityId
+    ).length;
+  }
+  function renderEntityBaseSelectOptions(state, excludeEntityId, selectedId) {
+    const bases = (state.entities ?? []).filter((e) => e.isBase && e.id !== excludeEntityId);
+    if (!bases.length) {
+      return `<option value="">\u2014 Sin entidades base \u2014</option>`;
+    }
+    const opts = [`<option value="">\u2014 Ninguna (independiente) \u2014</option>`];
+    for (const e of bases) {
+      const sel = e.id === selectedId ? " selected" : "";
+      opts.push(`<option value="${escapeAttr(e.id)}"${sel}>${escapeText(e.name)}</option>`);
+    }
+    return opts.join("");
+  }
+  function validateEntityExtensionRules(state, entityId, meta) {
+    const isBase = !!meta.isBase;
+    const extendsId = meta.extendsBaseEntityId ? String(meta.extendsBaseEntityId) : null;
+    if (isBase) {
+      if (extendsId) {
+        return { ok: false, message: "Una entidad base no puede extender otra entidad." };
+      }
+      return { ok: true };
+    }
+    if (!extendsId) return { ok: true };
+    if (entityId && extendsId === entityId) {
+      return { ok: false, message: "Una entidad no puede extenderse a s\xED misma." };
+    }
+    const base = getEntityById(state, extendsId);
+    if (!base) {
+      return { ok: false, message: "La entidad base seleccionada ya no existe." };
+    }
+    if (!base.isBase) {
+      return {
+        ok: false,
+        message: `Solo pod\xE9s extender entidades marcadas como base. \xAB${base.name}\xBB no es base.`
+      };
+    }
+    return { ok: true };
+  }
+  function validateEntityBaseFlagChange(state, entityId, nextIsBase) {
+    if (nextIsBase) return { ok: true };
+    const extenders = countEntitiesExtendingBase(state, entityId);
+    if (extenders > 0) {
+      const entity = getEntityById(state, entityId);
+      return {
+        ok: false,
+        message: `No pod\xE9s quitar \xABbase\xBB de \xAB${entity?.name ?? "entidad"}\xBB: ${extenders} ${extenders === 1 ? "entidad la extiende" : "entidades la extienden"}.`
+      };
+    }
+    return { ok: true };
+  }
+  function formatEntityKindLabel(state, entity) {
+    if (!entity) return "";
+    if (entity.isBase) {
+      return `<span class="badge badge-listo">Base</span>`;
+    }
+    if (entity.extendsBaseEntityId) {
+      const baseName = getEntityById(state, entity.extendsBaseEntityId)?.name ?? "?";
+      return `<span class="catalog-muted">Extiende \xAB${escapeText(baseName)}\xBB</span>`;
+    }
+    return `<span class="catalog-muted">Independiente</span>`;
+  }
+  function renderEntityDataTypeOptions(selected) {
+    return ENTITY_DATA_TYPES.map((t) => {
+      const sel = t.value === selected ? " selected" : "";
+      return `<option value="${escapeAttr(t.value)}"${sel}>${escapeText(t.label)}</option>`;
+    }).join("");
+  }
+  function renderEntityRefSelectOptions(state, excludeEntityId, selectedId) {
+    const candidates = (state.entities ?? []).filter((e) => e.id !== excludeEntityId);
+    if (!candidates.length) {
+      return `<option value="">\u2014 Sin otras entidades \u2014</option>`;
+    }
+    const opts = [`<option value="">\u2014 Seleccionar entidad \u2014</option>`];
+    for (const e of candidates) {
+      const sel = e.id === selectedId ? " selected" : "";
+      opts.push(`<option value="${escapeAttr(e.id)}"${sel}>${escapeText(e.name)}</option>`);
+    }
+    return opts.join("");
+  }
+  function buildEntityRefAdjacency(state, override = null) {
+    const adj = /* @__PURE__ */ new Map();
+    const addEdge = (fromId, toId) => {
+      if (!fromId || !toId || fromId === toId) return;
+      if (!adj.has(fromId)) adj.set(fromId, /* @__PURE__ */ new Set());
+      adj.get(fromId).add(toId);
+    };
+    for (const entity of state.entities ?? []) {
+      const attrs = override?.entityId && entity.id === override.entityId ? override.attributes ?? [] : entity.attributes ?? [];
+      for (const raw of attrs) {
+        const attr = normalizeEntityAttribute(raw);
+        if (attr.type !== ENTITY_REF_TYPE || !attr.refEntityId) continue;
+        addEdge(entity.id, attr.refEntityId);
+      }
+    }
+    if (override?.entityId && !state.entities?.some((e) => e.id === override.entityId)) {
+      for (const raw of override.attributes ?? []) {
+        const attr = normalizeEntityAttribute(raw);
+        if (attr.type !== ENTITY_REF_TYPE || !attr.refEntityId) continue;
+        addEdge(override.entityId, attr.refEntityId);
+      }
+    }
+    return adj;
+  }
+  function hasEntityRefPath(adj, fromId, toId) {
+    if (!fromId || !toId || fromId === toId) return fromId === toId;
+    const seen = /* @__PURE__ */ new Set([fromId]);
+    const stack = [fromId];
+    while (stack.length) {
+      const cur = stack.pop();
+      const next = adj.get(cur);
+      if (!next) continue;
+      for (const id of next) {
+        if (id === toId) return true;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        stack.push(id);
+      }
+    }
+    return false;
+  }
+  function validateEntityRefRules(state, entityId, attributes) {
+    const entity = entityId ? getEntityById(state, entityId) : null;
+    const entityLabel = entity?.name ?? "esta entidad";
+    const refTargets = /* @__PURE__ */ new Set();
+    for (const raw of attributes ?? []) {
+      const attr = normalizeEntityAttribute(raw);
+      if (attr.type !== ENTITY_REF_TYPE) continue;
+      if (!attr.key && !attr.label) continue;
+      if (!attr.refEntityId) {
+        return {
+          ok: false,
+          message: `El atributo \xAB${attr.label || attr.key}\xBB debe seleccionar una entidad referenciada.`
+        };
+      }
+      const target = getEntityById(state, attr.refEntityId);
+      if (!target) {
+        return { ok: false, message: "La entidad referenciada ya no existe. Eleg\xED otra." };
+      }
+      if (entityId && attr.refEntityId === entityId) {
+        return { ok: false, message: "Una entidad no puede referenciarse a s\xED misma." };
+      }
+      if (refTargets.has(attr.refEntityId)) {
+        return {
+          ok: false,
+          message: `No pod\xE9s referenciar \xAB${target.name}\xBB m\xE1s de una vez en ${entityLabel}.`
+        };
+      }
+      refTargets.add(attr.refEntityId);
+    }
+    if (!entityId) {
+      return { ok: true };
+    }
+    const adjWithoutDraft = buildEntityRefAdjacency(state, {
+      entityId,
+      attributes: []
+    });
+    for (const raw of attributes ?? []) {
+      const attr = normalizeEntityAttribute(raw);
+      if (attr.type !== ENTITY_REF_TYPE || !attr.refEntityId) continue;
+      if (!attr.key && !attr.label) continue;
+      const targetId = attr.refEntityId;
+      if (hasEntityRefPath(adjWithoutDraft, targetId, entityId)) {
+        const target = getEntityById(state, targetId);
+        return {
+          ok: false,
+          message: `La referencia a \xAB${target?.name ?? targetId}\xBB generar\xEDa un ciclo con \xAB${entityLabel}\xBB.`
+        };
+      }
+    }
+    return { ok: true };
+  }
+  function validateEntityDefinition(name, attributes) {
+    const entityName = String(name ?? "").trim();
+    if (!entityName) {
+      return { ok: false, message: "El nombre de la entidad es obligatorio." };
+    }
+    const keys = /* @__PURE__ */ new Set();
+    for (const raw of attributes ?? []) {
+      const attr = normalizeEntityAttribute(raw);
+      if (!attr.key && !attr.label) continue;
+      if (!attr.key) {
+        return { ok: false, message: "Cada atributo necesita clave (key)." };
+      }
+      if (!attr.label) {
+        return { ok: false, message: `El atributo \xAB${attr.key}\xBB necesita etiqueta.` };
+      }
+      const keyLower = attr.key.toLowerCase();
+      if (keys.has(keyLower)) {
+        return { ok: false, message: `Clave duplicada: \xAB${attr.key}\xBB.` };
+      }
+      keys.add(keyLower);
+      if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(attr.key)) {
+        return {
+          ok: false,
+          message: `Clave inv\xE1lida \xAB${attr.key}\xBB. Us\xE1 letras, n\xFAmeros y gui\xF3n bajo (empez\xE1 con letra).`
+        };
+      }
+    }
+    return { ok: true };
+  }
+  function summarizeEntityAttributesForList(state, attributes) {
+    const list = attributes ?? [];
+    if (!list.length) return "\u2014";
+    const parts = list.slice(0, 5).map((raw) => {
+      const a = normalizeEntityAttribute(raw);
+      if (a.type === ENTITY_REF_TYPE && a.refEntityId) {
+        const name = getEntityById(state, a.refEntityId)?.name ?? "?";
+        return `\u2192 ${name}`;
+      }
+      if (a.type === ENTITY_UUID_TYPE) {
+        return `${a.label || a.key} (UUID autogenerado)`;
+      }
+      if (a.type === ENTITY_DATE_EXECUTION_TYPE) {
+        return `${a.label || a.key} (dateexecution / UTC)`;
+      }
+      if (a.type === ENTITY_USER_CONNECTED_TYPE) {
+        return `${a.label || a.key} (userconnected)`;
+      }
+      return a.label || a.key;
+    });
+    const preview = parts.filter(Boolean).join(", ");
+    return list.length > 5 ? `${preview}\u2026` : preview;
+  }
+  function cloneEntityAttributes(attributes) {
+    return (attributes ?? []).map((a) => normalizeEntityAttribute({ ...a }));
+  }
+  function escapeText(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function escapeAttr(value) {
+    return escapeText(value);
+  }
+
+  // js/master-audit.js
+  function ensureMasterAuditLog(state) {
+    if (!state || typeof state !== "object") return state;
+    if (!Array.isArray(state.masterAuditLog)) state.masterAuditLog = [];
+    return state;
+  }
+  function recordMasterAudit(state, entry) {
+    ensureMasterAuditLog(state);
+    const userId = resolveConnectedAuthUserId();
+    const user = getUserById(userId);
+    state.masterAuditLog.unshift({
+      id: createId("masterAudit"),
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      userId,
+      userLabel: user?.displayName ?? user?.username ?? userId,
+      area: entry.area,
+      action: entry.action,
+      refId: entry.refId ?? null,
+      label: String(entry.label ?? "").trim(),
+      detail: String(entry.detail ?? "").trim()
+    });
+    if (state.masterAuditLog.length > 500) {
+      state.masterAuditLog.length = 500;
+    }
+  }
+  function masterAuditAreaLabel(area) {
+    if (area === "flowType") return "Tipo de flujo";
+    if (area === "entity") return "Entidad";
+    return area;
+  }
+  function masterAuditActionLabel(action) {
+    if (action === "create") return "Alta";
+    if (action === "update") return "Modificaci\xF3n";
+    if (action === "delete") return "Baja";
+    return action;
+  }
+
   // js/flow-lifecycle.js
   function normalizeFlowMeta(flow) {
     if (!flow.lineageId) {
@@ -1122,7 +1824,10 @@
   var LEGACY_STORAGE_KEY = "gestor_flujos_prototipo_v2";
   var emptyState = () => ({
     flows: [],
-    instances: []
+    instances: [],
+    flowTypes: [],
+    entities: [],
+    masterAuditLog: []
   });
   function normalizeLoadedState(parsed) {
     const flows = Array.isArray(parsed.flows) ? parsed.flows : [];
@@ -1141,7 +1846,14 @@
         normalizeFlowContracts(inst.flowSnapshot);
       }
     }
-    return { flows, instances };
+    const base = {
+      flows,
+      instances,
+      flowTypes: Array.isArray(parsed.flowTypes) ? parsed.flowTypes : [],
+      entities: Array.isArray(parsed.entities) ? parsed.entities : [],
+      masterAuditLog: Array.isArray(parsed.masterAuditLog) ? parsed.masterAuditLog : []
+    };
+    return ensureMasterAuditLog(ensureEntitiesState(ensureFlowTypesState(base)));
   }
   function loadState() {
     try {
@@ -1177,6 +1889,10 @@
   }
 
   // js/seed.js
+  var sampleFlowTypeId = null;
+  function setSampleFlowTypeId(flowTypeId) {
+    sampleFlowTypeId = flowTypeId;
+  }
   function createSampleFlow() {
     const flowId = createId("flow");
     const pTitulo = createId("param");
@@ -1191,6 +1907,7 @@
       id: flowId,
       lineageId: flowId,
       type: "Aprobaci\xF3n",
+      flowTypeId: sampleFlowTypeId ?? void 0,
       name: "Aprobaci\xF3n de gasto",
       description: "Ejemplo BPMN: Start \u2192 User Task \u2192 XOR Gateway \u2192 Service Task / End.",
       status: "listo",
@@ -1276,8 +1993,28 @@
     };
   }
   function ensureSeed(state) {
+    if (!Array.isArray(state.flowTypes)) state.flowTypes = [];
+    if (!Array.isArray(state.entities)) state.entities = [];
     if (state.flows.length > 0) return state;
-    return { ...state, flows: [createSampleFlow()] };
+    state.entities.push({
+      id: createId("entity"),
+      name: "Gasto",
+      isBase: true,
+      extendsBaseEntityId: null,
+      attributes: [
+        { id: createId("entityAttr"), key: "titulo", label: "T\xEDtulo del gasto", type: "texto", required: true },
+        { id: createId("entityAttr"), key: "monto", label: "Monto", type: "numero", required: true }
+      ]
+    });
+    const approvalTypeId = createId("flowType");
+    state.flowTypes.push({
+      id: approvalTypeId,
+      name: "Aprobaci\xF3n",
+      description: "Flujos de aprobaci\xF3n y validaci\xF3n (ejemplo del mock)."
+    });
+    setSampleFlowTypeId(approvalTypeId);
+    state.flows.push(createSampleFlow());
+    return state;
   }
 
   // js/designer-viewport.js
@@ -2356,10 +3093,26 @@
     catalogExpandedActivityFlows: /* @__PURE__ */ new Set(),
     readOnly: false,
     /** @type {{ flowId: string; nodeId: string; initialTab: string } | null} */
-    componentAttrsEditor: null
+    componentAttrsEditor: null,
+    /** Pantalla hero «Nuevo flujo» en el catálogo (sin modal). */
+    newFlowScreen: false
   };
   function exitComponentAttributesEditor() {
     designerContext.componentAttrsEditor = null;
+  }
+  function exitNewFlowScreen() {
+    designerContext.newFlowScreen = false;
+  }
+  function enterNewFlowScreen(mainEl, state, persist) {
+    if (isCatalogActionsBlocked()) {
+      toast(designerBlockedMessage().body);
+      return;
+    }
+    exitComponentAttributesEditor();
+    designerContext.newFlowScreen = true;
+    designerContext.selectedFlowId = null;
+    designerContext.selectedNodeId = null;
+    renderDesigner(mainEl, state, persist);
   }
   function enterComponentAttributesEditor(mainEl, state, persist, opts) {
     designerContext.componentAttrsEditor = {
@@ -2430,6 +3183,7 @@
   }
   function enterDesignerCatalog(catalog) {
     exitComponentAttributesEditor();
+    exitNewFlowScreen();
     setDesignerCatalogView(catalog);
     designerContext.selectedFlowId = null;
     designerContext.selectedNodeId = null;
@@ -2444,6 +3198,10 @@
   var activeDesignerSideBind = null;
   function renderDesigner(mainEl, state, persist) {
     if (designerContext.componentAttrsEditor && renderComponentAttributesHero(mainEl, state, persist)) {
+      return;
+    }
+    if (designerContext.newFlowScreen && !designerContext.selectedFlowId) {
+      renderNewFlowHero(mainEl, state, persist);
       return;
     }
     if (!designerContext.selectedFlowId && state.flows[0]) {
@@ -2508,6 +3266,20 @@
     ${renderStudioToolbar(flow.name, node, mode)}
     <div class="designer-studio-root">${mode === "screen" ? renderScreenStudio(flow, node) : mode === "agente_ia" ? renderAgenteIAStudio(flow, node) : renderAutomationStudio(flow, node)}</div>`;
   }
+  function applyFlowMetaFromForm(flow, state, fd) {
+    const flowTypeId = String(fd.get("flowTypeId") ?? "");
+    if (!applyFlowTypeToFlow(flow, state, flowTypeId)) {
+      toast("Seleccion\xE1 un tipo de flujo v\xE1lido.");
+      return false;
+    }
+    flow.name = String(fd.get("name") ?? "").trim();
+    flow.description = String(fd.get("description") ?? "").trim();
+    if (!flow.name) {
+      toast("El nombre del flujo es obligatorio.");
+      return false;
+    }
+    return true;
+  }
   function bindStudioShell(mainEl, flow, node, state, persist) {
     bindStudioTabs(mainEl, state, persist);
     mainEl.querySelector("#btn-back-catalog")?.addEventListener("click", () => {
@@ -2518,12 +3290,13 @@
       const { close, root } = openModal(`
       <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
       <form id="form-meta" class="form-grid">
-        <div class="form-row"><label>Tipo</label><input name="type" value="${escapeHtml(flow.type)}" required /></div>
+        ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
         <div class="form-row"><label>Descripci\xF3n</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
       </form>
     `);
+      bindFlowTypeGotoButton(root, close);
       root.querySelector("#form-meta")?.addEventListener("submit", (e) => {
         e.preventDefault();
         if (!isFlowEditable(flow)) {
@@ -2531,9 +3304,7 @@
           return;
         }
         const fd = new FormData(e.target);
-        flow.type = String(fd.get("type")).trim();
-        flow.name = String(fd.get("name")).trim();
-        flow.description = String(fd.get("description")).trim();
+        if (!applyFlowMetaFromForm(flow, state, fd)) return;
         persist();
         close();
         renderDesigner(mainEl, state, persist);
@@ -2951,94 +3722,127 @@
       });
     });
   }
-  function openNewFlowModal(mainEl, state, persist) {
-    if (isCatalogActionsBlocked()) {
-      toast(designerBlockedMessage().body);
-      return;
+  function buildNewFlowFromForm(fd, state) {
+    const flowTypeId = String(fd.get("flowTypeId") ?? "");
+    const startId = createId("node");
+    const endId = createId("node");
+    const flow = {
+      id: createId("flow"),
+      type: "",
+      flowTypeId: null,
+      name: String(fd.get("name")).trim(),
+      description: String(fd.get("description")).trim(),
+      status: "borrador",
+      version: null,
+      lineageId: null,
+      supersedesFlowId: null,
+      inputParams: [],
+      nodes: [
+        {
+          id: startId,
+          kind: NODE_KINDS.INICIO,
+          name: "Start",
+          description: "",
+          x: 80,
+          y: 220,
+          usedParamIds: []
+        },
+        {
+          id: endId,
+          kind: NODE_KINDS.FIN,
+          name: "End",
+          description: "",
+          x: 520,
+          y: 220,
+          usedParamIds: []
+        }
+      ],
+      transitions: [],
+      screens: {},
+      lanes: [{ id: createId("lane"), name: "General", height: 220 }]
+    };
+    if (!applyFlowTypeToFlow(flow, state, flowTypeId)) {
+      toast("Seleccion\xE1 un tipo de flujo v\xE1lido.");
+      return null;
     }
-    const { close, root } = openModal(`
-      <div class="modal-header">
-        <h2>Nuevo flujo</h2>
-        <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+    if (!flow.name) {
+      toast("El nombre del flujo es obligatorio.");
+      return null;
+    }
+    flow.lineageId = flow.id;
+    ensureFlowDiagram(flow);
+    const laneId = flow.lanes[0].id;
+    const layout = getLaneLayout(flow);
+    const startNode = flow.nodes.find((n) => n.id === startId);
+    const endNode = flow.nodes.find((n) => n.id === endId);
+    if (startNode) {
+      startNode.laneId = laneId;
+      startNode.x = layout.lanes[0].left + 48;
+      startNode.y = centerYInLane(flow, laneId, startNode.kind);
+    }
+    if (endNode) {
+      endNode.laneId = laneId;
+      endNode.x = layout.lanes[0].left + 320;
+      endNode.y = centerYInLane(flow, laneId, endNode.kind);
+    }
+    return { flow, startId };
+  }
+  function renderNewFlowHero(mainEl, state, persist) {
+    const hasTypes = (state.flowTypes ?? []).length > 0;
+    mainEl.innerHTML = `
+    <section class="gestion-hero new-flow-hero panel">
+      <header class="gestion-hero-header">
+        <button type="button" class="btn btn-sm gestion-hero-back" data-new-flow-back>Volver al cat\xE1logo</button>
+        <div class="gestion-hero-heading">
+          <h2>Nuevo flujo</h2>
+          <p class="gestion-hero-subtitle">Defin\xED tipo, nombre y descripci\xF3n. Al crear se abre el lienzo en borrador con Start y End.</p>
+        </div>
+      </header>
+      <div class="new-flow-hero-body">
+        <form id="form-new-flow" class="form-grid new-flow-form">
+          ${renderFlowTypeFormRow(state, null)}
+          <div class="form-row"><label>Nombre</label><input name="name" required autocomplete="off" ${hasTypes ? "" : "disabled"} /></div>
+          <div class="form-row"><label>Descripci\xF3n</label><textarea name="description" rows="4" ${hasTypes ? "" : "disabled"}></textarea></div>
+        </form>
       </div>
-      <form id="form-new-flow" class="form-grid">
-        <div class="form-row"><label>Tipo</label><input name="type" required placeholder="Ej. Aprobaci\xF3n" /></div>
-        <div class="form-row"><label>Nombre</label><input name="name" required /></div>
-        <div class="form-row"><label>Descripci\xF3n</label><textarea name="description"></textarea></div>
-        <button type="submit" class="btn btn-primary">Crear</button>
-      </form>
-    `);
-    root.querySelector("#form-new-flow").addEventListener("submit", (e) => {
+      <footer class="component-attr-hero-footer">
+        <button type="button" class="btn btn-sm" data-new-flow-back>Cancelar</button>
+        <button type="submit" form="form-new-flow" class="btn btn-primary" ${hasTypes ? "" : "disabled"}>Crear flujo</button>
+      </footer>
+    </section>`;
+    bindFlowTypeGotoButton(mainEl, () => exitNewFlowScreen());
+    const goBack = () => {
+      exitNewFlowScreen();
+      renderDesigner(mainEl, state, persist);
+    };
+    mainEl.querySelectorAll("[data-new-flow-back]").forEach((btn) => {
+      btn.addEventListener("click", goBack);
+    });
+    mainEl.querySelector("#form-new-flow")?.addEventListener("submit", (e) => {
       e.preventDefault();
       if (isCatalogActionsBlocked()) {
         toast(designerBlockedMessage().body);
         return;
       }
       const fd = new FormData(e.target);
-      const startId = createId("node");
-      const endId = createId("node");
-      const flow = {
-        id: createId("flow"),
-        type: String(fd.get("type")).trim(),
-        name: String(fd.get("name")).trim(),
-        description: String(fd.get("description")).trim(),
-        status: "borrador",
-        version: null,
-        lineageId: null,
-        supersedesFlowId: null,
-        inputParams: [],
-        nodes: [
-          {
-            id: startId,
-            kind: NODE_KINDS.INICIO,
-            name: "Start",
-            description: "",
-            x: 80,
-            y: 220,
-            usedParamIds: []
-          },
-          {
-            id: endId,
-            kind: NODE_KINDS.FIN,
-            name: "End",
-            description: "",
-            x: 520,
-            y: 220,
-            usedParamIds: []
-          }
-        ],
-        transitions: [],
-        screens: {},
-        lanes: [{ id: createId("lane"), name: "General", height: 220 }]
-      };
-      flow.lineageId = flow.id;
-      ensureFlowDiagram(flow);
-      const laneId = flow.lanes[0].id;
-      const layout = getLaneLayout(flow);
-      const startNode = flow.nodes.find((n) => n.id === startId);
-      const endNode = flow.nodes.find((n) => n.id === endId);
-      if (startNode) {
-        startNode.laneId = laneId;
-        startNode.x = layout.lanes[0].left + 48;
-        startNode.y = centerYInLane(flow, laneId, startNode.kind);
-      }
-      if (endNode) {
-        endNode.laneId = laneId;
-        endNode.x = layout.lanes[0].left + 320;
-        endNode.y = centerYInLane(flow, laneId, endNode.kind);
-      }
+      const built = buildNewFlowFromForm(fd, state);
+      if (!built) return;
+      const { flow, startId } = built;
       state.flows.push(flow);
       persist();
+      exitNewFlowScreen();
       designerContext.selectedFlowId = flow.id;
       designerContext.selectedNodeId = startId;
       designerContext._viewFitForFlowId = null;
-      close();
       renderDesigner(mainEl, state, persist);
       toast("Flujo creado con Start y End. Eleg\xED un tipo de l\xEDnea y conect\xE1 desde el puerto del nodo.", 3200, "success");
     });
+    if (hasTypes) {
+      mainEl.querySelector('#form-new-flow input[name="name"]')?.focus();
+    }
   }
   function bindCatalog(mainEl, state, persist) {
-    const onNew = () => openNewFlowModal(mainEl, state, persist);
+    const onNew = () => enterNewFlowScreen(mainEl, state, persist);
     mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
     mainEl.querySelector("#btn-new-flow-table")?.addEventListener("click", onNew);
     mainEl.querySelectorAll("[data-open-flow]").forEach((btn) => {
@@ -4232,19 +5036,18 @@
       const { close, root } = openModal(`
       <div class="modal-header"><h2>Metadatos del flujo</h2><button type="button" class="btn btn-sm" data-modal-close>Cerrar</button></div>
       <form id="form-meta" class="form-grid">
-        <div class="form-row"><label>Tipo</label><input name="type" value="${escapeHtml(flow.type)}" required /></div>
+        ${renderFlowTypeFormRow(state, flow)}
         <div class="form-row"><label>Nombre</label><input name="name" value="${escapeHtml(flow.name)}" required /></div>
         <div class="form-row"><label>Descripci\xF3n</label><textarea name="description">${escapeHtml(flow.description || "")}</textarea></div>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="submit" class="btn btn-primary" ${(state.flowTypes ?? []).length ? "" : "disabled"}>Guardar</button>
       </form>
     `);
+      bindFlowTypeGotoButton(root, close);
       root.querySelector("#form-meta").addEventListener("submit", (e) => {
         e.preventDefault();
         if (!isFlowEditable(flow)) return;
         const fd = new FormData(e.target);
-        flow.type = String(fd.get("type")).trim();
-        flow.name = String(fd.get("name")).trim();
-        flow.description = String(fd.get("description")).trim();
+        if (!applyFlowMetaFromForm(flow, state, fd)) return;
         saveFlow();
         close();
         renderDesigner(mainEl, state, persist);
@@ -6495,7 +7298,9 @@
 
   // js/reporte.js
   var selectedReportInstanceId = null;
-  function renderReporte(mainEl, state) {
+  function renderReporte(mainEl, state, opts = {}) {
+    const pageTitle = opts.title ?? "Reporte de avance";
+    const pageSubtitle = opts.subtitle ?? "Filtr\xE1 instancias y revis\xE1 contexto, entradas y traza de ejecuci\xF3n.";
     const filterFlow = mainEl.dataset.filterFlow ?? "";
     const filterStatus = mainEl.dataset.filterStatus ?? "";
     let instances = [...state.instances];
@@ -6505,10 +7310,7 @@
     if (selected) selectedReportInstanceId = selected.id;
     mainEl.innerHTML = `
     <section class="panel">
-      ${renderPageHeader(
-      "Reporte de avance",
-      "Filtr\xE1 instancias y revis\xE1 contexto, entradas y traza de ejecuci\xF3n."
-    )}
+      ${renderPageHeader(pageTitle, pageSubtitle)}
       <div class="filters">
         <div class="form-row">
           <label>Flujo</label>
@@ -6597,6 +7399,732 @@
     <ul class="trace-list">${trace || "<li>\u2014</li>"}</ul>`;
   }
 
+  // js/reports.js
+  var ACTIVITY_CATALOG_KINDS = /* @__PURE__ */ new Set([
+    NODE_KINDS.INICIO,
+    NODE_KINDS.FIN,
+    NODE_KINDS.GATEWAY,
+    NODE_KINDS.MANUAL,
+    NODE_KINDS.AUTOMATICA
+  ]);
+  var REPORT_NAV_ITEMS = [
+    {
+      id: "report-activities",
+      title: "Actividades (ejecuci\xF3n)",
+      description: "Instancias en curso o finalizadas, contexto y traza."
+    },
+    {
+      id: "report-maestros-changes",
+      title: "Cambios en maestros",
+      description: "Alta, baja y modificaci\xF3n de tipos de flujo y entidades."
+    },
+    {
+      id: "report-flows",
+      title: "Cat\xE1logo de flujos",
+      description: "Flujos definidos en el dise\xF1ador y su estado de publicaci\xF3n."
+    },
+    {
+      id: "report-flow-types",
+      title: "Tipos de flujo",
+      description: "Maestro de tipos y uso en flujos."
+    },
+    {
+      id: "report-entities",
+      title: "Entidades",
+      description: "Maestro de entidades de negocio y atributos."
+    },
+    {
+      id: "report-activities-catalog",
+      title: "Cat\xE1logo de actividades",
+      description: "Componentes de actividad por flujo (vista cat\xE1logo del dise\xF1ador)."
+    }
+  ];
+  function renderReportView(mainEl, state, reportId) {
+    switch (reportId) {
+      case "report-activities":
+        renderReporte(mainEl, state, {
+          title: "Reporte de actividades",
+          subtitle: "Ejecuci\xF3n de instancias: avance, contexto y traza (Operaciones \u2192 Gesti\xF3n)."
+        });
+        return;
+      case "report-maestros-changes":
+        renderReportMaestrosChanges(mainEl, state);
+        return;
+      case "report-flows":
+        renderReportFlowsCatalog(mainEl, state);
+        return;
+      case "report-flow-types":
+        renderReportFlowTypes(mainEl, state);
+        return;
+      case "report-entities":
+        renderReportEntities(mainEl, state);
+        return;
+      case "report-activities-catalog":
+        renderReportActivitiesCatalog(mainEl, state);
+        return;
+      default:
+        renderReportHubFallback(mainEl, reportId);
+    }
+  }
+  function renderReportHubFallback(mainEl, reportId) {
+    const meta = REPORT_NAV_ITEMS.find((r) => r.id === reportId);
+    mainEl.innerHTML = `
+    <section class="panel">
+      ${renderPageHeader(meta?.title ?? "Reporte", meta?.description ?? "Seleccion\xE1 un reporte en el men\xFA Reportes.")}
+      <p class="gestion-empty">Vista no disponible.</p>
+    </section>`;
+  }
+  function renderReportMaestrosChanges(mainEl, state) {
+    const filterArea = mainEl.dataset.auditArea ?? "";
+    const filterAction = mainEl.dataset.auditAction ?? "";
+    let rows = [...state.masterAuditLog ?? []];
+    if (filterArea) rows = rows.filter((r) => r.area === filterArea);
+    if (filterAction) rows = rows.filter((r) => r.action === filterAction);
+    const tbody = rows.length === 0 ? `<tr><td colspan="5"><div class="empty-state empty-state--rich"><strong>Sin registros</strong><p>Los cambios en Maestros (tipos de flujo y entidades) aparecer\xE1n aqu\xED.</p></div></td></tr>` : rows.map(
+      (r) => `<tr>
+        <td>${formatDateTime(r.at)}</td>
+        <td>${escapeHtml(r.userLabel ?? r.userId ?? "\u2014")}</td>
+        <td>${escapeHtml(masterAuditAreaLabel(r.area))}</td>
+        <td><span class="badge badge-listo">${escapeHtml(masterAuditActionLabel(r.action))}</span></td>
+        <td><strong>${escapeHtml(r.label)}</strong>${r.detail ? `<div class="form-hint">${escapeHtml(r.detail)}</div>` : ""}</td>
+      </tr>`
+    ).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+      "Gesti\xF3n de cambios en maestros",
+      "Auditor\xEDa de altas, bajas y modificaciones en tipos de flujo y entidades."
+    )}
+      <div class="filters">
+        <div class="form-row">
+          <label>\xC1rea</label>
+          <select id="filter-audit-area">
+            <option value="">Todas</option>
+            <option value="flowType" ${filterArea === "flowType" ? "selected" : ""}>Tipo de flujo</option>
+            <option value="entity" ${filterArea === "entity" ? "selected" : ""}>Entidad</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Acci\xF3n</label>
+          <select id="filter-audit-action">
+            <option value="">Todas</option>
+            <option value="create" ${filterAction === "create" ? "selected" : ""}>Alta</option>
+            <option value="update" ${filterAction === "update" ? "selected" : ""}>Modificaci\xF3n</option>
+            <option value="delete" ${filterAction === "delete" ? "selected" : ""}>Baja</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Fecha (UTC/local UI)</th><th>Usuario</th><th>Maestro</th><th>Acci\xF3n</th><th>Detalle</th></tr></thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>
+    </section>`;
+    mainEl.querySelector("#filter-audit-area")?.addEventListener("change", (e) => {
+      mainEl.dataset.auditArea = e.target.value;
+      renderReportMaestrosChanges(mainEl, state);
+    });
+    mainEl.querySelector("#filter-audit-action")?.addEventListener("change", (e) => {
+      mainEl.dataset.auditAction = e.target.value;
+      renderReportMaestrosChanges(mainEl, state);
+    });
+  }
+  function renderReportFlowsCatalog(mainEl, state) {
+    const flows = state.flows ?? [];
+    const rows = flows.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay flujos en el cat\xE1logo.</p></td></tr>` : flows.map((f) => {
+      const nodeCount = (f.nodes ?? []).length;
+      const status = f.status ?? "borrador";
+      return `<tr>
+          <td><strong>${escapeHtml(f.name)}</strong><div class="form-hint"><code>${escapeHtml(f.id)}</code></div></td>
+          <td><span class="badge badge-${status === "listo" ? "listo" : "borrador"}">${status === "listo" ? "Listo" : "Borrador"}</span></td>
+          <td>${escapeHtml(f.type ?? "\u2014")}</td>
+          <td>${nodeCount} nodos</td>
+        </tr>`;
+    }).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader("Reporte \u2014 cat\xE1logo de flujos", "Snapshot de los flujos definidos en el dise\xF1ador.")}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Flujo</th><th>Estado</th><th>Tipo</th><th>Diagrama</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+  function renderReportFlowTypes(mainEl, state) {
+    const types = state.flowTypes ?? [];
+    const rows = types.length === 0 ? `<tr><td colspan="3"><p class="gestion-empty">No hay tipos de flujo.</p></td></tr>` : types.map((t) => {
+      const used = countFlowsUsingFlowType(state, t.id);
+      return `<tr>
+          <td><strong>${escapeHtml(t.name)}</strong></td>
+          <td>${escapeHtml(t.description || "\u2014")}</td>
+          <td>${used} ${used === 1 ? "flujo" : "flujos"}</td>
+        </tr>`;
+    }).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader("Reporte \u2014 tipos de flujo", "Maestro de tipos de flujo y referencias en dise\xF1os.")}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Nombre</th><th>Descripci\xF3n</th><th>Uso</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+  function renderReportEntities(mainEl, state) {
+    const entities = state.entities ?? [];
+    const rows = entities.length === 0 ? `<tr><td colspan="3"><p class="gestion-empty">No hay entidades.</p></td></tr>` : entities.map((e) => {
+      const kind = formatEntityKindLabel(state, e);
+      const attrs = summarizeEntityAttributesForList(state, e.attributes);
+      return `<tr>
+          <td><strong>${escapeHtml(e.name)}</strong></td>
+          <td>${kind}</td>
+          <td>${escapeHtml(attrs)}</td>
+        </tr>`;
+    }).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader("Reporte \u2014 entidades", "Maestro de entidades y resumen de atributos.")}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Entidad</th><th>Clasificaci\xF3n</th><th>Atributos</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+  function listCatalogActivityNodes(flow) {
+    return (flow.nodes ?? []).filter((n) => ACTIVITY_CATALOG_KINDS.has(n.kind));
+  }
+  function renderReportActivitiesCatalog(mainEl, state) {
+    const flows = state.flows ?? [];
+    const sections = flows.map((flow) => {
+      const nodes = listCatalogActivityNodes(flow);
+      if (!nodes.length) return "";
+      const inner = nodes.map(
+        (n) => `<tr>
+        <td>${escapeHtml(n.name ?? n.id)}</td>
+        <td><code>${escapeHtml(n.kind)}</code></td>
+        <td><code>${escapeHtml(n.id)}</code></td>
+      </tr>`
+      ).join("");
+      return `
+      <div class="report-catalog-flow-block">
+        <h3 class="report-catalog-flow-title">${escapeHtml(flow.name)}</h3>
+        <div class="table-wrap table-wrap--modern">
+          <table class="table-modern">
+            <thead><tr><th>Componente</th><th>Tipo</th><th>Id</th></tr></thead>
+            <tbody>${inner}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }).filter(Boolean).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+      "Reporte \u2014 cat\xE1logo de actividades",
+      "Componentes visibles en Dise\xF1ador \u2192 Cat\xE1logo de actividades, agrupados por flujo."
+    )}
+      ${sections || `<p class="gestion-empty">No hay componentes de cat\xE1logo en los flujos actuales.</p>`}
+    </section>`;
+  }
+
+  // js/maestros.js
+  var entityEditorSession = null;
+  function exitEntityEditor() {
+    entityEditorSession = null;
+  }
+  function renderMaestros(mainEl, state, persist, masterKey = "flowTypes") {
+    if (masterKey !== "entities") {
+      exitEntityEditor();
+    }
+    if (masterKey === "flowTypes") {
+      renderFlowTypesMaster(mainEl, state, persist);
+      return;
+    }
+    if (masterKey === "entities") {
+      if (entityEditorSession) {
+        renderEntityEditorHero(mainEl, state, persist);
+      } else {
+        renderEntitiesMaster(mainEl, state, persist);
+      }
+      return;
+    }
+    mainEl.innerHTML = `<section class="panel"><p class="empty-state">Maestro no disponible.</p></section>`;
+  }
+  function renderFlowTypesMaster(mainEl, state, persist) {
+    const types = state.flowTypes ?? [];
+    const rows = types.length === 0 ? `<tr><td colspan="3"><p class="gestion-empty">No hay tipos de flujo. Cre\xE1 uno con \xAB+ Nuevo tipo\xBB.</p></td></tr>` : types.map((t) => {
+      const inUse = countFlowsUsingFlowType(state, t.id);
+      const usage = inUse === 0 ? `<span class="catalog-muted">Sin flujos</span>` : `<span class="catalog-tree-count">${inUse} ${inUse === 1 ? "flujo" : "flujos"}</span>`;
+      return `<tr>
+              <td><strong>${escapeHtml(t.name)}</strong><div class="form-hint">${usage}</div></td>
+              <td>${escapeHtml(t.description || "\u2014")}</td>
+              <td class="catalog-actions">
+                <button type="button" class="btn btn-sm" data-edit-flow-type="${escapeHtml(t.id)}">Editar</button>
+                <button type="button" class="btn btn-sm btn-danger" data-rm-flow-type="${escapeHtml(t.id)}">Eliminar</button>
+              </td>
+            </tr>`;
+    }).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog maestros-panel">
+      ${renderPageHeader(
+      "Tipo de flujo",
+      "Maestro de categor\xEDas para clasificar flujos en el cat\xE1logo. Nombre y descripci\xF3n.",
+      `<button type="button" class="btn btn-primary btn-sm" id="btn-new-flow-type">+ Nuevo tipo</button>`
+    )}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Nombre</th><th>Descripci\xF3n</th><th>Acciones</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+    mainEl.querySelector("#btn-new-flow-type")?.addEventListener("click", () => {
+      openFlowTypeModal(state, persist, null, () => renderFlowTypesMaster(mainEl, state, persist));
+    });
+    mainEl.querySelectorAll("[data-edit-flow-type]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-edit-flow-type");
+        const item = state.flowTypes?.find((t) => t.id === id);
+        if (!item) return;
+        openFlowTypeModal(state, persist, item, () => renderFlowTypesMaster(mainEl, state, persist));
+      });
+    });
+    mainEl.querySelectorAll("[data-rm-flow-type]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-rm-flow-type");
+        const item = state.flowTypes?.find((t) => t.id === id);
+        if (!item) return;
+        const inUse = countFlowsUsingFlowType(state, id);
+        if (inUse > 0) {
+          toast(
+            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${inUse} ${inUse === 1 ? "flujo lo usa" : "flujos lo usan"}.`
+          );
+          return;
+        }
+        if (!window.confirm(`\xBFEliminar el tipo de flujo \xAB${item.name}\xBB?`)) return;
+        recordMasterAudit(state, {
+          area: "flowType",
+          action: "delete",
+          refId: id,
+          label: item.name
+        });
+        state.flowTypes = (state.flowTypes ?? []).filter((t) => t.id !== id);
+        persist();
+        toast("Tipo de flujo eliminado.", 2200, "success");
+        renderFlowTypesMaster(mainEl, state, persist);
+      });
+    });
+  }
+  function openFlowTypeModal(state, persist, existing, onDone) {
+    const isEdit = !!existing;
+    const { close, root } = openModal(`
+    <div class="modal-header">
+      <h2>${isEdit ? "Editar tipo de flujo" : "Nuevo tipo de flujo"}</h2>
+      <button type="button" class="btn btn-sm" data-modal-close>Cerrar</button>
+    </div>
+    <form id="form-flow-type" class="form-grid">
+      <div class="form-row"><label>Nombre</label><input name="name" required maxlength="120" value="${escapeHtml(existing?.name ?? "")}" placeholder="Ej. Aprobaci\xF3n" /></div>
+      <div class="form-row"><label>Descripci\xF3n</label><textarea name="description" rows="3" placeholder="Opcional">${escapeHtml(existing?.description ?? "")}</textarea></div>
+      <button type="submit" class="btn btn-primary">${isEdit ? "Guardar" : "Crear"}</button>
+    </form>
+  `);
+    root.querySelector("#form-flow-type")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const name = String(fd.get("name") ?? "").trim();
+      const description = String(fd.get("description") ?? "").trim();
+      if (!name) {
+        toast("El nombre es obligatorio.");
+        return;
+      }
+      if (isFlowTypeNameTaken(state, name, existing?.id)) {
+        toast(`Ya existe un tipo de flujo con el nombre \xAB${name}\xBB.`);
+        return;
+      }
+      if (isEdit && existing) {
+        existing.name = name;
+        existing.description = description;
+        syncFlowTypeLabelOnFlows(state, existing.id, name);
+        recordMasterAudit(state, {
+          area: "flowType",
+          action: "update",
+          refId: existing.id,
+          label: name,
+          detail: description || void 0
+        });
+      } else {
+        const newId = createId("flowType");
+        state.flowTypes.push({
+          id: newId,
+          name,
+          description
+        });
+        recordMasterAudit(state, {
+          area: "flowType",
+          action: "create",
+          refId: newId,
+          label: name,
+          detail: description || void 0
+        });
+      }
+      persist();
+      close();
+      toast(isEdit ? "Tipo de flujo actualizado." : "Tipo de flujo creado.", 2200, "success");
+      onDone();
+    });
+  }
+  function renderEntitiesMaster(mainEl, state, persist) {
+    const entities = state.entities ?? [];
+    const rows = entities.length === 0 ? `<tr><td colspan="4"><p class="gestion-empty">No hay entidades. Cre\xE1 una con \xAB+ Nueva entidad\xBB.</p></td></tr>` : entities.map((e) => {
+      const count = (e.attributes ?? []).length;
+      const attrHint = count === 0 ? `<span class="catalog-muted">Sin atributos</span>` : `<span class="catalog-tree-count">${count} ${count === 1 ? "atributo" : "atributos"}</span>`;
+      return `<tr>
+              <td><strong>${escapeHtml(e.name)}</strong><div class="form-hint">${attrHint}</div></td>
+              <td>${formatEntityKindLabel(state, e)}</td>
+              <td>${escapeHtml(summarizeEntityAttributesForList(state, e.attributes))}</td>
+              <td class="catalog-actions">
+                <button type="button" class="btn btn-sm" data-edit-entity="${escapeHtml(e.id)}">Editar</button>
+                <button type="button" class="btn btn-sm btn-danger" data-rm-entity="${escapeHtml(e.id)}">Eliminar</button>
+              </td>
+            </tr>`;
+    }).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog maestros-panel">
+      ${renderPageHeader(
+      "Entidades",
+      "Entidades con atributos, marca de entidad base y extensi\xF3n sobre otras bases.",
+      `<button type="button" class="btn btn-primary btn-sm" id="btn-new-entity">+ Nueva entidad</button>`
+    )}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern">
+          <thead><tr><th>Nombre</th><th>Clasificaci\xF3n</th><th>Atributos</th><th>Acciones</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+    mainEl.querySelector("#btn-new-entity")?.addEventListener("click", () => {
+      entityEditorSession = { mode: "create" };
+      renderEntityEditorHero(mainEl, state, persist);
+    });
+    mainEl.querySelectorAll("[data-edit-entity]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-edit-entity");
+        if (!state.entities?.some((e) => e.id === id)) return;
+        entityEditorSession = { mode: "edit", entityId: id };
+        renderEntityEditorHero(mainEl, state, persist);
+      });
+    });
+    mainEl.querySelectorAll("[data-rm-entity]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-rm-entity");
+        const item = state.entities?.find((e) => e.id === id);
+        if (!item) return;
+        const refCount = countEntitiesReferencingEntity(state, id);
+        if (refCount > 0) {
+          toast(
+            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${refCount} ${refCount === 1 ? "entidad la referencia" : "entidades la referencian"}.`
+          );
+          return;
+        }
+        const extCount = countEntitiesExtendingBase(state, id);
+        if (extCount > 0) {
+          toast(
+            `No pod\xE9s eliminar \xAB${item.name}\xBB: ${extCount} ${extCount === 1 ? "entidad la extiende" : "entidades la extienden"}.`
+          );
+          return;
+        }
+        if (!window.confirm(`\xBFEliminar la entidad \xAB${item.name}\xBB?`)) return;
+        recordMasterAudit(state, {
+          area: "entity",
+          action: "delete",
+          refId: id,
+          label: item.name
+        });
+        state.entities = (state.entities ?? []).filter((e) => e.id !== id);
+        persist();
+        toast("Entidad eliminada.", 2200, "success");
+        renderEntitiesMaster(mainEl, state, persist);
+      });
+    });
+  }
+  function renderEntityAttributesEditorRows(state, excludeEntityId, draftAttributes, readOnly) {
+    if (!draftAttributes.length) {
+      return `<tr class="entity-attr-row entity-attr-row--empty"><td colspan="6"><p class="gestion-empty">Sin atributos. Agreg\xE1 al menos uno con \xAB+ Agregar atributo\xBB.</p></td></tr>`;
+    }
+    const refCandidates = (state.entities ?? []).filter((e) => e.id !== excludeEntityId);
+    return draftAttributes.map((attr, index) => {
+      const norm = normalizeEntityAttribute(attr);
+      const dis = readOnly ? " disabled" : "";
+      const isRef = norm.type === ENTITY_REF_TYPE;
+      const isAuto = isEntityAttributeAutoGenerated(norm);
+      let autoHint = "";
+      if (isAuto) {
+        if (norm.type === ENTITY_UUID_TYPE) {
+          autoHint = `<span class="entity-uuid-auto-hint" title="Se asigna al crear instancias (RFC 4122)">Autogenerada</span>`;
+        } else if (norm.type === ENTITY_DATE_EXECUTION_TYPE) {
+          autoHint = `<span class="entity-uuid-auto-hint" title="Se asigna al crear instancias en UTC (GETUTCDATE, ISO 8601 con Z)">UTC</span>`;
+        } else if (norm.type === ENTITY_USER_CONNECTED_TYPE) {
+          autoHint = `<span class="entity-uuid-auto-hint" title="Usuario logueado; sin sesi\xF3n usa prueabaomigracion (sistema)">Sesi\xF3n</span>`;
+        } else {
+          autoHint = `<span class="entity-uuid-auto-hint">Autogenerada</span>`;
+        }
+      }
+      const requiredCell = isAuto ? autoHint : `<label><input type="checkbox" data-field="required" ${norm.required ? "checked" : ""}${dis} /> Obligatorio</label>`;
+      let refCell = `<span class="catalog-muted">\u2014</span>`;
+      if (isRef) {
+        if (!refCandidates.length) {
+          refCell = `<span class="form-hint">Cre\xE1 otra entidad primero</span>`;
+        } else {
+          refCell = `<select class="entity-attr-input" data-field="refEntityId" ${dis}>${renderEntityRefSelectOptions(state, excludeEntityId, norm.refEntityId)}</select>`;
+        }
+      }
+      return `<tr class="entity-attr-row" data-entity-attr-row="${index}">
+        <td><input class="entity-attr-input" data-field="key" value="${escapeHtml(norm.key)}" placeholder="ej. monto" ${dis} /></td>
+        <td><input class="entity-attr-input" data-field="label" value="${escapeHtml(norm.label)}" placeholder="Etiqueta visible" ${dis} /></td>
+        <td><select class="entity-attr-input" data-field="type" ${dis}>${renderEntityDataTypeOptions(norm.type)}</select></td>
+        <td class="entity-attr-ref">${refCell}</td>
+        <td class="entity-attr-required">${requiredCell}</td>
+        <td class="catalog-actions">${readOnly ? "" : `<button type="button" class="btn btn-sm btn-danger" data-rm-attr-row="${index}">Quitar</button>`}</td>
+      </tr>`;
+    }).join("");
+  }
+  function renderEntityEditorHero(mainEl, state, persist) {
+    const session = entityEditorSession;
+    if (!session) {
+      renderEntitiesMaster(mainEl, state, persist);
+      return;
+    }
+    const existing = session.mode === "edit" ? state.entities?.find((e) => e.id === session.entityId) ?? null : null;
+    if (session.mode === "edit" && !existing) {
+      exitEntityEditor();
+      renderEntitiesMaster(mainEl, state, persist);
+      return;
+    }
+    const draft = {
+      name: existing?.name ?? "",
+      attributes: cloneEntityAttributes(existing?.attributes ?? []),
+      entityId: existing?.id ?? null,
+      isBase: !!existing?.isBase,
+      extendsBaseEntityId: existing?.extendsBaseEntityId ?? null
+    };
+    const title = session.mode === "edit" ? "Editar entidad" : "Nueva entidad";
+    const paint = () => {
+      mainEl.innerHTML = `
+      <section class="gestion-hero entity-editor-hero panel">
+        <header class="gestion-hero-header">
+          <button type="button" class="btn btn-sm gestion-hero-back" data-entity-editor-back>Volver al listado</button>
+          <div class="gestion-hero-heading">
+            <h2>${title}</h2>
+            <p class="gestion-hero-subtitle">Defin\xED nombre, si es entidad base o extiende otra base, y los atributos del modelo.</p>
+          </div>
+        </header>
+        <div class="entity-editor-body">
+          <form id="form-entity" class="entity-editor-form">
+            <div class="form-row form-row--entity-name">
+              <label for="field-entity-name">Nombre de la entidad</label>
+              <input id="field-entity-name" name="entityName" required maxlength="120" value="${escapeHtml(draft.name)}" placeholder="Ej. Gasto, Cliente, Orden" autocomplete="off" />
+            </div>
+            <section class="entity-meta-panel" aria-labelledby="entity-meta-heading">
+              <h3 id="entity-meta-heading" class="entity-meta-title">Clasificaci\xF3n</h3>
+              <div class="form-grid entity-meta-grid">
+                <div class="form-row entity-meta-base">
+                  <label class="entity-check-label" for="field-entity-is-base">
+                    <input type="checkbox" id="field-entity-is-base" name="entityIsBase" ${draft.isBase ? "checked" : ""} />
+                    Entidad base
+                  </label>
+                  <p class="form-hint">Marc\xE1 esta opci\xF3n si otras entidades van a extender este modelo. Una base no extiende otra entidad.</p>
+                </div>
+                <div class="form-row entity-meta-extends"${draft.isBase ? " hidden" : ""}>
+                  <label for="field-extends-base">Extiende de (entidad base)</label>
+                  <select id="field-extends-base" name="extendsBaseEntityId">${renderEntityBaseSelectOptions(state, draft.entityId, draft.extendsBaseEntityId)}</select>
+                  <p class="form-hint">Solo aparecen entidades marcadas como base. Dej\xE1 \xABNinguna\xBB si no hereda de otra.</p>
+                </div>
+              </div>
+            </section>
+          </form>
+          <div class="entity-attr-toolbar">
+            <h3 class="entity-attr-title">Atributos</h3>
+            <button type="button" class="btn btn-sm btn-primary" id="btn-add-entity-attr">+ Agregar atributo</button>
+          </div>
+          <div class="table-wrap table-wrap--modern">
+            <table class="table-modern entity-attr-table">
+              <thead>
+                <tr><th>Clave</th><th>Etiqueta</th><th>Tipo</th><th>Referencia</th><th>Obligatorio</th><th></th></tr>
+              </thead>
+              <tbody id="entity-attr-tbody">${renderEntityAttributesEditorRows(state, draft.entityId, draft.attributes, false)}</tbody>
+            </table>
+          </div>
+        </div>
+        <footer class="component-attr-hero-footer">
+          <button type="button" class="btn btn-sm" data-entity-editor-back>Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-save-entity">Guardar entidad</button>
+        </footer>
+      </section>`;
+      const goBack = () => {
+        exitEntityEditor();
+        renderEntitiesMaster(mainEl, state, persist);
+      };
+      mainEl.querySelectorAll("[data-entity-editor-back]").forEach((btn) => {
+        btn.addEventListener("click", goBack);
+      });
+      const syncEntityMetaFromDom = () => {
+        draft.isBase = !!mainEl.querySelector('[name="entityIsBase"]')?.checked;
+        if (draft.isBase) {
+          draft.extendsBaseEntityId = null;
+        } else {
+          const ext = String(mainEl.querySelector('[name="extendsBaseEntityId"]')?.value ?? "").trim();
+          draft.extendsBaseEntityId = ext || null;
+        }
+        const extendsRow = mainEl.querySelector(".entity-meta-extends");
+        if (extendsRow) extendsRow.hidden = draft.isBase;
+      };
+      mainEl.querySelector('[name="entityIsBase"]')?.addEventListener("change", () => {
+        syncEntityMetaFromDom();
+        if (draft.isBase) {
+          mainEl.querySelector('[name="extendsBaseEntityId"]').value = "";
+        }
+      });
+      const syncDraftFromDom = () => {
+        draft.name = String(mainEl.querySelector('[name="entityName"]')?.value ?? "").trim();
+        syncEntityMetaFromDom();
+        const rows = mainEl.querySelectorAll("[data-entity-attr-row]");
+        const next = [];
+        rows.forEach((row, index) => {
+          const prev = draft.attributes[index];
+          const key = String(row.querySelector('[data-field="key"]')?.value ?? "").trim();
+          const label = String(row.querySelector('[data-field="label"]')?.value ?? "").trim();
+          const type = String(row.querySelector('[data-field="type"]')?.value ?? "texto");
+          const refEntityId = String(row.querySelector('[data-field="refEntityId"]')?.value ?? "").trim();
+          const required = !!row.querySelector('[data-field="required"]')?.checked;
+          if (!key && !label && !prev) return;
+          next.push(
+            normalizeEntityAttribute({
+              id: prev?.id,
+              key,
+              label,
+              type,
+              required,
+              refEntityId: type === ENTITY_REF_TYPE ? refEntityId : null
+            })
+          );
+        });
+        draft.attributes = next;
+      };
+      const rebindAttrTable = () => {
+        mainEl.querySelector("#entity-attr-tbody").innerHTML = renderEntityAttributesEditorRows(
+          state,
+          draft.entityId,
+          draft.attributes,
+          false
+        );
+        bindAttrRowHandlers();
+      };
+      const bindAttrRowHandlers = () => {
+        mainEl.querySelectorAll("[data-rm-attr-row]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            syncDraftFromDom();
+            const idx = Number.parseInt(btn.getAttribute("data-rm-attr-row") ?? "", 10);
+            if (Number.isNaN(idx)) return;
+            draft.attributes.splice(idx, 1);
+            rebindAttrTable();
+          });
+        });
+        mainEl.querySelectorAll('[data-field="type"]').forEach((sel) => {
+          sel.addEventListener("change", () => {
+            syncDraftFromDom();
+            rebindAttrTable();
+          });
+        });
+      };
+      mainEl.querySelector("#btn-add-entity-attr")?.addEventListener("click", () => {
+        syncDraftFromDom();
+        draft.attributes.push(
+          normalizeEntityAttribute({ key: "", label: "", type: "texto", required: false })
+        );
+        rebindAttrTable();
+        mainEl.querySelector('[data-entity-attr-row]:last-child [data-field="key"]')?.focus();
+      });
+      bindAttrRowHandlers();
+      mainEl.querySelector("#btn-save-entity")?.addEventListener("click", () => {
+        syncDraftFromDom();
+        draft.attributes = draft.attributes.filter((a) => String(a.key ?? "").trim() || String(a.label ?? "").trim());
+        const validation = validateEntityDefinition(draft.name, draft.attributes);
+        if (!validation.ok) {
+          toast(validation.message);
+          return;
+        }
+        const proposedId = draft.entityId ?? createId("entity");
+        const refValidation = validateEntityRefRules(state, proposedId, draft.attributes);
+        if (!refValidation.ok) {
+          toast(refValidation.message);
+          return;
+        }
+        const extValidation = validateEntityExtensionRules(state, proposedId, {
+          isBase: draft.isBase,
+          extendsBaseEntityId: draft.extendsBaseEntityId
+        });
+        if (!extValidation.ok) {
+          toast(extValidation.message);
+          return;
+        }
+        if (existing?.isBase && !draft.isBase) {
+          const baseChange = validateEntityBaseFlagChange(state, proposedId, false);
+          if (!baseChange.ok) {
+            toast(baseChange.message);
+            return;
+          }
+        }
+        if (isEntityNameTaken(state, draft.name, draft.entityId ?? void 0)) {
+          toast(`Ya existe una entidad con el nombre \xAB${draft.name}\xBB.`);
+          return;
+        }
+        const payload = normalizeEntityRecord(
+          {
+            id: proposedId,
+            name: draft.name,
+            isBase: draft.isBase,
+            extendsBaseEntityId: draft.isBase ? null : draft.extendsBaseEntityId,
+            attributes: draft.attributes.map((a) => normalizeEntityAttribute(a))
+          },
+          state
+        );
+        if (session.mode === "edit" && existing) {
+          existing.name = payload.name;
+          existing.isBase = payload.isBase;
+          existing.extendsBaseEntityId = payload.extendsBaseEntityId;
+          existing.attributes = payload.attributes;
+          recordMasterAudit(state, {
+            area: "entity",
+            action: "update",
+            refId: payload.id,
+            label: payload.name,
+            detail: `${payload.attributes.length} atributo(s)`
+          });
+        } else {
+          state.entities.push(payload);
+          recordMasterAudit(state, {
+            area: "entity",
+            action: "create",
+            refId: payload.id,
+            label: payload.name,
+            detail: `${payload.attributes.length} atributo(s)`
+          });
+        }
+        persist();
+        toast(session.mode === "edit" ? "Entidad actualizada." : "Entidad creada.", 2200, "success");
+        exitEntityEditor();
+        renderEntitiesMaster(mainEl, state, persist);
+      });
+      mainEl.querySelector('[name="entityName"]')?.focus();
+    };
+    paint();
+  }
+
   // js/shell.js
   var DOCKED_MQ = window.matchMedia("(min-width: 768px)");
   function isDockedNav() {
@@ -6647,8 +8175,14 @@
       const openNow = isNavOpen(drawer, shell);
       setOpen(openNow);
     });
-    function setNavActive(view, catalog) {
+    function isReportView(view) {
+      return typeof view === "string" && view.startsWith("report-");
+    }
+    function setNavActive(view, catalog, master) {
       const designerGroup = document.querySelector('[data-nav-group="designer"]');
+      const maestrosGroup = document.querySelector('[data-nav-group="maestros"]');
+      const operacionesGroup = document.querySelector('[data-nav-group="operaciones"]');
+      const reportesGroup = document.querySelector('[data-nav-group="reportes"]');
       document.querySelectorAll(".nav-btn[data-view]").forEach((b) => b.classList.remove("is-active"));
       if (view === "designer") {
         const cat = catalog === "activities" ? "activities" : "flows";
@@ -6656,20 +8190,298 @@
         designerGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
           b.classList.toggle("is-active", b.dataset.catalog === cat);
         });
+      } else if (view === "maestros") {
+        const m = master === "entities" ? "entities" : "flowTypes";
+        maestrosGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+        maestrosGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+          b.classList.toggle("is-active", b.dataset.master === m);
+        });
+      } else if (view === "gestion" || view === "auth-users" || view === "auth-user-detail" || view === "user-profile") {
+        operacionesGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+        operacionesGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+          const navView = b.dataset.view;
+          const active = navView === view || view === "auth-user-detail" && navView === "auth-users";
+          b.classList.toggle("is-active", active);
+        });
+      } else if (isReportView(view) || view === "reporte") {
+        const reportView = view === "reporte" ? "report-activities" : view;
+        reportesGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
+        reportesGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
+          b.classList.toggle("is-active", b.dataset.view === reportView);
+        });
       } else {
-        document.querySelector(`.nav-btn[data-view="${view}"]:not([data-catalog])`)?.classList.add("is-active");
+        document.querySelector(
+          `.nav-btn[data-view="${view}"]:not([data-catalog]):not([data-master]):not(.nav-sub-btn)`
+        )?.classList.add("is-active");
       }
     }
     document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const view = btn.dataset.view;
         const catalog = btn.dataset.catalog ?? "flows";
-        setNavActive(view, catalog);
-        onNavigate(view, view === "designer" ? catalog : null);
+        const master = btn.dataset.master ?? "flowTypes";
+        setNavActive(view, catalog, master);
+        if (view === "designer") {
+          onNavigate(view, catalog, null);
+        } else if (view === "maestros") {
+          onNavigate(view, null, master);
+        } else {
+          onNavigate(view, null, null);
+        }
         if (!isDockedNav()) close();
       });
     });
-    return { close, open };
+    return { close, open, setNavActive };
+  }
+
+  // js/auth-ui.js
+  function bindAvatarImageFallback(root) {
+    root.querySelectorAll(".user-avatar__img").forEach((img) => {
+      if (!(img instanceof HTMLImageElement)) return;
+      if (img.complete && img.naturalWidth === 0) {
+        img.closest(".user-avatar")?.classList.add("user-avatar--offline");
+      }
+      img.addEventListener("error", () => {
+        img.closest(".user-avatar")?.classList.add("user-avatar--offline");
+      });
+    });
+  }
+  function renderUserAvatarHtml(user, opts = {}) {
+    const size = opts.size ?? 40;
+    const cls = opts.className ?? "user-avatar";
+    const seed = user?.avatarSeed ?? user?.username ?? "user";
+    const hue = hashStringToInt(seed) % 360;
+    const initials = getUserInitials(user ?? {});
+    const src = getUserAvatarImageUrl(user ?? { avatarSeed: seed });
+    const alt = escapeHtml(user?.displayName ?? user?.username ?? "Usuario");
+    return `<span class="${cls}" style="--avatar-size:${size}px;--avatar-hue:${hue}" title="${alt}">
+    <img class="user-avatar__img" src="${escapeHtml(src)}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async" />
+    <span class="user-avatar__fallback" aria-hidden="true">${escapeHtml(initials)}</span>
+  </span>`;
+  }
+  function formatSessionDate(iso) {
+    if (!iso) return "\u2014";
+    try {
+      return new Date(iso).toLocaleString("es-AR");
+    } catch {
+      return iso;
+    }
+  }
+  function renderUserFieldsTableRows(user, opts = {}) {
+    const statusBadge = user.active ? `<span class="badge badge-listo">Activo</span>` : `<span class="badge badge-borrador">Inactivo</span>`;
+    const systemBadge = isSystemAuthUser(user) ? `<span class="badge badge-borrador">Usuario de sistema</span>` : `<span class="catalog-muted">Cuenta interactiva</span>`;
+    const loginBadge = canUserLogin(user) ? `<span class="badge badge-listo">Puede iniciar sesi\xF3n</span>` : `<span class="badge badge-borrador">Sin login</span>`;
+    const rows = [
+      ["Nombre para mostrar", escapeHtml(user.displayName)],
+      ["Usuario (login)", `@${escapeHtml(user.username)}`],
+      ["Id interno", `<code>${escapeHtml(user.id)}</code>`],
+      ["Avatar (seed)", `<code>${escapeHtml(user.avatarSeed)}</code>`],
+      ["URL del avatar", `<code class="user-detail-url">${escapeHtml(getUserAvatarImageUrl(user))}</code>`],
+      ["Clasificaci\xF3n", systemBadge],
+      ["Inicio de sesi\xF3n", loginBadge],
+      ["Estado", statusBadge],
+      ["Proveedor de auth", escapeHtml(AUTH_PROVIDER_LOCAL)]
+    ];
+    if (opts.includePasswordHint && !isSystemAuthUser(user)) {
+      rows.push([
+        "Clave (mock)",
+        `<span class="catalog-muted">Almacenada en localStorage del navegador.</span> Valor demo del cat\xE1logo: <code>1234</code>`
+      ]);
+    }
+    if (isSystemAuthUser(user)) {
+      rows.push([
+        "Uso",
+        `<span class="catalog-muted">Reservado para procesos autom\xE1ticos (p. ej. atributo <code>userconnected</code> sin sesi\xF3n).</span>`
+      ]);
+    }
+    if (opts.session) {
+      rows.push(["Sesi\xF3n actual \u2014 inicio", escapeHtml(formatSessionDate(opts.session.at))]);
+      rows.push(["Sesi\xF3n actual \u2014 proveedor", escapeHtml(opts.session.provider ?? AUTH_PROVIDER_LOCAL)]);
+    }
+    return rows.map(([label, value]) => `<tr><th scope="row">${label}</th><td>${value}</td></tr>`).join("");
+  }
+  function renderUserDetailShell(mainEl, user, config) {
+    mainEl.innerHTML = `
+    <section class="gestion-hero user-profile-hero panel">
+      <header class="gestion-hero-header">
+        <button type="button" class="btn btn-sm gestion-hero-back" data-user-detail-back>Volver</button>
+        <div class="gestion-hero-heading">
+          <h2>${escapeHtml(config.title)}</h2>
+          <p class="gestion-hero-subtitle">${escapeHtml(config.subtitle)}</p>
+        </div>
+      </header>
+      <div class="user-profile-body">
+        <div class="user-profile-card panel">
+          ${renderUserAvatarHtml(user, { size: 96, className: "user-avatar user-avatar--profile" })}
+          <h3 class="user-profile-name">${escapeHtml(user.displayName)}</h3>
+          <p class="user-profile-username">@${escapeHtml(user.username)}</p>
+        </div>
+        <div class="table-wrap table-wrap--modern user-profile-table-wrap">
+          <table class="table-modern">
+            <tbody>${config.tableRowsHtml}</tbody>
+          </table>
+        </div>
+      </div>
+    </section>`;
+    mainEl.querySelector("[data-user-detail-back]")?.addEventListener("click", config.onBack);
+    bindAvatarImageFallback(mainEl);
+  }
+  function renderLoginScreen(mainEl, onSuccess) {
+    const users = listLoginUsers();
+    const cards = users.map(
+      (u) => `
+    <article class="auth-user-card panel" data-auth-user="${escapeHtml(u.username)}">
+      ${renderUserAvatarHtml(u, { size: 56, className: "user-avatar user-avatar--card" })}
+      <h3 class="auth-user-card__name">${escapeHtml(u.displayName)}</h3>
+      <p class="auth-user-card__username">@${escapeHtml(u.username)}</p>
+      <form class="auth-user-card__form" data-auth-form="${escapeHtml(u.username)}">
+        <label class="auth-user-card__label">Clave</label>
+        <input type="password" name="password" class="auth-user-card__input" autocomplete="current-password" placeholder="Clave" required />
+        <button type="submit" class="btn btn-primary btn-sm auth-user-card__submit">Entrar</button>
+      </form>
+    </article>`
+    ).join("");
+    mainEl.innerHTML = `
+    <section class="auth-gate panel">
+      <div class="auth-gate__inner">
+        <header class="auth-gate__header">
+          <h2>Iniciar sesi\xF3n</h2>
+          <p class="auth-gate__subtitle">Eleg\xED tu usuario e ingres\xE1 la clave. Mock local \u2014 integrable con Supabase u otro proveedor.</p>
+        </header>
+        <div class="auth-user-grid">${cards || `<p class="gestion-empty">No hay usuarios configurados.</p>`}</div>
+        <p class="form-hint auth-gate__hint">Demo: los 5 usuarios del cat\xE1logo usan la clave <code>1234</code>.</p>
+      </div>
+    </section>`;
+    mainEl.querySelectorAll("[data-auth-form]").forEach((form) => {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const card = form.closest("[data-auth-user]");
+        const username = card?.getAttribute("data-auth-user") ?? "";
+        const password = String(form.querySelector('[name="password"]')?.value ?? "");
+        const result = authenticate({ username, password });
+        if (!result.ok) {
+          toast(result.message);
+          return;
+        }
+        toast(`Bienvenido/a, ${result.session.displayName}.`, 2600, "success");
+        onSuccess();
+      });
+    });
+    bindAvatarImageFallback(mainEl);
+  }
+  function renderAuthUsersAdmin(mainEl, opts = {}) {
+    const users = loadAuthUsers();
+    const rows = users.map(
+      (u) => `<tr class="auth-user-row" data-auth-user-row="${escapeHtml(u.id)}">
+        <td class="auth-user-row__avatar">${renderUserAvatarHtml(u, { size: 40, className: "user-avatar user-avatar--table" })}</td>
+        <td><strong>${escapeHtml(u.displayName)}</strong><div class="form-hint">@${escapeHtml(u.username)} \xB7 <code>${escapeHtml(u.id)}</code></div></td>
+        <td>${u.active ? `<span class="badge badge-listo">Activo</span>` : `<span class="badge badge-borrador">Inactivo</span>`}${isSystemAuthUser(u) ? ` <span class="badge badge-borrador">Sistema</span>` : ""}</td>
+        <td><span class="catalog-muted">${escapeHtml(AUTH_PROVIDER_LOCAL)} (mock)</span>${canUserLogin(u) ? "" : `<div class="form-hint">Sin login</div>`}</td>
+        <td class="auth-user-row__actions">
+          <button type="button" class="btn btn-sm" data-auth-user-detail="${escapeHtml(u.id)}">Ver detalle</button>
+        </td>
+      </tr>`
+    ).join("");
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog">
+      ${renderPageHeader(
+      "Usuarios del sistema",
+      "Cat\xE1logo mock para login. Abr\xED el detalle para ver avatar y datos completos. Sustituir por directorio corporativo o Supabase Auth en producci\xF3n."
+    )}
+      <div class="table-wrap table-wrap--modern">
+        <table class="table-modern auth-users-table">
+          <thead><tr><th></th><th>Usuario</th><th>Estado</th><th>Autenticaci\xF3n</th><th></th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="5" class="gestion-empty">No hay usuarios.</td></tr>`}</tbody>
+        </table>
+      </div>
+      <p class="form-hint" style="margin-top:1rem">Clave de demo para todos: <code>1234</code></p>
+    </section>`;
+    mainEl.querySelector(".auth-users-table tbody")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-auth-user-detail]");
+      if (!btn) return;
+      const userId = btn.getAttribute("data-auth-user-detail");
+      if (userId) opts.onOpenUserDetail?.(userId);
+    });
+    bindAvatarImageFallback(mainEl);
+  }
+  function renderAuthUserDetailPage(mainEl, userId, onBack) {
+    const user = getUserById(userId);
+    if (!user) {
+      mainEl.innerHTML = `
+      <section class="panel">
+        <p class="empty-state">No se encontr\xF3 el usuario.</p>
+        <button type="button" class="btn btn-sm" data-user-detail-back>Volver al listado</button>
+      </section>`;
+      mainEl.querySelector("[data-user-detail-back]")?.addEventListener("click", onBack);
+      return;
+    }
+    const session = getSession();
+    const isSelf = session?.userId === user.id;
+    renderUserDetailShell(mainEl, user, {
+      title: isSelf ? "Detalle \u2014 tu cuenta" : "Detalle de usuario",
+      subtitle: isSelf ? "Mismos datos del cat\xE1logo; la fila de sesi\xF3n aplica solo porque est\xE1s logueado como este usuario." : "Datos completos del registro mock en localStorage.",
+      tableRowsHtml: renderUserFieldsTableRows(user, {
+        includePasswordHint: true,
+        session: isSelf ? session : null
+      }),
+      onBack
+    });
+  }
+  function renderAuthHeaderChip(host, opts = {}) {
+    if (!host) return;
+    const profile = getCurrentUserProfile();
+    if (!profile) {
+      host.innerHTML = "";
+      host.hidden = true;
+      return;
+    }
+    const { session, user } = profile;
+    host.hidden = false;
+    host.innerHTML = `
+    <div class="auth-header-chip">
+      ${renderUserAvatarHtml(user, { size: 36, className: "user-avatar user-avatar--header" })}
+      <div class="auth-header-chip__text">
+        <span class="auth-header-chip__name">${escapeHtml(session.displayName)}</span>
+        <span class="auth-header-chip__user">@${escapeHtml(session.username)}</span>
+      </div>
+      <button type="button" class="btn btn-sm" id="btn-auth-profile">Ver perfil</button>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-auth-logout">Salir</button>
+    </div>`;
+    host.querySelector("#btn-auth-profile")?.addEventListener("click", () => {
+      opts.onOpenProfile?.();
+    });
+    host.querySelector("#btn-auth-logout")?.addEventListener("click", () => {
+      logout();
+      toast("Sesi\xF3n cerrada.", 2200, "success");
+      window.dispatchEvent(new CustomEvent("gestor:auth-changed"));
+    });
+    bindAvatarImageFallback(host);
+  }
+  function renderUserProfilePage(mainEl, onBack) {
+    const profile = getCurrentUserProfile();
+    if (!profile) {
+      mainEl.innerHTML = `<section class="panel"><p class="empty-state">No hay sesi\xF3n activa.</p></section>`;
+      return;
+    }
+    const { session, user } = profile;
+    renderUserDetailShell(mainEl, user, {
+      title: "Mi perfil",
+      subtitle: "Datos de la cuenta en el mock local (integrable con directorio corporativo).",
+      tableRowsHtml: renderUserFieldsTableRows(user, { includePasswordHint: true, session }),
+      onBack
+    });
+  }
+  function setAppShellAuthLocked(loggedIn) {
+    const shell = document.getElementById("app-shell");
+    const drawer = document.getElementById("nav-drawer");
+    const toggle = document.getElementById("menu-toggle");
+    const aiBtn = document.getElementById("btn-ai-config");
+    shell?.classList.toggle("is-auth-locked", !loggedIn);
+    if (drawer) {
+      drawer.setAttribute("aria-hidden", loggedIn ? "false" : "true");
+    }
+    if (toggle) toggle.disabled = !loggedIn;
+    if (aiBtn) aiBtn.disabled = !loggedIn;
   }
 
   // js/app.js
@@ -6686,25 +8498,74 @@
   try {
     let persist = function() {
       saveState(state);
-    }, render = function() {
+    }, renderAppView = function() {
+      if (!isAuthenticated()) {
+        renderLoginScreen(mainEl, () => syncAuthAndRender());
+        return;
+      }
       if (currentView === "designer") renderDesigner(mainEl, state, persist);
-      if (currentView === "gestion") renderGestion(mainEl, state, persist);
-      if (currentView === "reporte") renderReporte(mainEl, state);
+      else if (currentView === "gestion") renderGestion(mainEl, state, persist);
+      else if (currentView === "reporte") {
+        currentView = "report-activities";
+        renderReportView(mainEl, state, "report-activities");
+      } else if (currentView.startsWith("report-")) {
+        renderReportView(mainEl, state, currentView);
+      } else if (currentView === "maestros") renderMaestros(mainEl, state, persist, currentMaster);
+      else if (currentView === "auth-users") {
+        authUserDetailId = null;
+        renderAuthUsersAdmin(mainEl, {
+          onOpenUserDetail: (userId) => {
+            authUserDetailId = userId;
+            currentView = "auth-user-detail";
+            navApi.setNavActive("auth-user-detail", null, null);
+            renderAppView();
+          }
+        });
+      } else if (currentView === "auth-user-detail") {
+        renderAuthUserDetailPage(mainEl, authUserDetailId ?? "", () => {
+          currentView = "auth-users";
+          renderAppView();
+        });
+      } else if (currentView === "user-profile") {
+        renderUserProfilePage(mainEl, () => {
+          currentView = "designer";
+          enterDesignerCatalog("flows");
+          renderAppView();
+        });
+      }
+    }, openUserProfile = function() {
+      if (!isAuthenticated()) return;
+      currentView = "user-profile";
+      renderAppView();
+    }, syncAuthAndRender = function() {
+      const loggedIn = isAuthenticated();
+      setAppShellAuthLocked(loggedIn);
+      renderAuthHeaderChip(document.getElementById("auth-header-slot"), {
+        onOpenProfile: openUserProfile
+      });
+      renderAppView();
     };
     const mainEl = document.getElementById("app-main");
     if (!mainEl) {
       throw new Error("Falta el contenedor principal #app-main.");
     }
+    logout();
+    loadAuthUsers();
     let state = ensureSeed(loadState());
     let currentView = "designer";
+    let currentMaster = "flowTypes";
+    let authUserDetailId = null;
     let resizeTimer = null;
     window.addEventListener("resize", () => {
+      if (!isAuthenticated()) return;
       if (resizeTimer) window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-        if (currentView === "designer") render();
+        if (currentView === "designer") renderAppView();
       }, 150);
     });
-    bindNavDrawer((view, catalog) => {
+    window.addEventListener("gestor:auth-changed", () => syncAuthAndRender());
+    const navApi = bindNavDrawer((view, catalog, master) => {
+      if (!isAuthenticated()) return;
       if (view === "gestion" && currentView !== "gestion") {
         enterGestionHub();
       }
@@ -6712,12 +8573,14 @@
         enterGestionHub();
       }
       currentView = view;
+      if (master) currentMaster = master;
       if (view === "designer" && catalog) {
         enterDesignerCatalog(catalog);
       }
-      render();
+      renderAppView();
     });
     document.getElementById("btn-ai-config")?.addEventListener("click", () => {
+      if (!isAuthenticated()) return;
       const config = loadAiConfig();
       const { close, root } = openModal(`
       <div class="modal-header">
@@ -6784,7 +8647,7 @@
           if (config.model && !models.includes(config.model) && provider === config.provider) {
             const opt = document.createElement("option");
             opt.value = config.model;
-            opt.textContent = config.model + " (Actual)";
+            opt.textContent = `${config.model} (Actual)`;
             opt.selected = true;
             modelSelect.appendChild(opt);
           }
@@ -6810,7 +8673,7 @@
         close();
       });
     });
-    render();
+    syncAuthAndRender();
   } catch (err) {
     console.error(err);
     showBootError(err instanceof Error ? err.message : "Error desconocido.");

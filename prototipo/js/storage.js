@@ -1,5 +1,8 @@
 import { normalizeFlowTransitions } from "./validation.js";
 import { migrateLegacyFlowInputToStart, normalizeFlowContracts } from "./contracts.js";
+import { ensureFlowTypesState } from "./flow-types.js";
+import { ensureEntitiesState } from "./entities.js";
+import { ensureMasterAuditLog } from "./master-audit.js";
 import { normalizeFlowMeta } from "./flow-lifecycle.js";
 
 const STORAGE_KEY = "gestor_flujos_prototipo_v3";
@@ -8,6 +11,9 @@ const LEGACY_STORAGE_KEY = "gestor_flujos_prototipo_v2";
 const emptyState = () => ({
   flows: [],
   instances: [],
+  flowTypes: [],
+  entities: [],
+  masterAuditLog: [],
 });
 
 function normalizeLoadedState(parsed) {
@@ -27,7 +33,14 @@ function normalizeLoadedState(parsed) {
       normalizeFlowContracts(inst.flowSnapshot);
     }
   }
-  return { flows, instances };
+  const base = {
+    flows,
+    instances,
+    flowTypes: Array.isArray(parsed.flowTypes) ? parsed.flowTypes : [],
+    entities: Array.isArray(parsed.entities) ? parsed.entities : [],
+    masterAuditLog: Array.isArray(parsed.masterAuditLog) ? parsed.masterAuditLog : [],
+  };
+  return ensureMasterAuditLog(ensureEntitiesState(ensureFlowTypesState(base)));
 }
 
 export function loadState() {

@@ -27,6 +27,7 @@
         </div>
       </div>
       <div class="header-actions">
+        <div id="auth-header-slot" class="auth-header-slot" hidden></div>
         <button type="button" class="btn btn-ghost btn-sm" id="btn-ai-config" title="Configuración IA">
           <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;color:var(--accent)"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         </button>
@@ -48,14 +49,44 @@
             <button type="button" class="nav-btn nav-sub-btn" data-view="designer" data-catalog="activities">Catálogo de actividades</button>
           </div>
         </div>
-        <button type="button" class="nav-btn" data-view="gestion">
-          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l2 2 4-4M7 4h10a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
-          Gestión de actividades
-        </button>
-        <button type="button" class="nav-btn" data-view="reporte">
-          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15v-4M12 15V9M16 15v-2" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
-          Reporte
-        </button>
+        <p class="nav-drawer-title">Maestros</p>
+        <div class="nav-group" data-nav-group="maestros">
+          <button type="button" class="nav-btn nav-group-toggle" data-view="maestros" data-master="flowTypes" aria-expanded="true">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4V6zm2 2v2h12V8H6zm0 4v2h8v-2H6z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+            Maestros
+          </button>
+          <div class="nav-sub" id="nav-maestros-sub">
+            <button type="button" class="nav-btn nav-sub-btn" data-view="maestros" data-master="flowTypes">Tipo de flujo</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="maestros" data-master="entities">Entidades</button>
+          </div>
+        </div>
+        <p class="nav-drawer-title">Operaciones</p>
+        <div class="nav-group" data-nav-group="operaciones">
+          <button type="button" class="nav-btn nav-group-toggle" data-view="gestion" aria-expanded="true">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l2 2 4-4M7 4h10a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+            Operaciones
+          </button>
+          <div class="nav-sub" id="nav-operaciones-sub">
+            <button type="button" class="nav-btn nav-sub-btn" data-view="gestion">Gestión de actividades</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="auth-users">Usuarios</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="user-profile">Mi perfil</button>
+          </div>
+        </div>
+        <p class="nav-drawer-title">Reportes</p>
+        <div class="nav-group" data-nav-group="reportes">
+          <button type="button" class="nav-btn nav-group-toggle" data-view="report-activities" aria-expanded="true">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5h16v14H4zm2-2h5v-4H6v4zm7 0h5v-7h-5v7zm-7-6h5V7H6v4z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+            Reportes
+          </button>
+          <div class="nav-sub" id="nav-reportes-sub">
+            <button type="button" class="nav-btn nav-sub-btn" data-view="report-activities">Actividades (ejecución)</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="report-maestros-changes">Cambios en maestros</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="report-flows">Catálogo de flujos</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="report-flow-types">Tipos de flujo</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="report-entities">Entidades</button>
+            <button type="button" class="nav-btn nav-sub-btn" data-view="report-activities-catalog">Catálogo de actividades</button>
+          </div>
+        </div>
         <div class="nav-drawer-footer">
           <a href="documentacion.html">Documentación</a>
           <a href="bitacora.html">Bitácora</a>
@@ -77,6 +108,6 @@
   <div id="modal-root" class="modal-root" hidden></div>
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
-  <script src="js/bundle.js" defer></script>
+  <script src="js/bundle.js?v=menu-reportes-1" defer></script>
 </body>
 </html>

@@ -2,9 +2,19 @@ import { loadState, saveState, loadAiConfig, saveAiConfig } from "./storage.js";
 import { ensureSeed } from "./seed.js";
 import { renderDesigner, enterDesignerCatalog } from "./designer.js";
 import { enterGestionHub, renderGestion } from "./gestion.js";
-import { renderReporte } from "./reporte.js";
+import { renderReportView } from "./reports.js";
+import { renderMaestros } from "./maestros.js";
 import { bindNavDrawer } from "./shell.js";
 import { openModal, toast } from "./ui.js";
+import { isAuthenticated, loadAuthUsers, logout } from "./auth.js";
+import {
+  renderAuthHeaderChip,
+  renderAuthUserDetailPage,
+  renderAuthUsersAdmin,
+  renderLoginScreen,
+  renderUserProfilePage,
+  setAppShellAuthLocked,
+} from "./auth-ui.js";
 
 function showBootError(message) {
   const mainEl = document.getElementById("app-main");
@@ -23,28 +33,85 @@ try {
     throw new Error("Falta el contenedor principal #app-main.");
   }
 
+  logout();
+  loadAuthUsers();
+
   let state = ensureSeed(loadState());
   let currentView = "designer";
+  let currentMaster = "flowTypes";
+  /** @type {string | null} */
+  let authUserDetailId = null;
 
   function persist() {
     saveState(state);
   }
 
-  function render() {
+  function renderAppView() {
+    if (!isAuthenticated()) {
+      renderLoginScreen(mainEl, () => syncAuthAndRender());
+      return;
+    }
     if (currentView === "designer") renderDesigner(mainEl, state, persist);
-    if (currentView === "gestion") renderGestion(mainEl, state, persist);
-    if (currentView === "reporte") renderReporte(mainEl, state);
+    else if (currentView === "gestion") renderGestion(mainEl, state, persist);
+    else if (currentView === "reporte") {
+      currentView = "report-activities";
+      renderReportView(mainEl, state, "report-activities");
+    } else if (currentView.startsWith("report-")) {
+      renderReportView(mainEl, state, currentView);
+    }
+    else if (currentView === "maestros") renderMaestros(mainEl, state, persist, currentMaster);
+    else if (currentView === "auth-users") {
+      authUserDetailId = null;
+      renderAuthUsersAdmin(mainEl, {
+        onOpenUserDetail: (userId) => {
+          authUserDetailId = userId;
+          currentView = "auth-user-detail";
+          navApi.setNavActive("auth-user-detail", null, null);
+          renderAppView();
+        },
+      });
+    } else if (currentView === "auth-user-detail") {
+      renderAuthUserDetailPage(mainEl, authUserDetailId ?? "", () => {
+        currentView = "auth-users";
+        renderAppView();
+      });
+    } else if (currentView === "user-profile") {
+      renderUserProfilePage(mainEl, () => {
+        currentView = "designer";
+        enterDesignerCatalog("flows");
+        renderAppView();
+      });
+    }
+  }
+
+  function openUserProfile() {
+    if (!isAuthenticated()) return;
+    currentView = "user-profile";
+    renderAppView();
+  }
+
+  function syncAuthAndRender() {
+    const loggedIn = isAuthenticated();
+    setAppShellAuthLocked(loggedIn);
+    renderAuthHeaderChip(document.getElementById("auth-header-slot"), {
+      onOpenProfile: openUserProfile,
+    });
+    renderAppView();
   }
 
   let resizeTimer = null;
   window.addEventListener("resize", () => {
+    if (!isAuthenticated()) return;
     if (resizeTimer) window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
-      if (currentView === "designer") render();
+      if (currentView === "designer") renderAppView();
     }, 150);
   });
 
-  bindNavDrawer((view, catalog) => {
+  window.addEventListener("gestor:auth-changed", () => syncAuthAndRender());
+
+  const navApi = bindNavDrawer((view, catalog, master) => {
+    if (!isAuthenticated()) return;
     if (view === "gestion" && currentView !== "gestion") {
       enterGestionHub();
     }
@@ -52,13 +119,15 @@ try {
       enterGestionHub();
     }
     currentView = view;
+    if (master) currentMaster = master;
     if (view === "designer" && catalog) {
       enterDesignerCatalog(catalog);
     }
-    render();
+    renderAppView();
   });
 
   document.getElementById("btn-ai-config")?.addEventListener("click", () => {
+    if (!isAuthenticated()) return;
     const config = loadAiConfig();
     const { close, root } = openModal(`
       <div class="modal-header">
@@ -108,29 +177,28 @@ try {
       google: ["gemini-1.5-pro", "gemini-1.5-flash"],
       groq: ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it", "qwen-2.5-32b"],
       ollama: ["llama3", "mistral", "phi3"],
-      custom: []
+      custom: [],
     };
 
     function updateModels() {
       const provider = providerSelect.value;
       const models = modelsByProvider[provider] || [];
-      
+
       modelSelect.innerHTML = "";
       if (models.length > 0) {
         modelSelect.style.display = "block";
         customModelInput.style.display = "none";
-        models.forEach(m => {
+        models.forEach((m) => {
           const opt = document.createElement("option");
           opt.value = m;
           opt.textContent = m;
           if (config.model === m) opt.selected = true;
           modelSelect.appendChild(opt);
         });
-        // Si el modelo actual no está en la lista pero hay modelos, agregarlo como opción custom
         if (config.model && !models.includes(config.model) && provider === config.provider) {
           const opt = document.createElement("option");
           opt.value = config.model;
-          opt.textContent = config.model + " (Actual)";
+          opt.textContent = `${config.model} (Actual)`;
           opt.selected = true;
           modelSelect.appendChild(opt);
         }
@@ -142,14 +210,14 @@ try {
     }
 
     providerSelect.addEventListener("change", updateModels);
-    updateModels(); // Inicializar
+    updateModels();
 
     root.querySelector("#form-ai-config").addEventListener("submit", (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const provider = fd.get("provider");
       const model = provider === "custom" ? fd.get("customModel") : fd.get("model");
-      
+
       saveAiConfig({
         provider,
         model,
@@ -160,7 +228,7 @@ try {
     });
   });
 
-  render();
+  syncAuthAndRender();
 } catch (err) {
   console.error(err);
   showBootError(err instanceof Error ? err.message : "Error desconocido.");

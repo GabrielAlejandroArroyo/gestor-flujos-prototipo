@@ -3,7 +3,15 @@ import { escapeHtml, formatDateTime, renderPageHeader } from "./ui.js";
 
 let selectedReportInstanceId = null;
 
-export function renderReporte(mainEl, state) {
+/**
+ * @param {HTMLElement} mainEl
+ * @param {object} state
+ * @param {{ title?: string; subtitle?: string }} [opts]
+ */
+export function renderReporte(mainEl, state, opts = {}) {
+  const pageTitle = opts.title ?? "Reporte de avance";
+  const pageSubtitle =
+    opts.subtitle ?? "Filtrá instancias y revisá contexto, entradas y traza de ejecución.";
   const filterFlow = mainEl.dataset.filterFlow ?? "";
   const filterStatus = mainEl.dataset.filterStatus ?? "";
 
@@ -16,10 +24,7 @@ export function renderReporte(mainEl, state) {
 
   mainEl.innerHTML = `
     <section class="panel">
-      ${renderPageHeader(
-        "Reporte de avance",
-        "Filtrá instancias y revisá contexto, entradas y traza de ejecución.",
-      )}
+      ${renderPageHeader(pageTitle, pageSubtitle)}
       <div class="filters">
         <div class="form-row">
           <label>Flujo</label>

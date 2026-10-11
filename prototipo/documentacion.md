@@ -13,16 +13,23 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 
 ## Menú del mock
 
-- **Diseñador de flujo (BPMN):** catálogo de flujos y **catálogo de actividades** (componentes por flujo listo/borrador); crear, abrir, **versionar** flujos listos, **eliminar solo borrador**; ciclo borrador → confirmar versión → listo; lienzo BPMN 2.0, Sequence Flow y pantallas en User Task.
+- **Maestros → Tipo de flujo:** ABM de categorías (nombre, descripción) persistidas en `state.flowTypes`; baja bloqueada si hay flujos que referencian el tipo (`flowTypeId`). Al renombrar un tipo, el catálogo de flujos actualiza la columna «Tipo» (`flow.type` denormalizado).
+- **Maestros → Entidades:** ABM con nombre, **entidad base** (`isBase`), **extensión** (`extendsBaseEntityId` solo hacia bases), atributos (clave, etiqueta, tipo, obligatorio) y **Referencia a entidad** con validación anti-ciclos. Baja bloqueada si la referencian o la extienden.
+- **Diseñador de flujo (BPMN):** catálogo de flujos y **catálogo de actividades** (componentes por flujo listo/borrador); crear, abrir, **versionar** flujos listos, **eliminar solo borrador**; ciclo borrador → confirmar versión → listo; lienzo BPMN 2.0, Sequence Flow y pantallas en User Task. **Nuevo flujo** y **propiedades del flujo** eligen tipo con selector (no texto libre); si no hay tipos, enlace a Maestros.
 - **Atributos por componente:** en el catálogo de actividades, **Abrir** muestra un modal para definir parámetros de **entrada** (Start, End, User Task, Service Task) y, en **Gateway**, también de **salida** (0..n, único/lista, obligatorio, opciones en listas). Editable solo en flujo **borrador**; el Start sincroniza con parámetros de instancia en Gestión.
-- **Gestión de actividades:** KPIs (listos, en curso, finalizados); tablas de instancias con **Gestionar** / **Visualizar** a pantalla completa en el área principal (no popup); **Visualizar** con pestañas **Datos**, **Traza** y **Diagrama**; botón **Iniciar instancia** (modal).
-- **Reporte:** avance, filtros y traza de cada instancia.
+- **Operaciones → Usuarios:** catálogo mock de login (5 usuarios demo, clave `1234`). Autenticación local preparada para reemplazar por Supabase/OIDC.
+- **Acceso:** al abrir la app se muestra pantalla de login por usuario; sesión en memoria del tab (cada recarga pide login de nuevo).
+- **Operaciones → Gestión de actividades:** KPIs (listos, en curso, finalizados); tablas de instancias con **Gestionar** / **Visualizar** a pantalla completa en el área principal (no popup); **Visualizar** con pestañas **Datos**, **Traza** y **Diagrama**; botón **Iniciar instancia** (modal).
+- **Reportes:** actividades (ejecución), cambios en maestros, catálogos de flujos/tipos/entidades/actividades.
+- **Operaciones → Gestión de actividades:** instanciación y ejecución (sin reportes duplicados aquí).
 
 ## Entidades (modelo conceptual)
 
 | Entidad | Descripción |
 |---------|-------------|
-| **TipoFlujo** | Categoría (texto libre en el mock, ej. Aprobación). |
+| **TipoFlujo** | Maestro en `flowTypes` (`id`, `name`, `description`). Cada flujo guarda `flowTypeId` y `type` (nombre denormalizado para tablas). Migración al cargar: flujos viejos con solo `type` se enlazan o crean entrada maestro por nombre. |
+| **Entidad (maestro)** | `entities[]`: … **dateexecution**: valor ISO 8601 **UTC** (`…Z`, `timezone: "UTC"`, GETUTCDATE mock). **userconnected**: id de sesión o `prueabaomigracion`. |
+| **Auth (mock)** | Usuarios demo con login; **`prueabaomigracion`**: `isSystem`, `loginAllowed: false`, visible en Operaciones → Usuarios, excluido del login. |
 | **Flujo** | Tipo, nombre, descripción, estado (borrador \| listo \| deprecado), versión (asignada al confirmar), `lineageId` (misma familia de versiones), `supersedesFlowId` (borrador que reemplaza un listo). |
 | **ParametroEntrada** | Clave, etiqueta, tipo (texto, numero, fecha, si_no), obligatorio; cardinalidad único/lista y opciones (Start → instancia). |
 | **AtributoComponente** | Por nodo: `inputAttributes` (y `outputAttributes` en gateway): clave, etiqueta, tipo, cardinalidad, obligatorio, opciones con obligatoriedad por ítem. |
