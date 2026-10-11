@@ -8042,6 +8042,168 @@
     </section>`;
   }
 
+  // js/state-portability.js
+  var STATE_PORTABILITY_VERSION = 1;
+  var PORTABLE_STORAGE_KEYS = [
+    "gestor_flujos_prototipo_v3",
+    "gestor_flujos_auth_users_v1",
+    "gestor_flujos_ai_config"
+  ];
+  function exportPortableStorageBundle() {
+    const entries = {};
+    for (const key of PORTABLE_STORAGE_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (raw != null && raw !== "") {
+        entries[key] = raw;
+      }
+    }
+    const legacy = localStorage.getItem("gestor_flujos_prototipo_v2");
+    if (legacy && !entries["gestor_flujos_prototipo_v3"]) {
+      entries["gestor_flujos_prototipo_v2"] = legacy;
+    }
+    return {
+      version: STATE_PORTABILITY_VERSION,
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      origin: typeof location !== "undefined" ? location.origin : "",
+      entries
+    };
+  }
+  function parsePortableImportFile(parsed) {
+    if (!parsed || typeof parsed !== "object") {
+      return { ok: false, message: "El archivo no es un JSON v\xE1lido de respaldo." };
+    }
+    const obj = parsed;
+    const entries = obj.entries;
+    if (!entries || typeof entries !== "object") {
+      return { ok: false, message: "Falta el objeto \xABentries\xBB con los datos del mock." };
+    }
+    let count = 0;
+    for (const key of Object.keys(entries)) {
+      if (typeof entries[key] !== "string") {
+        return { ok: false, message: `Entrada inv\xE1lida para la clave \xAB${key}\xBB.` };
+      }
+      count += 1;
+    }
+    if (count === 0) {
+      return { ok: false, message: "El respaldo no contiene datos." };
+    }
+    if (!entries["gestor_flujos_prototipo_v3"] && !entries["gestor_flujos_prototipo_v2"]) {
+      return { ok: false, message: "El respaldo no incluye el estado del gestor (v3 o v2)." };
+    }
+    return {
+      ok: true,
+      bundle: {
+        version: typeof obj.version === "number" ? obj.version : STATE_PORTABILITY_VERSION,
+        exportedAt: String(obj.exportedAt ?? ""),
+        origin: String(obj.origin ?? ""),
+        entries
+      }
+    };
+  }
+  function applyPortableStorageBundle(bundle, opts = {}) {
+    const merge = opts.merge === true;
+    const applied = [];
+    const skipped = [];
+    for (const [key, value] of Object.entries(bundle.entries ?? {})) {
+      if (typeof value !== "string") continue;
+      if (merge && localStorage.getItem(key) && key !== "gestor_flujos_prototipo_v3") {
+        skipped.push(key);
+        continue;
+      }
+      localStorage.setItem(key, value);
+      applied.push(key);
+    }
+    return { applied, skipped };
+  }
+  function downloadPortableStorageBundle(bundle) {
+    const json = JSON.stringify(bundle, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gestor-flujos-respaldo-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // js/data-backup-ui.js
+  function renderDataBackupPage(mainEl, opts) {
+    const preview = exportPortableStorageBundle();
+    const keyCount = Object.keys(preview.entries).length;
+    const hasState = !!(preview.entries["gestor_flujos_prototipo_v3"] || preview.entries["gestor_flujos_prototipo_v2"]);
+    mainEl.innerHTML = `
+    <section class="panel panel--catalog data-backup-panel">
+      ${renderPageHeader(
+      "Datos del mock",
+      "Export\xE1 lo guardado en este navegador y restauralo en otro origen (local \u2194 GitHub Pages). La sesi\xF3n no se exporta: volv\xE9 a iniciar sesi\xF3n tras importar."
+    )}
+      <div class="entity-meta-panel">
+        <h3 class="entity-meta-title">En este navegador</h3>
+        <p class="form-hint">Origen: <code>${escapeHtml(location.origin)}</code></p>
+        <p class="catalog-tree-count">${keyCount} bloque(s) de datos \xB7 ${hasState ? "incluye flujos/maestros" : "sin estado principal"}</p>
+        <ul class="form-hint data-backup-keys">
+          ${PORTABLE_STORAGE_KEYS.map((k) => `<li><code>${escapeHtml(k)}</code></li>`).join("")}
+        </ul>
+      </div>
+      <div class="data-backup-actions">
+        <button type="button" class="btn btn-primary" id="btn-export-portable-data">Descargar respaldo (.json)</button>
+      </div>
+      <div class="entity-meta-panel data-backup-import-panel">
+        <h3 class="entity-meta-title">Importar respaldo</h3>
+        <p class="form-hint">Reemplaza los datos del mock en <strong>este</strong> sitio (ej. pegar lo exportado desde local en Pages).</p>
+        <input type="file" id="field-portable-import" accept=".json,application/json" />
+        <label class="entity-check-label data-backup-merge-opt">
+          <input type="checkbox" id="field-portable-merge" />
+          Fusionar (no reemplazar usuarios/IA si ya existen)
+        </label>
+        <p class="form-hint data-backup-warn">Tras importar se recarga la aplicaci\xF3n. Hac\xE9 respaldo antes si no est\xE1s seguro.</p>
+      </div>
+    </section>`;
+    mainEl.querySelector("#btn-export-portable-data")?.addEventListener("click", () => {
+      const bundle = exportPortableStorageBundle();
+      if (!Object.keys(bundle.entries).length) {
+        toast("No hay datos para exportar en este navegador.");
+        return;
+      }
+      downloadPortableStorageBundle(bundle);
+      toast("Respaldo descargado.", 2500, "success");
+    });
+    mainEl.querySelector("#field-portable-import")?.addEventListener("change", (e) => {
+      const input = e.target;
+      if (!(input instanceof HTMLInputElement) || !input.files?.[0]) return;
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result ?? ""));
+          const check = parsePortableImportFile(parsed);
+          if (!check.ok) {
+            toast(check.message);
+            return;
+          }
+          const merge = !!mainEl.querySelector("#field-portable-merge")?.checked;
+          if (!merge && !window.confirm(
+            "\xBFReemplazar los datos del mock en este sitio con el respaldo? Esta acci\xF3n no se puede deshacer sin otro respaldo."
+          )) {
+            return;
+          }
+          const result = applyPortableStorageBundle(check.bundle, { merge });
+          toast(
+            `Importado: ${result.applied.join(", ") || "\u2014"}. Recargando\u2026`,
+            2800,
+            "success"
+          );
+          input.value = "";
+          window.setTimeout(() => opts.onImported(), 400);
+        } catch {
+          toast("No se pudo leer el JSON del respaldo.");
+        }
+      };
+      reader.readAsText(file, "utf-8");
+    });
+  }
+
   // js/master-records-nav.js
   var MASTER_RECORD_ABM_PREFIX = "masterRecordAbm:";
   function masterRecordAbmMasterKey(definitionId) {
@@ -10266,6 +10428,13 @@ ${hints.map(escape).join(";")}
     let persist = function() {
       saveState(state);
       safeSyncMasterRecordsAbmNav(state);
+    }, reloadAppStateAfterPortableImport = function() {
+      logout();
+      loadAuthUsers();
+      state = ensureSeed(loadState());
+      safeSyncMasterRecordsAbmNav(state);
+      currentView = "data-backup";
+      syncAuthAndRender();
     }, renderAppView = function() {
       if (!isAuthenticated()) {
         renderLoginScreen(mainEl, () => syncAuthAndRender());
@@ -10300,6 +10469,8 @@ ${hints.map(escape).join(";")}
           enterDesignerCatalog("flows");
           renderAppView();
         });
+      } else if (currentView === "data-backup") {
+        renderDataBackupPage(mainEl, { onImported: reloadAppStateAfterPortableImport });
       }
     }, openUserProfile = function() {
       if (!isAuthenticated()) return;
