@@ -3522,6 +3522,12 @@
     catalogView: "flows",
     catalogExpandedLineages: /* @__PURE__ */ new Set(),
     catalogExpandedActivityFlows: /* @__PURE__ */ new Set(),
+    /** Filtros del catálogo de flujos (se conservan al navegar). */
+    catalogFlowFilters: {
+      q: "",
+      status: "",
+      flowTypeId: ""
+    },
     readOnly: false,
     /** @type {{ flowId: string; nodeId: string; initialTab: string } | null} */
     componentAttrsEditor: null,
@@ -3813,6 +3819,90 @@
       <svg class="catalog-tree-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 4l4 4-4 4V4z"/></svg>
     </button>`;
   }
+  function getCatalogFlowFilters() {
+    const f = designerContext.catalogFlowFilters;
+    if (!f || typeof f !== "object") {
+      designerContext.catalogFlowFilters = { q: "", status: "", flowTypeId: "" };
+    }
+    return designerContext.catalogFlowFilters;
+  }
+  function getCatalogFlowTypeFilterOptions(state) {
+    const types = state.flowTypes ?? [];
+    if (types.length) {
+      return types.map((t) => ({ id: String(t.id), label: String(t.name ?? t.id) }));
+    }
+    const seen = /* @__PURE__ */ new Map();
+    for (const flow of state.flows ?? []) {
+      const id = flow.flowTypeId ? String(flow.flowTypeId) : String(flow.type ?? "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.set(id, String(flow.type ?? id));
+    }
+    return [...seen.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }
+  function flowMatchesCatalogFlowFilters(flow, filters, state) {
+    const q = String(filters.q ?? "").trim().toLocaleLowerCase("es");
+    if (q) {
+      const blob = [flow.name, flow.type, flow.description].map((v) => String(v ?? "").toLocaleLowerCase("es")).join(" ");
+      const tokens = q.split(/\s+/).filter(Boolean);
+      if (!tokens.every((t) => blob.includes(t))) return false;
+    }
+    const typeKey = String(filters.flowTypeId ?? "").trim();
+    if (typeKey) {
+      if (String(flow.flowTypeId ?? "") === typeKey) {
+      } else {
+        const ft = (state.flowTypes ?? []).find((t) => String(t.id) === typeKey);
+        if (ft && flow.type === ft.name) {
+        } else if (String(flow.type ?? "") !== typeKey) {
+          return false;
+        }
+      }
+    }
+    const status = String(filters.status ?? "").trim();
+    if (status && flow.status !== status) return false;
+    return true;
+  }
+  function countCatalogFlowsMatching(state, filters) {
+    return (state.flows ?? []).filter((f) => flowMatchesCatalogFlowFilters(f, filters, state)).length;
+  }
+  function renderCatalogFlowFiltersBar(state) {
+    const filters = getCatalogFlowFilters();
+    const typeOptions = getCatalogFlowTypeFilterOptions(state);
+    const total = (state.flows ?? []).length;
+    const matched = countCatalogFlowsMatching(state, filters);
+    const hasActive = Boolean(filters.q?.trim()) || Boolean(filters.status) || Boolean(filters.flowTypeId);
+    const summary = total === 0 ? "Sin flujos en el diseñador." : matched === total ? `Mostrando ${total} flujo${total === 1 ? "" : "s"}.` : `Mostrando ${matched} de ${total} flujos.`;
+    const typeSelect = typeOptions.length === 0 ? `<select id="catalog-flow-filter-type" disabled><option value="">— Sin tipos —</option></select>` : `<select id="catalog-flow-filter-type">
+          <option value="">Todos los tipos</option>
+          ${typeOptions.map(
+      (t) => `<option value="${escapeHtml(t.id)}"${filters.flowTypeId === t.id ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+    ).join("")}
+        </select>`;
+    return `
+    <div class="filters catalog-flow-filters" role="search" aria-label="Filtrar catálogo de flujos">
+      <div class="form-row catalog-flow-filters__search">
+        <label for="catalog-flow-filter-q">Buscar</label>
+        <input id="catalog-flow-filter-q" type="search" placeholder="Nombre, tipo o descripción…" value="${escapeHtml(filters.q ?? "")}" autocomplete="off" />
+      </div>
+      <div class="form-row">
+        <label for="catalog-flow-filter-status">Estado</label>
+        <select id="catalog-flow-filter-status">
+          <option value=""${!filters.status ? " selected" : ""}>Todos</option>
+          <option value="listo"${filters.status === "listo" ? " selected" : ""}>Listo</option>
+          <option value="borrador"${filters.status === "borrador" ? " selected" : ""}>Borrador</option>
+          <option value="deprecado"${filters.status === "deprecado" ? " selected" : ""}>Deprecado</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="catalog-flow-filter-type">Tipo de flujo</label>
+        ${typeSelect}
+      </div>
+      <div class="form-row catalog-flow-filters__actions">
+        <label class="catalog-flow-filters__actions-label" aria-hidden="true">&nbsp;</label>
+        <button type="button" class="btn btn-sm" id="catalog-flow-filter-clear"${hasActive ? "" : " disabled"}>Limpiar filtros</button>
+      </div>
+      <p class="form-hint catalog-flow-filters__summary">${escapeHtml(summary)}</p>
+    </div>`;
+  }
   function renderCatalogFlowTableRow(f, catalogBlocked, opts = {}) {
     const { rowClass = "", lineageId = "", isChild = false } = opts;
     const lineageAttr = lineageId ? ` data-lineage-child="${lineageId}"` : "";
@@ -3834,15 +3924,24 @@
   function renderCatalog(state) {
     const catalogBlocked = isCatalogActionsBlocked();
     const catalogCallout = designerCatalogCalloutHtml();
+    const filters = getCatalogFlowFilters();
+    const onlyDeprecado = filters.status === "deprecado";
+    const onlyBorrador = filters.status === "borrador";
     const groups = buildCatalogLineageGroups(state.flows);
     const listoGroups = groups.filter((g) => g.listo);
     const draftOnlyGroups = groups.filter((g) => !g.listo && g.borrador);
-    const lineageGroupsHtml = listoGroups.map((group) => {
+    const matches = (flow) => flow && flowMatchesCatalogFlowFilters(flow, filters, state);
+    const flatStatusRows = (status, rowClass) => (state.flows ?? []).filter((f) => f.status === status && matches(f)).sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), "es")).map((f) => renderCatalogFlowTableRow(f, catalogBlocked, { rowClass })).join("");
+    const deprecadoFlatRows = onlyDeprecado ? flatStatusRows("deprecado", "catalog-row catalog-row--deprecated-flat") : "";
+    const borradorFlatRows = onlyBorrador ? flatStatusRows("borrador", "catalog-row catalog-row--draft-flat") : "";
+    const lineageGroupsHtml = onlyDeprecado || onlyBorrador ? "" : listoGroups.map((group) => {
       const f = group.listo;
-      if (!f) return "";
-      const hasTree = group.deprecados.length > 0 || group.borrador && group.listo && group.borrador.id !== group.listo.id;
+      if (!f || !matches(f)) return "";
+      const visibleDeprecados = group.deprecados.filter((dep) => matches(dep));
+      const showChildDraft = group.borrador && group.borrador.id !== group.listo?.id && matches(group.borrador);
+      const hasTree = visibleDeprecados.length > 0 || showChildDraft;
       const expanded = designerContext.catalogExpandedLineages.has(group.lineageId);
-      const childCount = group.deprecados.length + (group.borrador && group.borrador.id !== group.listo?.id ? 1 : 0);
+      const childCount = visibleDeprecados.length + (showChildDraft ? 1 : 0);
       const toggle = hasTree ? renderCatalogTreeToggle(group.lineageId, expanded, childCount) : `<span class="catalog-tree-toggle catalog-tree-toggle--spacer" aria-hidden="true"></span>`;
       const countChip = hasTree && !expanded ? `<span class="catalog-tree-count" title="Versiones anteriores ocultas">${childCount} ${childCount === 1 ? "anterior" : "anteriores"}</span>` : "";
       const groupState = expanded ? "is-expanded" : "is-collapsed";
@@ -3863,7 +3962,7 @@
       let childRowsHtml = "";
       if (expanded && hasTree) {
         const parts = [];
-        for (const dep of group.deprecados) {
+        for (const dep of visibleDeprecados) {
           parts.push(
             renderCatalogFlowTableRow(dep, catalogBlocked, {
               rowClass: "catalog-row catalog-row--child catalog-row--deprecated",
@@ -3872,7 +3971,7 @@
             })
           );
         }
-        if (group.borrador && group.borrador.id !== group.listo?.id) {
+        if (showChildDraft) {
           parts.push(
             renderCatalogFlowTableRow(group.borrador, catalogBlocked, {
               rowClass: "catalog-row catalog-row--child catalog-row--draft",
@@ -3888,23 +3987,36 @@
       ${childRowsHtml}
     </tbody>`;
     }).join("");
-    const draftRows = draftOnlyGroups.map(
+    const draftRows = onlyDeprecado || filters.status === "listo" ? "" : draftOnlyGroups.filter((group) => matches(group.borrador)).map(
       (group) => renderCatalogFlowTableRow(group.borrador, catalogBlocked, {
         rowClass: "catalog-row catalog-row--draft-only"
       })
     ).join("");
     const hasAnyFlow = state.flows.length > 0;
-    const hasListo = listoGroups.length > 0;
+    const hasListo = onlyDeprecado ? deprecadoFlatRows.length > 0 : lineageGroupsHtml.trim().length > 0;
+    const matchedCount = countCatalogFlowsMatching(state, filters);
+    const hasTableContent = hasListo || draftRows.length > 0;
     const emptyBody = !hasAnyFlow ? `<div class="empty-state empty-state--rich">
           <svg class="empty-state__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 10h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
           <strong>Sin flujos todavía</strong>
           <p>Creá tu primer flujo BPMN en borrador y usá «Activar» para publicarlo como Listo en Gestión.</p>
           ${renderActionButton({ icon: "add", label: "Nuevo flujo", variant: "primary", id: "btn-new-flow-empty", disabled: catalogBlocked })}
-        </div>` : !hasListo ? `<div class="empty-state empty-state--compact">
-          <strong>Sin flujos listos</strong>
-          <p>Activá un borrador pendiente para verlo acá como versión publicada.</p>
+        </div>` : matchedCount === 0 ? `<div class="empty-state empty-state--compact">
+          <strong>Ningún flujo coincide</strong>
+          <p>Probá otro texto o limpiá los filtros.</p>
+          <button type="button" class="btn btn-sm" id="catalog-flow-filter-clear-empty">Limpiar filtros</button>
+        </div>` : !hasTableContent ? `<div class="empty-state empty-state--compact">
+          <strong>${onlyDeprecado ? "Sin flujos deprecados" : filters.status === "borrador" ? "Sin borradores" : "Sin flujos listos"}</strong>
+          <p>${onlyDeprecado ? "No hay versiones deprecadas que coincidan con el filtro." : filters.status === "borrador" ? "No hay borradores pendientes con estos criterios." : "Activá un borrador pendiente para verlo acá como versión publicada."}</p>
         </div>` : "";
-    const listoTable = hasListo ? `<div class="table-wrap table-wrap--modern">
+    const listoTable = hasListo ? onlyDeprecado ? `<div class="table-wrap table-wrap--modern">
+        <table class="table-modern catalog-flow-tree">
+          <thead>
+            <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>${deprecadoFlatRows}</tbody>
+        </table>
+      </div>` : `<div class="table-wrap table-wrap--modern">
         <table class="table-modern catalog-flow-tree">
           <thead>
             <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
@@ -3931,6 +4043,7 @@
       "Se listan los flujos en estado Listo. Desplegá ▸ para ver versiones deprecadas del mismo linaje. Los borradores sin publicar aparecen abajo."
     )}
       ${catalogCallout}
+      ${hasAnyFlow ? renderCatalogFlowFiltersBar(state) : ""}
       ${hasAnyFlow ? `<div class="catalog-toolbar-secondary">
           <p class="catalog-toolbar-secondary__hint">Flujos listos para Gestión. Versioná para editar; las versiones anteriores quedan deprecadas bajo el árbol.</p>
           ${renderActionButton({ icon: "add", label: "Nuevo flujo", variant: "primary", id: "btn-new-flow-table", disabled: catalogBlocked })}
@@ -4298,7 +4411,38 @@
       mainEl.querySelector('#form-new-flow input[name="name"]')?.focus();
     }
   }
+  function resetCatalogFlowFilters() {
+    designerContext.catalogFlowFilters = { q: "", status: "", flowTypeId: "" };
+  }
+  function bindCatalogFlowFilters(mainEl, state, persist) {
+    const apply = () => renderDesigner(mainEl, state, persist);
+    const qEl = mainEl.querySelector("#catalog-flow-filter-q");
+    const statusEl = mainEl.querySelector("#catalog-flow-filter-status");
+    const typeEl = mainEl.querySelector("#catalog-flow-filter-type");
+    const filters = getCatalogFlowFilters();
+    let debounce;
+    qEl?.addEventListener("input", () => {
+      filters.q = qEl.value;
+      clearTimeout(debounce);
+      debounce = setTimeout(apply, 220);
+    });
+    statusEl?.addEventListener("change", () => {
+      filters.status = statusEl.value;
+      apply();
+    });
+    typeEl?.addEventListener("change", () => {
+      filters.flowTypeId = typeEl.value;
+      apply();
+    });
+    const onClear = () => {
+      resetCatalogFlowFilters();
+      apply();
+    };
+    mainEl.querySelector("#catalog-flow-filter-clear")?.addEventListener("click", onClear);
+    mainEl.querySelector("#catalog-flow-filter-clear-empty")?.addEventListener("click", onClear);
+  }
   function bindCatalog(mainEl, state, persist) {
+    bindCatalogFlowFilters(mainEl, state, persist);
     const onNew = () => enterNewFlowScreen(mainEl, state, persist);
     mainEl.querySelector("#btn-new-flow-empty")?.addEventListener("click", onNew);
     mainEl.querySelector("#btn-new-flow-table")?.addEventListener("click", onNew);
@@ -10705,7 +10849,7 @@ ${hints.map(escape).join(";")}
   }
 
   // js/app.js
-  var MOCK_BUNDLE_VERSION = "gestion-tabs-1";
+  var MOCK_BUNDLE_VERSION = "catalog-flow-filters-1";
   function safeSyncMasterRecordsAbmNav(state) {
     try {
       syncMasterRecordsAbmNav(state);

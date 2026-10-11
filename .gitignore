@@ -1,7 +1,6 @@
-# Cursor / IDE local (no subir config org; sí reglas versionadas del mock)
+# Cursor / IDE local (no subir config org; excepción: regla unicode del mock)
 .cursor/*
-!.cursor/rules/
-!.cursor/rules/**
+!.cursor/rules/unicode-text-content.mdc
 
 # Dependencias y secretos
 node_modules/
