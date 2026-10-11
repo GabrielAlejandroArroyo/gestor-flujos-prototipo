@@ -827,6 +827,28 @@ body.nav-open {
   margin-top: 0.65rem;
 }
 
+.data-backup-actions {
+  margin: 1rem 0;
+}
+
+.data-backup-keys {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.data-backup-import-panel {
+  margin-top: 1rem;
+}
+
+.data-backup-merge-opt {
+  display: block;
+  margin: 0.65rem 0;
+}
+
+.data-backup-warn {
+  color: var(--muted);
+}
+
 .page-header__actions {
   display: flex;
   flex-wrap: wrap;

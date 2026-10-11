@@ -120,7 +120,8 @@ export function bindNavDrawer(onNavigate) {
       view === "gestion" ||
       view === "auth-users" ||
       view === "auth-user-detail" ||
-      view === "user-profile"
+      view === "user-profile" ||
+      view === "data-backup"
     ) {
       operacionesGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
       operacionesGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {

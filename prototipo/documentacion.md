@@ -30,6 +30,7 @@ Este prototipo HTML valida el diseño de un gestor de flujos de trabajo antes de
 | **TipoFlujo** | Maestro en `flowTypes` (`id`, `name`, `description`). Cada flujo guarda `flowTypeId` y `type` (nombre denormalizado para tablas). Migración al cargar: flujos viejos con solo `type` se enlazan o crean entrada maestro por nombre. |
 | **Definición de maestros** | `masterDefinitions[]`: `name`, `description`, `entityIds[]` (entidades de Definiciones de entidad). |
 | **ABM maestros** | Resumen + ABM por definición; registros **vigentes** (v1); historial al editar; **Importar CSV/Excel** con reporte de columnas/filas sin match y normalizaciones sugeridas. |
+| **Datos (local ↔ Pages)** | Operaciones → exportar/importar JSON (`localStorage`) para copiar flujos y maestros entre local y GitHub Pages. |
 | **Entidad (maestro)** | `entities[]`: … **dateexecution**: valor ISO 8601 **UTC** (`…Z`, `timezone: "UTC"`, GETUTCDATE mock). **userconnected**: id de sesión o `prueabaomigracion`. |
 | **Auth (mock)** | Usuarios demo con login; **`prueabaomigracion`**: `isSystem`, `loginAllowed: false`, visible en Operaciones → Usuarios, excluido del login. |
 | **Flujo** | Tipo, nombre, descripción, estado (borrador \| listo \| deprecado), versión (asignada al confirmar), `lineageId` (misma familia de versiones), `supersedesFlowId` (borrador que reemplaza un listo). |

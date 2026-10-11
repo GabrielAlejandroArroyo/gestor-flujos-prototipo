@@ -9951,7 +9951,7 @@ ${hints.map(escape).join(";")}
           const btnMaster = btn?.dataset.master ?? "";
           group.classList.toggle("is-active", !abmDefId && master === btnMaster);
         });
-      } else if (view === "gestion" || view === "auth-users" || view === "auth-user-detail" || view === "user-profile") {
+      } else if (view === "gestion" || view === "auth-users" || view === "auth-user-detail" || view === "user-profile" || view === "data-backup") {
         operacionesGroup?.querySelector(".nav-group-toggle")?.classList.add("is-active");
         operacionesGroup?.querySelectorAll(".nav-sub-btn").forEach((b) => {
           const navView = b.dataset.view;
@@ -10244,7 +10244,7 @@ ${hints.map(escape).join(";")}
   }
 
   // js/app.js
-  var MOCK_BUNDLE_VERSION = "master-import-1";
+  var MOCK_BUNDLE_VERSION = "data-portability-1";
   function safeSyncMasterRecordsAbmNav(state) {
     try {
       syncMasterRecordsAbmNav(state);

@@ -3,6 +3,7 @@ import { ensureSeed } from "./seed.js";
 import { renderDesigner, enterDesignerCatalog } from "./designer.js";
 import { enterGestionHub, renderGestion } from "./gestion.js";
 import { renderReportView } from "./reports.js";
+import { renderDataBackupPage } from "./data-backup-ui.js";
 import { renderMaestros } from "./maestros.js";
 import { syncMasterRecordsAbmNav } from "./master-records-ui.js";
 import { masterRecordAbmMasterKey } from "./master-records-nav.js";
@@ -10,7 +11,7 @@ import { bindNavDrawer } from "./shell.js";
 import { escapeHtml, openModal, toast } from "./ui.js";
 
 /** Debe coincidir con el query de `index.html` (?v=...) para invalidar caché del bundle. */
-export const MOCK_BUNDLE_VERSION = "master-import-1";
+export const MOCK_BUNDLE_VERSION = "data-portability-1";
 
 function safeSyncMasterRecordsAbmNav(state) {
   try {
@@ -61,6 +62,15 @@ try {
     safeSyncMasterRecordsAbmNav(state);
   }
 
+  function reloadAppStateAfterPortableImport() {
+    logout();
+    loadAuthUsers();
+    state = ensureSeed(loadState());
+    safeSyncMasterRecordsAbmNav(state);
+    currentView = "data-backup";
+    syncAuthAndRender();
+  }
+
   function renderAppView() {
     if (!isAuthenticated()) {
       renderLoginScreen(mainEl, () => syncAuthAndRender());
@@ -96,6 +106,8 @@ try {
         enterDesignerCatalog("flows");
         renderAppView();
       });
+    } else if (currentView === "data-backup") {
+      renderDataBackupPage(mainEl, { onImported: reloadAppStateAfterPortableImport });
     }
   }
 
