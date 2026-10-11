@@ -8204,6 +8204,44 @@
     });
   }
 
+  // js/pages-bootstrap.js
+  var PAGES_SEED_APPLIED_KEY = "gestor_flujos_pages_seed_applied";
+  var BOOTSTRAP_URL = "data/github-pages-bootstrap.json";
+  function isGitHubPagesHost() {
+    const host = location.hostname.toLowerCase();
+    return host.endsWith(".github.io") || host === "github.io";
+  }
+  async function maybeApplyGitHubPagesBootstrap() {
+    if (!isGitHubPagesHost()) return false;
+    const params = new URLSearchParams(location.search);
+    const force = params.get("bootstrap") === "1" || params.get("seed") === "pages";
+    let res;
+    try {
+      res = await fetch(BOOTSTRAP_URL, { cache: "no-store" });
+    } catch {
+      return false;
+    }
+    if (!res.ok) return false;
+    let parsedJson;
+    try {
+      parsedJson = await res.json();
+    } catch {
+      return false;
+    }
+    const seedId = String(parsedJson.exportedAt ?? parsedJson.version ?? "0");
+    const already = localStorage.getItem(PAGES_SEED_APPLIED_KEY);
+    if (!force && already === seedId) return false;
+    const check = parsePortableImportFile(parsedJson);
+    if (!check.ok) {
+      console.warn("[mock] Bootstrap Pages inv\xE1lido:", check.message);
+      return false;
+    }
+    applyPortableStorageBundle(check.bundle);
+    localStorage.setItem(PAGES_SEED_APPLIED_KEY, seedId);
+    console.info(`[mock] Datos de Pages aplicados desde ${BOOTSTRAP_URL} (${seedId})`);
+    return true;
+  }
+
   // js/master-records-nav.js
   var MASTER_RECORD_ABM_PREFIX = "masterRecordAbm:";
   function masterRecordAbmMasterKey(definitionId) {
@@ -10406,7 +10444,7 @@ ${hints.map(escape).join(";")}
   }
 
   // js/app.js
-  var MOCK_BUNDLE_VERSION = "data-portability-1";
+  var MOCK_BUNDLE_VERSION = "pages-seed-1";
   function safeSyncMasterRecordsAbmNav(state) {
     try {
       syncMasterRecordsAbmNav(state);
@@ -10424,18 +10462,32 @@ ${hints.map(escape).join(";")}
       <p style="font-size:0.9rem;color:var(--muted)">Pruebe abrir con un servidor local, por ejemplo: <code>python -m http.server 8765</code> en la carpeta <code>prototipo</code>.</p>
     </section>`;
   }
-  try {
-    let persist = function() {
+  async function bootMockApp() {
+    const mainEl = document.getElementById("app-main");
+    if (!mainEl) {
+      throw new Error("Falta el contenedor principal #app-main.");
+    }
+    await maybeApplyGitHubPagesBootstrap();
+    logout();
+    loadAuthUsers();
+    let state = ensureSeed(loadState());
+    console.info(`[mock] Bundle ${MOCK_BUNDLE_VERSION}`);
+    let currentView = "designer";
+    let currentMaster = "flowTypes";
+    let authUserDetailId = null;
+    function persist() {
       saveState(state);
       safeSyncMasterRecordsAbmNav(state);
-    }, reloadAppStateAfterPortableImport = function() {
+    }
+    function reloadAppStateAfterPortableImport() {
       logout();
       loadAuthUsers();
       state = ensureSeed(loadState());
       safeSyncMasterRecordsAbmNav(state);
       currentView = "data-backup";
       syncAuthAndRender();
-    }, renderAppView = function() {
+    }
+    function renderAppView() {
       if (!isAuthenticated()) {
         renderLoginScreen(mainEl, () => syncAuthAndRender());
         return;
@@ -10472,11 +10524,13 @@ ${hints.map(escape).join(";")}
       } else if (currentView === "data-backup") {
         renderDataBackupPage(mainEl, { onImported: reloadAppStateAfterPortableImport });
       }
-    }, openUserProfile = function() {
+    }
+    function openUserProfile() {
       if (!isAuthenticated()) return;
       currentView = "user-profile";
       renderAppView();
-    }, syncAuthAndRender = function() {
+    }
+    function syncAuthAndRender() {
       const loggedIn = isAuthenticated();
       setAppShellAuthLocked(loggedIn);
       renderAuthHeaderChip(document.getElementById("auth-header-slot"), {
@@ -10484,18 +10538,7 @@ ${hints.map(escape).join(";")}
       });
       renderAppView();
       safeSyncMasterRecordsAbmNav(state);
-    };
-    const mainEl = document.getElementById("app-main");
-    if (!mainEl) {
-      throw new Error("Falta el contenedor principal #app-main.");
     }
-    logout();
-    loadAuthUsers();
-    let state = ensureSeed(loadState());
-    console.info(`[mock] Bundle ${MOCK_BUNDLE_VERSION}`);
-    let currentView = "designer";
-    let currentMaster = "flowTypes";
-    let authUserDetailId = null;
     let resizeTimer = null;
     window.addEventListener("resize", () => {
       if (!isAuthenticated()) return;
@@ -10627,8 +10670,9 @@ ${hints.map(escape).join(";")}
       });
     });
     syncAuthAndRender();
-  } catch (err) {
+  }
+  bootMockApp().catch((err) => {
     console.error(err);
     showBootError(err instanceof Error ? err.message : "Error desconocido.");
-  }
+  });
 })();

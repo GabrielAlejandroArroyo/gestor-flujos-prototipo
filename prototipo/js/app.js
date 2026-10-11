@@ -4,6 +4,7 @@ import { renderDesigner, enterDesignerCatalog } from "./designer.js";
 import { enterGestionHub, renderGestion } from "./gestion.js";
 import { renderReportView } from "./reports.js";
 import { renderDataBackupPage } from "./data-backup-ui.js";
+import { maybeApplyGitHubPagesBootstrap } from "./pages-bootstrap.js";
 import { renderMaestros } from "./maestros.js";
 import { syncMasterRecordsAbmNav } from "./master-records-ui.js";
 import { masterRecordAbmMasterKey } from "./master-records-nav.js";
@@ -11,7 +12,7 @@ import { bindNavDrawer } from "./shell.js";
 import { escapeHtml, openModal, toast } from "./ui.js";
 
 /** Debe coincidir con el query de `index.html` (?v=...) para invalidar caché del bundle. */
-export const MOCK_BUNDLE_VERSION = "data-portability-1";
+export const MOCK_BUNDLE_VERSION = "pages-seed-1";
 
 function safeSyncMasterRecordsAbmNav(state) {
   try {
@@ -41,11 +42,13 @@ function showBootError(message) {
     </section>`;
 }
 
-try {
+async function bootMockApp() {
   const mainEl = document.getElementById("app-main");
   if (!mainEl) {
     throw new Error("Falta el contenedor principal #app-main.");
   }
+
+  await maybeApplyGitHubPagesBootstrap();
 
   logout();
   loadAuthUsers();
@@ -270,7 +273,9 @@ try {
   });
 
   syncAuthAndRender();
-} catch (err) {
+}
+
+bootMockApp().catch((err) => {
   console.error(err);
   showBootError(err instanceof Error ? err.message : "Error desconocido.");
-}
+});
