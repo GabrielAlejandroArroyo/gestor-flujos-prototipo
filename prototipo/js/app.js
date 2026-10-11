@@ -4,7 +4,10 @@ import { renderDesigner, enterDesignerCatalog } from "./designer.js";
 import { enterGestionHub, renderGestion } from "./gestion.js";
 import { renderReportView } from "./reports.js";
 import { renderDataBackupPage } from "./data-backup-ui.js";
-import { maybeApplyGitHubPagesBootstrap } from "./pages-bootstrap.js";
+import {
+  maybeApplyGitHubPagesBootstrap,
+  renderDeployEnvironmentBadge,
+} from "./pages-bootstrap.js";
 import { renderMaestros } from "./maestros.js";
 import { syncMasterRecordsAbmNav } from "./master-records-ui.js";
 import { masterRecordAbmMasterKey } from "./master-records-nav.js";
@@ -12,7 +15,7 @@ import { bindNavDrawer } from "./shell.js";
 import { escapeHtml, openModal, toast } from "./ui.js";
 
 /** Debe coincidir con el query de `index.html` (?v=...) para invalidar caché del bundle. */
-export const MOCK_BUNDLE_VERSION = "pages-seed-1";
+export const MOCK_BUNDLE_VERSION = "testing-env-2";
 
 function safeSyncMasterRecordsAbmNav(state) {
   try {
@@ -49,6 +52,7 @@ async function bootMockApp() {
   }
 
   await maybeApplyGitHubPagesBootstrap();
+  renderDeployEnvironmentBadge();
 
   logout();
   loadAuthUsers();

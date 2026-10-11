@@ -9,10 +9,31 @@ Documento **personal**. Este mock **no** se despliega en Accusys, AccuOne ni rep
 | Qué | Enlace |
 |-----|--------|
 | **Mock en vivo (URL oficial)** | https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/ |
+| **Entorno testing (datos del repo)** | https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/testing.html |
 | **Repositorio** | https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo |
 | **Actions (deploys)** | https://github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo/actions |
 
 No hay Supabase en este despliegue: los flujos e instancias se guardan en **`localStorage` del navegador** en esa URL (no se sincronizan con Git ni con ninguna base).
+
+### Por qué no ves lo mismo que en local
+
+- **Origen distinto:** `http://127.0.0.1:8765` y `*.github.io` no comparten `localStorage`.
+- **Pages puede quedar con un estado viejo** (solo el seed demo de una visita anterior). Usá el entorno **testing** (abajo) para cargar el dataset versionado del repo.
+- Tras cargar datos, **iniciá sesión** de nuevo (`@luna` / `1234` en el mock).
+
+### Entorno testing (recomendado para QA)
+
+1. Abrí **testing.html** (fuerza `?env=testing&bootstrap=1`):
+   - https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/testing.html
+2. En la barra superior deberías ver el badge **Testing** y el botón **Recargar datos testing**.
+3. Dataset embebido: `prototipo/data/environments/testing-bootstrap.json` (flujos, instancias, maestros, entidades exportados desde tu Chrome local).
+
+Actualizar testing desde tu PC (después de seguir trabajando en local):
+
+```powershell
+cd "d:\gestor_flujos supabase"
+.\scripts\sync-local-to-pages.ps1 -Publish
+```
 
 ### App Next.js (motor en servidor)
 

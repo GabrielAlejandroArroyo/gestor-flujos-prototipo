@@ -21,7 +21,9 @@ Copy-Item (Join-Path $ChromeLs "MANIFEST-*") $Tmp -ErrorAction SilentlyContinue
 
 Push-Location $RepoRoot
 try {
-  node scripts/extract-chrome-localstorage.mjs ".tmp-chrome-ls" "prototipo/data/github-pages-bootstrap.json"
+  New-Item -ItemType Directory -Force -Path (Join-Path $RepoRoot "prototipo\data\environments") | Out-Null
+  node scripts/extract-chrome-localstorage.mjs ".tmp-chrome-ls" "prototipo/data/environments/testing-bootstrap.json"
+  Copy-Item (Join-Path $RepoRoot "prototipo\data\environments\testing-bootstrap.json") (Join-Path $RepoRoot "prototipo\data\github-pages-bootstrap.json") -Force
   & (Join-Path $RepoRoot "prototipo\build-mock.ps1")
   if ($Publish) {
     & (Join-Path $PSScriptRoot "mock-publish-github.ps1") -Message $Message

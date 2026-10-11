@@ -3,11 +3,13 @@
  * Uso: node scripts/extract-chrome-localstorage.mjs [ruta-leveldb-copia]
  */
 import { ClassicLevel } from "classic-level";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const dbPath = resolve(process.argv[2] ?? ".tmp-chrome-ls");
-const outPath = resolve(process.argv[3] ?? "prototipo/data/github-pages-bootstrap.json");
+const outPath = resolve(
+  process.argv[3] ?? "prototipo/data/environments/testing-bootstrap.json",
+);
 
 /** @param {Buffer} value */
 function decodeChromeLocalStorageValue(value) {
@@ -19,7 +21,8 @@ function decodeChromeLocalStorageValue(value) {
     buf = buf.subarray(1);
   }
   if (buf.length >= 2 && buf[0] === 0x7b && buf[1] === 0x00) {
-    return buf.toString("utf16le").replace(/\0/g, "");
+    const evenLen = buf.length - (buf.length % 2);
+    return buf.subarray(0, evenLen).toString("utf16le");
   }
   const asUtf8 = buf.toString("utf8").trimStart();
   if (asUtf8.startsWith("{") || asUtf8.startsWith("[")) {
@@ -71,12 +74,23 @@ if (!entries["gestor_flujos_prototipo_v3"]) {
   process.exit(1);
 }
 
+const exportedAt = new Date().toISOString();
 const bundle = {
   version: 1,
-  exportedAt: new Date().toISOString(),
+  environment: "testing",
+  seedVersion: exportedAt,
+  label: "Testing — exportado desde mock local",
+  exportedAt,
   origin: "http://127.0.0.1:8765",
   entries,
 };
 
+mkdirSync(resolve(outPath, ".."), { recursive: true });
 writeFileSync(outPath, JSON.stringify(bundle, null, 2), "utf8");
 console.log(`Escrito ${outPath}`);
+
+const legacyPath = resolve("prototipo/data/github-pages-bootstrap.json");
+if (legacyPath !== resolve(outPath)) {
+  writeFileSync(legacyPath, JSON.stringify(bundle, null, 2), "utf8");
+  console.log(`Escrito ${legacyPath} (compat)`);
+}

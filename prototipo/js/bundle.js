@@ -8127,6 +8127,29 @@
     URL.revokeObjectURL(url);
   }
 
+  // js/deploy-environments.js
+  var TESTING_DEPLOY_ENV = {
+    id: "testing",
+    label: "Testing",
+    bootstrapUrl: "data/environments/testing-bootstrap.json",
+    seedStorageKey: "gestor_flujos_pages_seed_testing"
+  };
+  function isGitHubPagesHost() {
+    const host = location.hostname.toLowerCase();
+    return host.endsWith(".github.io") || host === "github.io";
+  }
+  function getActiveDeployEnvironment() {
+    if (!isGitHubPagesHost()) return null;
+    const params = new URLSearchParams(location.search);
+    const envId = params.get("env") || TESTING_DEPLOY_ENV.id;
+    if (envId === TESTING_DEPLOY_ENV.id) return TESTING_DEPLOY_ENV;
+    return null;
+  }
+  function shouldForceDeploySeed() {
+    const params = new URLSearchParams(location.search);
+    return params.get("bootstrap") === "1" || params.get("seed") === "pages";
+  }
+
   // js/data-backup-ui.js
   function renderDataBackupPage(mainEl, opts) {
     const preview = exportPortableStorageBundle();
@@ -8146,6 +8169,12 @@
           ${PORTABLE_STORAGE_KEYS.map((k) => `<li><code>${escapeHtml(k)}</code></li>`).join("")}
         </ul>
       </div>
+      ${isGitHubPagesHost() ? `<div class="entity-meta-panel data-backup-pages-hint">
+        <h3 class="entity-meta-title">Entorno testing (GitHub Pages)</h3>
+        <p class="form-hint">Los datos de prueba viven en el repo (<code>data/environments/testing-bootstrap.json</code>). Si no ves flujos/maestros de local, abr\xED la URL de testing con recarga forzada:</p>
+        <p><code>${escapeHtml(`${location.origin}${location.pathname.replace(/[^/]+$/, "")}testing.html`)}</code></p>
+        <p class="form-hint">O us\xE1 el bot\xF3n \xABRecargar datos testing\xBB en la barra superior.</p>
+      </div>` : ""}
       <div class="data-backup-actions">
         <button type="button" class="btn btn-primary" id="btn-export-portable-data">Descargar respaldo (.json)</button>
       </div>
@@ -8205,41 +8234,89 @@
   }
 
   // js/pages-bootstrap.js
-  var PAGES_SEED_APPLIED_KEY = "gestor_flujos_pages_seed_applied";
-  var BOOTSTRAP_URL = "data/github-pages-bootstrap.json";
-  function isGitHubPagesHost() {
-    const host = location.hostname.toLowerCase();
-    return host.endsWith(".github.io") || host === "github.io";
+  function localStateLooksEmpty() {
+    const raw = localStorage.getItem("gestor_flujos_prototipo_v3");
+    if (!raw) return true;
+    try {
+      const state = JSON.parse(raw);
+      const flowCount = Array.isArray(state.flows) ? state.flows.length : 0;
+      const instanceCount = Array.isArray(state.instances) ? state.instances.length : 0;
+      return flowCount < 2 && instanceCount === 0;
+    } catch {
+      return true;
+    }
   }
-  async function maybeApplyGitHubPagesBootstrap() {
-    if (!isGitHubPagesHost()) return false;
-    const params = new URLSearchParams(location.search);
-    const force = params.get("bootstrap") === "1" || params.get("seed") === "pages";
+  function rememberSeedApplied(env, seedId) {
+    localStorage.setItem(env.seedStorageKey, seedId);
+    localStorage.setItem("gestor_flujos_deploy_env", env.id);
+  }
+  async function applyDeployEnvironmentSeed(env) {
+    const force = shouldForceDeploySeed();
     let res;
     try {
-      res = await fetch(BOOTSTRAP_URL, { cache: "no-store" });
+      res = await fetch(env.bootstrapUrl, { cache: "no-store" });
     } catch {
+      console.warn("[mock] No se pudo descargar bootstrap:", env.bootstrapUrl);
       return false;
     }
-    if (!res.ok) return false;
+    if (!res.ok) {
+      console.warn("[mock] Bootstrap HTTP", res.status, env.bootstrapUrl);
+      return false;
+    }
     let parsedJson;
     try {
       parsedJson = await res.json();
     } catch {
       return false;
     }
-    const seedId = String(parsedJson.exportedAt ?? parsedJson.version ?? "0");
-    const already = localStorage.getItem(PAGES_SEED_APPLIED_KEY);
-    if (!force && already === seedId) return false;
+    const seedId = String(
+      parsedJson.seedVersion ?? parsedJson.exportedAt ?? parsedJson.version ?? "0"
+    );
+    const already = localStorage.getItem(env.seedStorageKey);
+    if (!force && already === seedId && !localStateLooksEmpty()) {
+      return false;
+    }
     const check = parsePortableImportFile(parsedJson);
     if (!check.ok) {
-      console.warn("[mock] Bootstrap Pages inv\xE1lido:", check.message);
+      console.warn("[mock] Bootstrap inv\xE1lido:", check.message);
       return false;
     }
     applyPortableStorageBundle(check.bundle);
-    localStorage.setItem(PAGES_SEED_APPLIED_KEY, seedId);
-    console.info(`[mock] Datos de Pages aplicados desde ${BOOTSTRAP_URL} (${seedId})`);
+    rememberSeedApplied(env, seedId);
+    console.info(
+      `[mock] Entorno \xAB${env.label}\xBB: datos aplicados (${env.bootstrapUrl}, seed ${seedId})`
+    );
     return true;
+  }
+  async function maybeApplyGitHubPagesBootstrap() {
+    if (!isGitHubPagesHost()) return false;
+    const env = getActiveDeployEnvironment() ?? TESTING_DEPLOY_ENV;
+    return applyDeployEnvironmentSeed(env);
+  }
+  function renderDeployEnvironmentBadge() {
+    const env = getActiveDeployEnvironment();
+    if (!env) return;
+    const header = document.querySelector(".app-header .header-actions");
+    if (!header || document.getElementById("deploy-env-badge")) return;
+    const badge = document.createElement("span");
+    badge.id = "deploy-env-badge";
+    badge.className = "deploy-env-badge";
+    badge.title = "Datos cargados desde el repositorio (localStorage). Us\xE1 ?bootstrap=1 para forzar recarga.";
+    badge.textContent = env.label;
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "btn btn-ghost btn-sm deploy-env-reset";
+    reset.textContent = "Recargar datos testing";
+    reset.addEventListener("click", async () => {
+      const url = new URL(location.href);
+      url.searchParams.set("env", "testing");
+      url.searchParams.set("bootstrap", "1");
+      location.href = url.toString();
+    });
+    const wrap = document.createElement("div");
+    wrap.className = "deploy-env-wrap";
+    wrap.append(badge, reset);
+    header.prepend(wrap);
   }
 
   // js/master-records-nav.js
@@ -10444,7 +10521,7 @@ ${hints.map(escape).join(";")}
   }
 
   // js/app.js
-  var MOCK_BUNDLE_VERSION = "pages-seed-1";
+  var MOCK_BUNDLE_VERSION = "testing-env-2";
   function safeSyncMasterRecordsAbmNav(state) {
     try {
       syncMasterRecordsAbmNav(state);
@@ -10468,6 +10545,7 @@ ${hints.map(escape).join(";")}
       throw new Error("Falta el contenedor principal #app-main.");
     }
     await maybeApplyGitHubPagesBootstrap();
+    renderDeployEnvironmentBadge();
     logout();
     loadAuthUsers();
     let state = ensureSeed(loadState());

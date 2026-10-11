@@ -9,6 +9,7 @@ import {
   parsePortableImportFile,
   PORTABLE_STORAGE_KEYS,
 } from "./state-portability.js";
+import { isGitHubPagesHost } from "./deploy-environments.js";
 import { escapeHtml, renderPageHeader, toast } from "./ui.js";
 
 /**
@@ -37,6 +38,16 @@ export function renderDataBackupPage(mainEl, opts) {
           ${PORTABLE_STORAGE_KEYS.map((k) => `<li><code>${escapeHtml(k)}</code></li>`).join("")}
         </ul>
       </div>
+      ${
+        isGitHubPagesHost()
+          ? `<div class="entity-meta-panel data-backup-pages-hint">
+        <h3 class="entity-meta-title">Entorno testing (GitHub Pages)</h3>
+        <p class="form-hint">Los datos de prueba viven en el repo (<code>data/environments/testing-bootstrap.json</code>). Si no ves flujos/maestros de local, abrí la URL de testing con recarga forzada:</p>
+        <p><code>${escapeHtml(`${location.origin}${location.pathname.replace(/[^/]+$/, "")}testing.html`)}</code></p>
+        <p class="form-hint">O usá el botón «Recargar datos testing» en la barra superior.</p>
+      </div>`
+          : ""
+      }
       <div class="data-backup-actions">
         <button type="button" class="btn btn-primary" id="btn-export-portable-data">Descargar respaldo (.json)</button>
       </div>
