@@ -1,0 +1,15 @@
+---
+description: Texto UTF-8 Unicode en catálogos, descripciones y UI del mock
+globs: prototipo/**/*
+alwaysApply: false
+---
+
+# Texto Unicode (mock)
+
+Fuente canónica en repo: [`prototipo/docs/unicode-text.md`](prototipo/docs/unicode-text.md).
+
+- Catálogos de flujo/actividades, `description` de flujos/nodos/maestros, JSON bootstrap y seeds: **UTF-8 con caracteres literales** (es-AR).
+- No introducir `\uXXXX`, `\xNN`, `` ni mojibake (`뿯`).
+- Export Chrome → `scripts/extract-chrome-localstorage.mjs` (UTF-16 BE/LE).
+- Build mock: `charset=utf8` en esbuild. Verificar: `node scripts/verify-unicode-text.mjs`.
+- Símbolos repetidos: `prototipo/js/unicode-text.js` (`EM_DASH`, `ARROW_RIGHT`, etc.).

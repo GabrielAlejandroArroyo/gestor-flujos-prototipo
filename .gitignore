@@ -1,7 +1,7 @@
-# Cursor / IDE local (no subir reglas org)
-.cursor/
+# Cursor / IDE local (no subir config org; sí reglas versionadas del mock)
+.cursor/*
 !.cursor/rules/
-!.cursor/rules/*.mdc
+!.cursor/rules/**
 
 # Dependencias y secretos
 node_modules/
