@@ -10,6 +10,9 @@ gestor-app/.next/
 *.pem
 credentials.json
 
+# Chrome LS copy (sync-local-to-pages.ps1)
+.tmp-chrome-ls/
+
 # OS
 .DS_Store
 Thumbs.db
