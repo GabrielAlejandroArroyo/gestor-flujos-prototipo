@@ -48,24 +48,41 @@ Carpeta del proyecto en disco:
 d:\gestor_flujos supabase
 ```
 
-### 1. Si editaste fuentes en `prototipo/js/` (no solo HTML/CSS)
+### Camino recomendado (un comando)
+
+Desde la raíz del repo, en **rama `main`**:
+
+```powershell
+cd "d:\gestor_flujos supabase"
+.\scripts\mock-publish-github.ps1 -Message "feat(mock): descripción breve del cambio"
+```
+
+El script: regenera `bundle.js` → `git add prototipo/` → commit → pide confirmación → `git push origin main`. Solo commitea la carpeta `prototipo/`.
+
+Simular sin tocar Git: agregá `-DryRun`.
+
+Instrucciones y parámetros: [`scripts/README.md`](scripts/README.md).
+
+### Alternativa manual
+
+1. Build (si editaste `prototipo/js/`):
 
 ```powershell
 cd "d:\gestor_flujos supabase\prototipo"
 .\build-mock.ps1
 ```
 
-### 2. Commit y push a **tu** repo
+2. Commit y push:
 
 ```powershell
 cd "d:\gestor_flujos supabase"
 git status
-git add -A
+git add prototipo/
 git commit -m "feat(mock): descripción breve del cambio"
 git push origin main
 ```
 
-### 3. Esperar el deploy (~20 s)
+### Esperar el deploy (~20 s)
 
 ```powershell
 gh run list -R GabrielAlejandroArroyo/gestor-flujos-prototipo --workflow=deploy-pages.yml --limit 1
@@ -110,9 +127,11 @@ No agregues remotes de empresas u orgs ajenas a este proyecto personal.
 ## Desarrollo local (sin internet)
 
 ```powershell
-cd "d:\gestor_flujos supabase\prototipo"
-.\abrir-mock.ps1
+cd "d:\gestor_flujos supabase"
+.\scripts\mock-local.ps1 -Build
 ```
+
+Alternativa: `prototipo\abrir-mock.ps1` (sin build automático).
 
 Los datos de `file://` y los de `github.io` son **orígenes distintos**: no comparten `localStorage`.
 
@@ -138,6 +157,6 @@ Los datos de `file://` y los de `github.io` son **orígenes distintos**: no comp
 
 ## Resumen en una línea
 
-**Editás en local → (build-mock si hace falta) → push a `main` en GabrielAlejandroArroyo/gestor-flujos-prototipo → el sitio se actualiza solo.**
+**Editás en local → `mock-publish-github.ps1 -Message "..."` (o build + push manual) → el sitio se actualiza solo.**
 
 Regla platino: ver [PLATINO.md](PLATINO.md).

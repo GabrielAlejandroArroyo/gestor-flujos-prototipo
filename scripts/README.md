@@ -1,53 +1,90 @@
-# Scripts de desarrollo local
+# Scripts de desarrollo y publicación
 
-## Levantar mock + Next.js
+Ejecutá todo desde la **raíz del repo** salvo que se indique otra carpeta.
 
-Desde la **raíz del repo**:
+## Mock local — `mock-local.ps1`
+
+Sirve la carpeta `prototipo/` en **http://127.0.0.1:8765/index.html** (mismo contenido que GitHub Pages, datos distintos en `localStorage`).
 
 ```powershell
-cd "d:\gestor_flujos supabase"
-.\scripts\start-dev.ps1
+.\scripts\mock-local.ps1
+.\scripts\mock-local.ps1 -Build
+.\scripts\mock-local.ps1 -Port 8888 -NoBrowser
 ```
 
-Levanta el mock en segundo plano y **Next.js en la misma terminal** (logs de `npm run dev`). Abre el navegador en:
+| Parámetro | Uso |
+|-----------|-----|
+| `-Build` | Ejecuta `prototipo/build-mock.ps1` antes de servir (obligatorio tras cambiar `prototipo/js/`). |
+| `-Port` | Puerto HTTP (default `8765`). |
+| `-NoBrowser` | No abre el navegador automáticamente. |
+
+**Requisitos:** Python 3 (`python` o `py -3`). Para `-Build`: Node.js (esbuild vía `npx` en `build-mock.ps1`).
+
+**Detener:** Ctrl+C en la terminal.
+
+---
+
+## Publicar GitHub Pages — `mock-publish-github.ps1`
+
+Build del mock, commit **solo de `prototipo/`**, confirmación interactiva y **push a `main`**. Dispara el workflow [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml).
+
+**URL publicada:** https://gabrielalejandroarroyo.github.io/gestor-flujos-prototipo/
+
+```powershell
+.\scripts\mock-publish-github.ps1 -Message "feat(mock): importador ABM maestros"
+.\scripts\mock-publish-github.ps1 -Message "fix(mock): nav maestros" -DryRun
+.\scripts\mock-publish-github.ps1 -Message "chore(mock): bump cache" -SkipBuild
+```
+
+| Parámetro | Uso |
+|-----------|-----|
+| `-Message` | **Obligatorio.** Mensaje del commit (convención `tipo(mock): ...`). |
+| `-DryRun` | Muestra qué haría; no commit ni push. |
+| `-SkipBuild` | No ejecuta `build-mock.ps1` (usá si ya regeneraste el bundle). |
+
+**Preflight:**
+
+- Remote `origin` debe contener `GabrielAlejandroArroyo/gestor-flujos-prototipo` (regla platino).
+- Rama actual: `main`.
+- Antes del push pregunta: `Push a origin main? (s/N)`.
+
+**Requisitos:** Git. Para build: Node.js. Opcional: [GitHub CLI](https://cli.github.com/) (`gh`) para ver el último run de Actions.
+
+Si el commit falla por un hook, corregí y volvé a ejecutar el script (no usa `--no-verify`).
+
+Guía extendida: [DESPLIEGUE.md](../DESPLIEGUE.md).
+
+---
+
+## Mock + Next.js — `start-dev.ps1`
+
+Levanta el mock en segundo plano y Next.js en la misma terminal.
+
+```powershell
+.\scripts\start-dev.ps1
+.\scripts\start-dev.ps1 -Install -BuildMock
+.\scripts\start-dev.ps1 -SoloMock
+```
+
+| Flag | Uso |
+|------|-----|
+| `-BuildMock` | Ejecuta `prototipo/build-mock.ps1` antes de servir. |
+| `-Install` | `npm ci` en `gestor-app/`. |
+| `-SoloMock` | Solo `:8765` (equivalente a `mock-local.ps1` sin `-Build`). |
 
 | Servicio | URL |
 |----------|-----|
 | Prototipo (mock) | http://127.0.0.1:8765/index.html |
 | gestor-app | http://localhost:3000 |
-| Gestión (API) | http://localhost:3000/gestion |
 
-En el **mock** (`:8765`), bajo «Diseñador de flujo», están «Catálogo de flujos» y «Catálogo de actividades». En **Next** el sidebar tiene la misma estructura; el listado completo sigue en el mock hasta portar el diseñador.
+**Detener:** Ctrl+C (Next + mock en background).
 
-### Flags
+---
 
-| Flag | Uso |
-|------|-----|
-| `-BuildMock` | Ejecuta `prototipo/build-mock.ps1` antes de servir (tras cambios en `prototipo/js/`). |
-| `-Install` | Ejecuta `npm ci` en `gestor-app/` (primera vez o tras cambiar dependencias). |
-| `-SoloMock` | Solo el prototipo en `:8765` (sin Next). Usalo si solo queres el mock. |
+## Resumen
 
-Ejemplo:
-
-```powershell
-.\scripts\start-dev.ps1 -Install -BuildMock
-```
-
-### Requisitos
-
-- Python 3 (`python` o `py -3` en PATH)
-- Node.js LTS y `npm`
-- Primera vez en `gestor-app`: `.\scripts\start-dev.ps1 -Install`
-
-### Detener
-
-**Ctrl+C** en la terminal donde corriste el script: cierra Next.js y el servidor mock del puerto 8765.
-
-### Nota
-
-Esto **no** reemplaza GitHub Pages. La URL pública del mock sigue siendo la de [DESPLIEGUE.md](../DESPLIEGUE.md).
-
-Alternativas manuales:
-
-- Solo mock: `prototipo/abrir-mock.ps1`
-- Solo Next: `cd gestor-app; npm run dev`
+| Necesidad | Script |
+|-----------|--------|
+| Probar el mock en tu PC | `mock-local.ps1` |
+| Subir cambios del mock a Pages | `mock-publish-github.ps1` |
+| Mock + motor Next local | `start-dev.ps1` |

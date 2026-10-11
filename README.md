@@ -19,7 +19,21 @@ Repositorio **personal privado**. La app usable está en [`prototipo/`](prototip
 
 Instrucciones completas solo para vos: **[DESPLIEGUE.md](DESPLIEGUE.md)**.
 
-Los datos viven en `localStorage` del navegador (no se sincronizan con Git).
+Los datos viven en `localStorage` del navegador (no se sincronizan con Git). **Local** (`127.0.0.1`) y **Pages** (`github.io`) son orígenes distintos: no comparten datos.
+
+## Scripts rápidos
+
+Desde la **raíz del repo** (PowerShell):
+
+| Objetivo | Comando |
+|----------|---------|
+| **Mock local** (servidor en `:8765`) | `.\scripts\mock-local.ps1` |
+| Mock local + regenerar `bundle.js` | `.\scripts\mock-local.ps1 -Build` |
+| **Publicar en GitHub Pages** | `.\scripts\mock-publish-github.ps1 -Message "feat(mock): descripción"` |
+| Simular publish (sin commit ni push) | `.\scripts\mock-publish-github.ps1 -Message "..." -DryRun` |
+| Mock + Next.js (gestor-app) | `.\scripts\start-dev.ps1` (ver [`scripts/README.md`](scripts/README.md)) |
+
+Tras publicar: esperá el workflow **Deploy GitHub Pages** en verde (~20 s) y recargá la URL con **Ctrl+F5**. Detalle y fallos: **[DESPLIEGUE.md](DESPLIEGUE.md)**.
 
 ## Alcance
 
@@ -32,24 +46,24 @@ Ver [`PLATINO.md`](PLATINO.md): prohibido push, deploy o Supabase en entornos Ac
 
 ## Desarrollo local
 
-**Mock + Next.js (recomendado):**
+**Recomendado — solo mock:**
 
 ```powershell
 cd "d:\gestor_flujos supabase"
+.\scripts\mock-local.ps1 -Build
+```
+
+**Mock + Next.js:**
+
+```powershell
 .\scripts\start-dev.ps1          # primera vez: .\scripts\start-dev.ps1 -Install
 ```
 
-Detalle: [`scripts/README.md`](scripts/README.md).
+Detalle de flags y requisitos: [`scripts/README.md`](scripts/README.md).
 
 **Catálogos del diseñador:** crear, editar y versionar flujos solo en el **mock** (Pages o `http://127.0.0.1:8765/index.html`). En **gestor-app** (`:3000`) el menú es igual pero las pantallas son placeholders hasta portar React Flow.
 
-**Solo prototipo (mock):**
-
-```powershell
-cd prototipo
-.\build-mock.ps1   # tras cambios en js/
-.\abrir-mock.ps1   # http://127.0.0.1:8765/index.html
-```
+**Alternativa manual (prototipo):** `prototipo\build-mock.ps1` y `prototipo\abrir-mock.ps1`.
 
 **Solo gestor-app (Next.js):**
 
