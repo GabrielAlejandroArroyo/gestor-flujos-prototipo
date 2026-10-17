@@ -2502,3 +2502,116 @@ th {
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   }
 }
+
+.catalog-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.catalog-filters {
+  margin-bottom: var(--space-4);
+}
+
+.catalog-table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.badge-deprecado {
+  background: color-mix(in srgb, var(--muted) 25%, transparent);
+  color: var(--muted);
+}
+
+.gestion-hub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-3);
+}
+
+.gestion-tab {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.gestion-tab.is-active {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.designer-canvas {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--canvas-bg);
+}
+
+.designer-readonly-hint {
+  padding: var(--space-2) var(--space-3);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.maestros-layout {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.simple-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0 0;
+}
+
+.simple-list li {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xl);
+}
+
+.integracion-layout {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.integracion-group {
+  margin-top: var(--space-4);
+}
+
+.integracion-group h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+
+.integracion-pre {
+  overflow-x: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}

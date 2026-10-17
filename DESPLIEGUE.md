@@ -35,9 +35,18 @@ cd "d:\gestor_flujos supabase"
 .\scripts\sync-local-to-pages.ps1 -Publish
 ```
 
-### App Next.js (motor en servidor)
+### App Next.js (producto desplegable)
 
-La carpeta **`gestor-app/`** no se publica en Pages. Desplegala en **Vercel** (u otro host Node). Guía: [`gestor-app/DEPLOY.md`](gestor-app/DEPLOY.md).
+La carpeta **`gestor-app/`** no se publica en Pages. Opciones:
+
+| Modo | Guía |
+|------|------|
+| **Scripts** (Docker, dev, Vercel, Supabase) | `.\scripts\gestor.ps1 help` — guardia platino, sin AccuOne |
+| **Docker** (integración / on-prem) | `.\scripts\gestor.ps1 docker-up` o [`gestor-app/DEPLOY.md`](gestor-app/DEPLOY.md) |
+| **Vercel** | `.\scripts\gestor.ps1 vercel` (cuenta personal) |
+| **UI de integración** | `/integracion` y `GET /api/health` en la URL desplegada |
+
+Variables: [`gestor-app/.env.example`](gestor-app/.env.example). Persistencia: **Supabase propio** (migraciones en `gestor-app/supabase/migrations/`).
 
 ### Desarrollo local (mock + Next)
 

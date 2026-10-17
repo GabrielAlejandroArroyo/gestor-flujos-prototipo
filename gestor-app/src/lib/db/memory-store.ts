@@ -1,65 +1,41 @@
-import { createSampleFlowDefinition } from "@/lib/engine/sample-flow";
 import type { FlowDefinition, FlowInstance } from "@/lib/engine/flow-types";
-import type { FlowRow } from "@/lib/supabase/types";
+import { getMemoryState } from "./memory-full-state";
 import { instanceToRow, rowToInstance } from "./instance-mapper";
 
-const flows = new Map<string, FlowRow>();
-const instances = new Map<string, FlowInstance>();
-
-function seedIfEmpty(): void {
-  if (flows.size > 0) return;
-  const def = createSampleFlowDefinition();
-  const now = new Date().toISOString();
-  flows.set(def.id, {
-    id: def.id,
-    name: def.name,
-    type: def.type,
-    description: def.description ?? null,
-    status: def.status,
-    definition: def as unknown as Record<string, unknown>,
-    created_at: now,
-    updated_at: now,
-  });
-}
-
 export function memoryListReadyFlows(): FlowDefinition[] {
-  seedIfEmpty();
-  return [...flows.values()]
-    .filter((f) => f.status === "listo")
-    .map((f) => f.definition as unknown as FlowDefinition);
+  return getMemoryState()
+    .flows.filter((f) => f.status === "listo")
+    .map((f) => ({ ...f }));
 }
 
 export function memoryGetFlowById(flowId: string): FlowDefinition | null {
-  seedIfEmpty();
-  const row = flows.get(flowId);
-  if (!row) return null;
-  return row.definition as unknown as FlowDefinition;
+  const flow = getMemoryState().flows.find((f) => f.id === flowId);
+  return flow ? { ...flow } : null;
 }
 
 export function memorySaveInstance(instance: FlowInstance): FlowInstance {
-  instances.set(instance.id, structuredClone(instance));
-  return instance;
+  const state = getMemoryState();
+  const clone = structuredClone(instance);
+  const idx = state.instances.findIndex((i) => i.id === instance.id);
+  if (idx >= 0) state.instances[idx] = clone;
+  else state.instances.push(clone);
+  return clone;
 }
 
 export function memoryGetInstance(instanceId: string): FlowInstance | null {
-  const inst = instances.get(instanceId);
+  const inst = getMemoryState().instances.find((i) => i.id === instanceId);
   return inst ? structuredClone(inst) : null;
 }
 
 export function memoryListInstances(status?: string): FlowInstance[] {
-  const all = [...instances.values()].map((i) => structuredClone(i));
-  if (!status) return all;
-  return all.filter((i) => i.status === status);
+  let all = getMemoryState().instances.map((i) => structuredClone(i));
+  if (status) all = all.filter((i) => i.status === status);
+  return all.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
-export function memoryInstanceToPersist(instance: FlowInstance): void {
-  memorySaveInstance(instance);
-}
-
-/** Export para tests / depuración */
 export function memoryResetStore(): void {
-  flows.clear();
-  instances.clear();
+  const g = globalThis as typeof globalThis & { __gestorMockState?: unknown };
+  delete g.__gestorMockState;
 }
 
 export { instanceToRow, rowToInstance };

@@ -1,8 +1,10 @@
-export default function ReportePage() {
+import ReporteClient from "./ReporteClient";
+
+export default function ReportePage(): React.ReactElement {
   return (
-    <div className="panel">
-      <h2 className="panel-title">Reportes y Métricas</h2>
-      <p>Dashboard con estadísticas de ejecución de flujos.</p>
-    </div>
+    <>
+      <h1 className="page-title">Reportes</h1>
+      <ReporteClient />
+    </>
   );
 }

@@ -16,4 +16,5 @@ Solo si el titular del repo confirma **6 veces**, de forma explícita y separada
 
 - Remote: `github.com/GabrielAlejandroArroyo/gestor-flujos-prototipo` (público — solo para GitHub Pages Free).
 - Despliegue: ver [DESPLIEGUE.md](DESPLIEGUE.md) (instrucciones personales, sin Accusys).
+- **Gestor App:** scripts `.\scripts\gestor.ps1` con [`scripts/lib/platino-guard.ps1`](scripts/lib/platino-guard.ps1) (bloquean remote org y refs Supabase AccuOne).
 - `.cursor/` no se versiona (reglas locales opcionales en tu máquina).

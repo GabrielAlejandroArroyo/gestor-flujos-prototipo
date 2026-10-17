@@ -3,11 +3,24 @@
 import { getCurrentNode, statusLabel } from "@/lib/engine/core";
 import type { FlowDefinition, FlowInstance } from "@/lib/engine/flow-types";
 import { NODE_KINDS } from "@/lib/engine/flow-types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+type GestionTab = "en_curso" | "completada" | "cerrada_rechazo";
+
+const TABS: { id: GestionTab; label: string }[] = [
+  { id: "en_curso", label: "En curso" },
+  { id: "completada", label: "Completadas" },
+  { id: "cerrada_rechazo", label: "Cerradas por rechazo" },
+];
 
 export default function GestionClient(): React.ReactElement {
   const [flows, setFlows] = useState<FlowDefinition[]>([]);
-  const [instances, setInstances] = useState<FlowInstance[]>([]);
+  const [instancesByTab, setInstancesByTab] = useState<Record<GestionTab, FlowInstance[]>>({
+    en_curso: [],
+    completada: [],
+    cerrada_rechazo: [],
+  });
+  const [tab, setTab] = useState<GestionTab>("en_curso");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flowId, setFlowId] = useState<string>("");
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -15,24 +28,41 @@ export default function GestionClient(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const instances = instancesByTab[tab];
   const selectedFlow = flows.find((f) => f.id === flowId) ?? flows[0] ?? null;
   const selectedInstance = instances.find((i) => i.id === selectedId) ?? null;
   const currentNode = selectedInstance ? getCurrentNode(selectedInstance) : null;
 
+  const counts = useMemo(
+    () => ({
+      en_curso: instancesByTab.en_curso.length,
+      completada: instancesByTab.completada.length,
+      cerrada_rechazo: instancesByTab.cerrada_rechazo.length,
+    }),
+    [instancesByTab],
+  );
+
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
-    const [flowsRes, instRes] = await Promise.all([
-      fetch("/api/flows"),
+    const [flowsRes, enCursoRes, compRes, cerrRes] = await Promise.all([
+      fetch("/api/flows?readyOnly=1"),
       fetch("/api/instances?status=en_curso"),
+      fetch("/api/instances?status=completada"),
+      fetch("/api/instances?status=cerrada_rechazo"),
     ]);
     const flowsJson = (await flowsRes.json()) as { flows?: FlowDefinition[]; error?: string };
-    const instJson = (await instRes.json()) as { instances?: FlowInstance[]; error?: string };
+    const enJson = (await enCursoRes.json()) as { instances?: FlowInstance[] };
+    const compJson = (await compRes.json()) as { instances?: FlowInstance[] };
+    const cerrJson = (await cerrRes.json()) as { instances?: FlowInstance[] };
 
     if (!flowsRes.ok) throw new Error(flowsJson.error ?? "Error cargando flujos");
-    if (!instRes.ok) throw new Error(instJson.error ?? "Error cargando instancias");
 
     setFlows(flowsJson.flows ?? []);
-    setInstances(instJson.instances ?? []);
+    setInstancesByTab({
+      en_curso: enJson.instances ?? [],
+      completada: compJson.instances ?? [],
+      cerrada_rechazo: cerrJson.instances ?? [],
+    });
     if (!flowId && flowsJson.flows?.[0]) setFlowId(flowsJson.flows[0].id);
   }, [flowId]);
 
@@ -41,6 +71,10 @@ export default function GestionClient(): React.ReactElement {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Error"))
       .finally(() => setLoading(false));
   }, [refresh]);
+
+  useEffect(() => {
+    if (tab !== "en_curso") setSelectedId(null);
+  }, [tab]);
 
   async function handleStart(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -55,7 +89,10 @@ export default function GestionClient(): React.ReactElement {
       });
       const json = (await res.json()) as { instance?: FlowInstance; error?: string };
       if (!res.ok) throw new Error(json.error ?? "No se pudo iniciar");
-      if (json.instance) setSelectedId(json.instance.id);
+      if (json.instance) {
+        setSelectedId(json.instance.id);
+        setTab("en_curso");
+      }
       await refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error");
@@ -64,9 +101,7 @@ export default function GestionClient(): React.ReactElement {
     }
   }
 
-  async function handleResolve(
-    payload: Record<string, unknown>,
-  ): Promise<void> {
+  async function handleResolve(payload: Record<string, unknown>): Promise<void> {
     if (!selectedInstance) return;
     setBusy(true);
     setError(null);
@@ -137,38 +172,58 @@ export default function GestionClient(): React.ReactElement {
           </form>
         )}
 
-        <h3 className="panel-title" style={{ marginTop: "1.25rem" }}>
-          En curso ({instances.length})
-        </h3>
+        <div className="gestion-hub-tabs" role="tablist" aria-label="Estado de instancias">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`gestion-tab ${tab === t.id ? "is-active" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label} ({counts[t.id]})
+            </button>
+          ))}
+        </div>
+
         <div className="card-grid">
           {instances.map((inst) => {
-            const node = getCurrentNode(inst);
+            const node = tab === "en_curso" ? getCurrentNode(inst) : null;
             return (
               <article
                 key={inst.id}
                 className={`panel instance-card ${selectedId === inst.id ? "is-selected" : ""}`}
-                onClick={() => setSelectedId(inst.id)}
-                onKeyDown={(e) => e.key === "Enter" && setSelectedId(inst.id)}
-                role="button"
-                tabIndex={0}
+                onClick={() => tab === "en_curso" && setSelectedId(inst.id)}
+                onKeyDown={(e) => e.key === "Enter" && tab === "en_curso" && setSelectedId(inst.id)}
+                role={tab === "en_curso" ? "button" : undefined}
+                tabIndex={tab === "en_curso" ? 0 : undefined}
               >
                 <strong>{inst.flowName}</strong>
                 <div className="instance-card__meta">{inst.startedAt}</div>
-                <div className="instance-card__step">
-                  Pendiente: {node?.name ?? "—"}
-                </div>
+                {tab === "en_curso" ? (
+                  <div className="instance-card__step">Pendiente: {node?.name ?? "—"}</div>
+                ) : (
+                  <div className="instance-card__step">
+                    <span className={`badge badge-${inst.status === "completada" ? "completada" : "rechazada"}`}>
+                      {statusLabel(inst.status)}
+                    </span>
+                  </div>
+                )}
               </article>
             );
           })}
           {instances.length === 0 ? (
-            <p className="gestion-empty">Sin instancias activas.</p>
+            <p className="gestion-empty">Sin instancias en esta pestaña.</p>
           ) : null}
         </div>
       </section>
 
       <section className="panel resolver-panel">
         <h2 className="panel-title">Resolver actividad</h2>
-        {!selectedInstance ? (
+        {tab !== "en_curso" ? (
+          <p className="gestion-empty">Seleccioná la pestaña En curso para resolver tareas.</p>
+        ) : !selectedInstance ? (
           <p className="gestion-empty">Seleccioná una instancia en curso.</p>
         ) : !currentNode ? (
           <p>

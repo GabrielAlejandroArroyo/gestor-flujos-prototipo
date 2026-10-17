@@ -26,6 +26,9 @@ export interface FlowNode {
   kind: NodeKind;
   name: string;
   description?: string;
+  x?: number;
+  y?: number;
+  laneId?: string;
   gatewayType?: string;
   usedParamIds?: string[];
   aiPrompt?: string;
@@ -51,11 +54,16 @@ export interface FlowDefinition {
   type: string;
   name: string;
   description?: string;
-  status: "borrador" | "listo";
+  status: "borrador" | "listo" | "deprecado";
   inputParams: FlowInputParam[];
   nodes: FlowNode[];
   transitions: FlowTransition[];
   screens?: Record<string, { blocks: unknown[] }>;
+  lanes?: Array<{ id: string; name: string; height?: number }>;
+  flowTypeId?: string | null;
+  lineageId?: string;
+  version?: number | null;
+  supersedesFlowId?: string | null;
 }
 
 export interface TraceEntry {

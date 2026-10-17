@@ -3987,13 +3987,14 @@
       ${childRowsHtml}
     </tbody>`;
     }).join("");
-    const draftRows = onlyDeprecado || filters.status === "listo" ? "" : draftOnlyGroups.filter((group) => matches(group.borrador)).map(
+    const draftRows = onlyDeprecado || onlyBorrador || filters.status === "listo" ? "" : draftOnlyGroups.filter((group) => matches(group.borrador)).map(
       (group) => renderCatalogFlowTableRow(group.borrador, catalogBlocked, {
         rowClass: "catalog-row catalog-row--draft-only"
       })
     ).join("");
     const hasAnyFlow = state.flows.length > 0;
-    const hasListo = onlyDeprecado ? deprecadoFlatRows.length > 0 : lineageGroupsHtml.trim().length > 0;
+    const flatRows = onlyDeprecado ? deprecadoFlatRows : onlyBorrador ? borradorFlatRows : "";
+    const hasListo = onlyDeprecado || onlyBorrador ? flatRows.length > 0 : lineageGroupsHtml.trim().length > 0;
     const matchedCount = countCatalogFlowsMatching(state, filters);
     const hasTableContent = hasListo || draftRows.length > 0;
     const emptyBody = !hasAnyFlow ? `<div class="empty-state empty-state--rich">
@@ -4009,12 +4010,12 @@
           <strong>${onlyDeprecado ? "Sin flujos deprecados" : filters.status === "borrador" ? "Sin borradores" : "Sin flujos listos"}</strong>
           <p>${onlyDeprecado ? "No hay versiones deprecadas que coincidan con el filtro." : filters.status === "borrador" ? "No hay borradores pendientes con estos criterios." : "Activá un borrador pendiente para verlo acá como versión publicada."}</p>
         </div>` : "";
-    const listoTable = hasListo ? onlyDeprecado ? `<div class="table-wrap table-wrap--modern">
+    const listoTable = hasListo ? onlyDeprecado || onlyBorrador ? `<div class="table-wrap table-wrap--modern">
         <table class="table-modern catalog-flow-tree">
           <thead>
             <tr><th>Nombre</th><th>Tipo</th><th>Versión</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
-          <tbody>${deprecadoFlatRows}</tbody>
+          <tbody>${flatRows}</tbody>
         </table>
       </div>` : `<div class="table-wrap table-wrap--modern">
         <table class="table-modern catalog-flow-tree">

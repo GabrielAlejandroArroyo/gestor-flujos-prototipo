@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gestor de Flujos — App
 
-## Getting Started
+Plataforma Next.js para diseño BPMN, ejecución de instancias, maestros y auditoría, con backend Supabase.
 
-First, run the development server:
+## Inicio rápido
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Desde la **raíz del repo** (recomendado):
+
+```powershell
+.\scripts\gestor.ps1 env-init
+.\scripts\gestor.ps1 dev -Install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O manualmente en `gestor-app/`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+copy .env.example .env
+npm ci
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Abrir http://localhost:3000 · Integración: http://localhost:3000/integracion
 
-## Learn More
+## Docker
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+copy .env.example .env
+docker compose up -d --build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Detalle completo: **[DEPLOY.md](./DEPLOY.md)**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Estructura
 
-## Deploy on Vercel
+| Ruta | Descripción |
+|------|-------------|
+| `/` | Catálogo de flujos |
+| `/diseno/[flowId]` | Canvas React Flow |
+| `/gestion` | Instancias y resolución de tareas |
+| `/maestros` | Tipos, entidades, maestros |
+| `/reporte` | Auditoría |
+| `/datos` | Import / export |
+| `/integracion` | Health, API y ejemplos curl |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 · React 19 · TypeScript
+- Supabase (Postgres + RLS dev)
+- `@xyflow/react` (diagrama)
+
+## Licencia / despliegue
+
+Repo personal; ver [`../DESPLIEGUE.md`](../DESPLIEGUE.md) y [`../PLATINO.md`](../PLATINO.md).

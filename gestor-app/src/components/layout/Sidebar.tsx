@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PenTool, CheckSquare, BarChart } from "lucide-react";
+import { PenTool, CheckSquare, BarChart, Database, Layers, LogIn, Plug } from "lucide-react";
 
 const DESIGNER_SUB_ITEMS = [
   { name: "Catálogo de flujos", href: "/" },
@@ -20,7 +20,11 @@ export default function Sidebar({ isOpen }: { isOpen: boolean }) {
 
   const otherNavItems = [
     { name: "Gestión de actividades", href: "/gestion", icon: CheckSquare },
+    { name: "Maestros", href: "/maestros", icon: Layers },
     { name: "Reporte", href: "/reporte", icon: BarChart },
+    { name: "Datos", href: "/datos", icon: Database },
+    { name: "Integración", href: "/integracion", icon: Plug },
+    { name: "Login", href: "/login", icon: LogIn },
   ];
 
   return (

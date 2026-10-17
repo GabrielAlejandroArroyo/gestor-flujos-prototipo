@@ -95,10 +95,42 @@ Tras cambiar `prototipo/js/`, `build-mock.ps1` usa esbuild `--charset=utf8`.
 
 ---
 
+## Gestor App (producción) — `gestor.ps1`
+
+**Sin Accusys/AccuOne:** los scripts validan remote personal y bloquean refs Supabase de la org ([`PLATINO.md`](../PLATINO.md), [`lib/platino-guard.ps1`](lib/platino-guard.ps1)).
+
+```powershell
+.\scripts\gestor.ps1 help
+.\scripts\gestor.ps1 env-init
+.\scripts\gestor.ps1 dev -Install
+.\scripts\gestor.ps1 docker-up
+.\scripts\gestor.ps1 docker-seed
+.\scripts\gestor.ps1 import
+.\scripts\gestor.ps1 supabase-push
+.\scripts\gestor.ps1 vercel
+.\scripts\gestor.ps1 vercel -Production
+```
+
+| Acción | Qué hace |
+|--------|----------|
+| `env-init` | Copia `gestor-app/.env.example` → `.env` |
+| `dev` | `npm run dev` en gestor-app (:3000) |
+| `prod` | `npm run build` + `start` local |
+| `docker-up` / `docker-down` / `docker-logs` | Compose en `gestor-app/` |
+| `docker-seed` | Import testing vía profile `seed` |
+| `import` | `npm run import:testing` (Supabase del `.env`) |
+| `supabase-push` | Migraciones versionadas (`db push`) |
+| `vercel` | `npx vercel deploy` (preview o `-Production`) |
+
+Guía: [`gestor-app/DEPLOY.md`](../gestor-app/DEPLOY.md) · UI integración: http://localhost:3000/integracion
+
+---
+
 ## Resumen
 
 | Necesidad | Script |
 |-----------|--------|
+| **Gestor App (Docker / dev / Vercel personal)** | `gestor.ps1` |
 | Probar el mock en tu PC | `mock-local.ps1` |
 | Subir cambios del mock a Pages | `mock-publish-github.ps1` |
 | Mock + motor Next local | `start-dev.ps1` |
