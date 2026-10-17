@@ -12,6 +12,7 @@ Write-Host '  .\scripts\gestor.ps1 docker-seed       Import testing (profile see
 Write-Host '  .\scripts\gestor.ps1 import            Import CLI -> Supabase'
 Write-Host '  .\scripts\gestor.ps1 supabase-push     npx supabase db push (gestor-app)'
 Write-Host '  .\scripts\gestor.ps1 vercel            Deploy Vercel (cuenta personal)'
+Write-Host '  .\scripts\gestor.ps1 e2e               Playwright + videos en /e2e'
 Write-Host ''
 Write-Host 'URLs locales:' -ForegroundColor Yellow
 Write-Host '  App          http://localhost:3000'

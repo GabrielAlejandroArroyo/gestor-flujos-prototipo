@@ -166,6 +166,16 @@ Workflow [`.github/workflows/build-gestor-app.yml`](../.github/workflows/build-g
 
 ---
 
+## E2E y galería de casos de uso
+
+```powershell
+.\scripts\gestor.ps1 e2e
+```
+
+O en `gestor-app/`: `npm run test:e2e`. Videos en `public/e2e-replays/`. Galería: **http://localhost:3000/e2e**. Detalle: [`e2e/README.md`](e2e/README.md).
+
+---
+
 ## Relación con el prototipo HTML
 
 El mock en GitHub Pages (`prototipo/`) es referencia visual; **esta app** es el producto desplegable. No comparten `localStorage` con Pages; usá import/export o Supabase.

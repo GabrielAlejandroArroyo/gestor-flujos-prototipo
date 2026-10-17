@@ -14,7 +14,8 @@ param(
     "docker-seed",
     "import",
     "supabase-push",
-    "vercel"
+    "vercel",
+    "e2e"
   )]
   [string]$Action = "help",
   [switch]$Force,
@@ -36,6 +37,7 @@ $map = @{
   "import"         = "gestor-import-testing.ps1"
   "supabase-push"  = "gestor-supabase-push.ps1"
   "vercel"         = "gestor-vercel.ps1"
+  "e2e"            = "gestor-e2e.ps1"
 }
 
 if ($Action -eq "help") {

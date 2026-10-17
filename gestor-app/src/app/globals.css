@@ -2615,3 +2615,128 @@ th {
   font-size: var(--text-sm);
   line-height: 1.5;
 }
+
+.e2e-gallery {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.e2e-hero {
+  max-width: 52rem;
+}
+
+.e2e-kicker {
+  margin: 0 0 var(--space-2);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.e2e-meta {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.e2e-search {
+  width: min(28rem, 100%);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.e2e-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 960px) {
+  .e2e-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.e2e-card h3 {
+  margin: var(--space-2) 0;
+  font-size: var(--text-lg);
+}
+
+.e2e-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.e2e-quote {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  font-style: italic;
+}
+
+.e2e-steps {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.25rem;
+  font-size: var(--text-sm);
+}
+
+.e2e-expected {
+  font-size: var(--text-sm);
+}
+
+.e2e-video {
+  display: block;
+  width: 100%;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #000;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+
+.e2e-video--empty {
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  background: var(--surface-2);
+}
+
+.e2e-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.e2e-foot {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.e2e-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+}
+
+.e2e-badge--ok {
+  background: color-mix(in srgb, var(--success) 22%, transparent);
+  color: var(--success);
+}
+
+.e2e-badge--fail {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  color: var(--danger);
+}
+
+.e2e-badge--pending {
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  color: var(--muted);
+}

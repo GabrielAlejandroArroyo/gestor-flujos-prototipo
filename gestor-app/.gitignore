@@ -12,6 +12,13 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/public/e2e-replays/*.webm
+/public/e2e-replays/*.png
+/public/e2e-replays/index.json
 
 # next.js
 /.next/

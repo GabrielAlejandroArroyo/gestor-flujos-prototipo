@@ -22,15 +22,21 @@ export default function FlowCatalogClient(): React.ReactElement {
     if (q.trim()) params.set("q", q.trim());
     if (status) params.set("status", status);
     if (flowTypeId) params.set("flowTypeId", flowTypeId);
-    const [flowsRes, typesRes] = await Promise.all([
-      fetch(`/api/flows?${params.toString()}`),
-      fetch("/api/flow-types"),
-    ]);
-    const flowsJson = (await flowsRes.json()) as { flows?: MockFlowDefinition[]; error?: string };
-    const typesJson = (await typesRes.json()) as { flowTypes?: FlowTypeRow[] };
-    if (!flowsRes.ok) throw new Error(flowsJson.error ?? "Error cargando flujos");
-    setFlows(sortFlowsForCatalog(flowsJson.flows ?? []));
-    setFlowTypes(typesJson.flowTypes ?? []);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const [flowsRes, typesRes] = await Promise.all([
+        fetch(`/api/flows?${params.toString()}`, { signal: controller.signal }),
+        fetch("/api/flow-types", { signal: controller.signal }),
+      ]);
+      const flowsJson = (await flowsRes.json()) as { flows?: MockFlowDefinition[]; error?: string };
+      const typesJson = (await typesRes.json()) as { flowTypes?: FlowTypeRow[] };
+      if (!flowsRes.ok) throw new Error(flowsJson.error ?? "Error cargando flujos");
+      setFlows(sortFlowsForCatalog(flowsJson.flows ?? []));
+      setFlowTypes(typesJson.flowTypes ?? []);
+    } finally {
+      clearTimeout(timer);
+    }
   }, [q, status, flowTypeId]);
 
   useEffect(() => {
@@ -94,7 +100,8 @@ export default function FlowCatalogClient(): React.ReactElement {
 
   if (loading) {
     return (
-      <section className="panel panel--catalog">
+      <section className="panel panel--catalog" data-testid="catalog-loading">
+        <h2 className="panel-title">Catálogo de flujos</h2>
         <p className="gestion-empty">Cargando catálogo…</p>
       </section>
     );
@@ -104,7 +111,13 @@ export default function FlowCatalogClient(): React.ReactElement {
     <section className="panel panel--catalog">
       <div className="catalog-header">
         <h2 className="panel-title">Catálogo de flujos</h2>
-        <button type="button" className="btn btn-primary" disabled={busyId === "new"} onClick={handleCreate}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          data-testid="catalog-new"
+          disabled={busyId === "new"}
+          onClick={handleCreate}
+        >
           Nuevo borrador
         </button>
       </div>
@@ -114,11 +127,16 @@ export default function FlowCatalogClient(): React.ReactElement {
       <div className="catalog-filters form-grid">
         <div className="form-row">
           <label>Buscar</label>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre o tipo" />
+          <input
+            data-testid="catalog-search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Nombre o tipo"
+          />
         </div>
         <div className="form-row">
           <label>Estado</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select data-testid="catalog-status" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Todos</option>
             <option value="borrador">Borrador</option>
             <option value="listo">Listo</option>
@@ -127,7 +145,7 @@ export default function FlowCatalogClient(): React.ReactElement {
         </div>
         <div className="form-row">
           <label>Tipo de flujo</label>
-          <select value={flowTypeId} onChange={(e) => setFlowTypeId(e.target.value)}>
+          <select data-testid="catalog-type" value={flowTypeId} onChange={(e) => setFlowTypeId(e.target.value)}>
             <option value="">Todos</option>
             {flowTypes.map((ft) => (
               <option key={ft.id} value={ft.id}>
@@ -139,7 +157,7 @@ export default function FlowCatalogClient(): React.ReactElement {
       </div>
 
       <div className="catalog-table-wrap">
-        <table className="data-table">
+        <table className="data-table" data-testid="catalog-table">
           <thead>
             <tr>
               <th>Nombre</th>

@@ -121,6 +121,7 @@ Tras cambiar `prototipo/js/`, `build-mock.ps1` usa esbuild `--charset=utf8`.
 | `import` | `npm run import:testing` (Supabase del `.env`) |
 | `supabase-push` | Migraciones versionadas (`db push`) |
 | `vercel` | `npx vercel deploy` (preview o `-Production`) |
+| `e2e` | Playwright; videos en `/e2e` |
 
 Guía: [`gestor-app/DEPLOY.md`](../gestor-app/DEPLOY.md) · UI integración: http://localhost:3000/integracion
 

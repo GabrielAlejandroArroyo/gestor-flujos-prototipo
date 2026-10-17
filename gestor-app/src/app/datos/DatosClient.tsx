@@ -54,13 +54,29 @@ export default function DatosClient(): React.ReactElement {
     <section className="panel">
       <h2 className="panel-title">Export / Import</h2>
       <p>Importá el bootstrap de testing o exportá el estado actual al formato del mock.</p>
-      {message ? <p style={{ color: "var(--success)" }}>{message}</p> : null}
+      {message ? (
+        <p data-testid="datos-message" style={{ color: "var(--success)" }}>
+          {message}
+        </p>
+      ) : null}
       {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
       <div className="preview-actions">
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={importTesting}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          data-testid="import-testing"
+          disabled={busy}
+          onClick={importTesting}
+        >
           Importar testing-bootstrap
         </button>
-        <button type="button" className="btn btn-ghost" disabled={busy} onClick={exportData}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          data-testid="export-json"
+          disabled={busy}
+          onClick={exportData}
+        >
           Exportar JSON
         </button>
       </div>

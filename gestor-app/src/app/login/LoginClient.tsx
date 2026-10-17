@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginClient(): React.ReactElement {
   const router = useRouter();
@@ -9,6 +9,11 @@ export default function LoginClient(): React.ReactElement {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -32,18 +37,27 @@ export default function LoginClient(): React.ReactElement {
   }
 
   return (
-    <section className="panel login-panel">
+    <section className="panel login-panel" data-hydrated={hydrated ? "true" : "false"}>
       <h2 className="panel-title">Iniciar sesión</h2>
       <p className="gestion-empty">Usuarios mock (misma semántica que el prototipo).</p>
       {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
-      <form className="form-grid" onSubmit={handleSubmit}>
+      <form className="form-grid" data-testid="login-form" onSubmit={handleSubmit}>
         <div className="form-row">
-          <label>Usuario</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
+          <label htmlFor="login-username">Usuario</label>
+          <input
+            id="login-username"
+            data-testid="login-username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+          />
         </div>
         <div className="form-row">
-          <label>Contraseña</label>
+          <label htmlFor="login-password">Contraseña</label>
           <input
+            id="login-password"
+            data-testid="login-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -51,7 +65,7 @@ export default function LoginClient(): React.ReactElement {
             required
           />
         </div>
-        <button type="submit" className="btn btn-primary" disabled={busy}>
+        <button type="submit" className="btn btn-primary" data-testid="login-submit" disabled={busy}>
           Entrar
         </button>
       </form>

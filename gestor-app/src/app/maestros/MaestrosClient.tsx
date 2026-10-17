@@ -63,12 +63,13 @@ export default function MaestrosClient(): React.ReactElement {
         <h2 className="panel-title">Tipos de flujo</h2>
         <form className="form-grid inline-form" onSubmit={addFlowType}>
           <input
+            data-testid="flow-type-name"
             value={newTypeName}
             onChange={(e) => setNewTypeName(e.target.value)}
             placeholder="Nombre del tipo"
             required
           />
-          <button type="submit" className="btn btn-primary">
+          <button type="submit" className="btn btn-primary" data-testid="flow-type-add">
             Agregar
           </button>
         </form>

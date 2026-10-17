@@ -80,7 +80,7 @@ export default function IntegracionClient(): React.ReactElement {
         </p>
         {healthError ? <p style={{ color: "var(--danger)" }}>{healthError}</p> : null}
         {health ? (
-          <ul className="simple-list">
+          <ul className="simple-list" data-testid="health-status">
             <li>
               <strong>Health:</strong> {health.status} · v{health.version}
             </li>

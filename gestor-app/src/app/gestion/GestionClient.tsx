@@ -166,7 +166,7 @@ export default function GestionClient(): React.ReactElement {
                 />
               </div>
             ))}
-            <button type="submit" className="btn btn-primary" disabled={busy}>
+            <button type="submit" className="btn btn-primary" data-testid="gestion-start" disabled={busy}>
               Iniciar instancia
             </button>
           </form>
@@ -180,6 +180,7 @@ export default function GestionClient(): React.ReactElement {
               role="tab"
               aria-selected={tab === t.id}
               className={`gestion-tab ${tab === t.id ? "is-active" : ""}`}
+              data-testid={`gestion-tab-${t.id}`}
               onClick={() => setTab(t.id)}
             >
               {t.label} ({counts[t.id]})
